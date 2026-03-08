@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>FastMap PDF Generator</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+    <style>
+        body, html { height: 100%; margin: 0; }
+        #map { height: 100%; width: 100%; }
+        .controls {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: rgba(255,255,255,0.95);
+            padding: 12px;
+            border-radius: 6px;
+            font-family: sans-serif;
+            z-index: 1000;
+            min-width: 200px;
+        }
+        .controls label { display: block; margin-bottom: 6px; }
+        .controls button { margin-top: 8px; padding: 6px 12px; font-size: 14px; }
+    </style>
+</head>
+<body>
+
+<div id="map"></div>
+
+<div class="controls">
+    <label>
+        Paper size:
+        <select id="paperSize">
+            <option value="A4">A4</option>
+            <option value="A3">A3</option>
+        </select>
+    </label>
+    <label>
+        Orientation:
+        <select id="orientation">
+            <option value="portrait">Portrait</option>
+            <option value="landscape">Landscape</option>
+        </select>
+    </label>
+    <label>
+        Scale (1:x):
+        <input type="number" id="scale" value="25000" step="5000">
+    </label>
+    <div id="bboxInfo" style="margin-top:6px; font-size:0.9em;"></div>
+    <button id="generatePdfBtn">Generate PDF</button>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+    // Initialize map
+    const map = L.map('map').setView([60.2055, 24.6559], 13);
+    L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        attribution: '&copy; OpenTopoMap contributors'
+    }).addTo(map);
+
+    const PAPER_SIZES = {
+        "A4": {width: 210, height: 297}, // mm
+        "A3": {width: 297, height: 420}
+    };
+
+    let bboxRect = null;
+
+    function metersToDegrees(lat, metersX, metersY) {
+        const degLat = metersY / 111320;
+        const degLon = metersX / (111320 * Math.cos(lat * Math.PI / 180));
+        return [degLat, degLon];
+    }
+
+    function updateBBoxBounds() {
+        const paperSize = document.getElementById('paperSize').value;
+        const orientation = document.getElementById('orientation').value;
+        const scale = parseInt(document.getElementById('scale').value);
+
+        const center = map.getCenter();
+        const lat = center.lat;
+        const lon = center.lng;
+
+        let width_mm = PAPER_SIZES[paperSize].width;
+        let height_mm = PAPER_SIZES[paperSize].height;
+        if (orientation === "landscape") [width_mm, height_mm] = [height_mm, width_mm];
+
+        const width_m = width_mm / 1000 * scale;
+        const height_m = height_mm / 1000 * scale;
+
+        const [deltaLat, deltaLon] = metersToDegrees(lat, width_m, height_m);
+
+        const south = lat - deltaLat / 2;
+        const north = lat + deltaLat / 2;
+        const west = lon - deltaLon / 2;
+        const east = lon + deltaLon / 2;
+
+        const bounds = [[south, west], [north, east]];
+
+        if (bboxRect) {
+            bboxRect.setBounds(bounds);
+        } else {
+            // Make rectangle non-interactive so left-button drags pass through to the map (map panning)
+            bboxRect = L.rectangle(bounds, {color: "red", weight: 2, fillOpacity: 0.1, interactive: false});
+            bboxRect.addTo(map);
+        }
+
+        document.getElementById('bboxInfo').innerText =
+            `Width: ${width_m.toFixed(0)} m, Height: ${height_m.toFixed(0)} m`;
+    }
+
+    // Initial draw
+    updateBBoxBounds();
+
+    // Allow map panning with left-button drag by making the rectangle non-interactive.
+    // Use right-button drag to move the rectangle: listen for right-button mousedown on the map,
+    // check whether the click started inside the rectangle, and then move the rectangle while
+    // the right button is held.
+
+    // Prevent the browser context menu from appearing on right-click inside the map
+    map.getContainer().addEventListener('contextmenu', function(ev) { ev.preventDefault(); });
+
+    // Right-click drag & double-right-click handling
+    // We'll implement a custom double-right-click detector because browsers
+    // often don't emit dblclick for the right button. The logic below:
+    // - On right-button mousedown inside the bbox, start a short timer
+    //   (and a small movement watcher). If a second right mousedown occurs
+    //   inside the timeout, treat it as a double-right-click and recenter
+    //   the bbox.
+    // - If the user moves the mouse beyond a small threshold, begin a drag
+    //   immediately. This avoids delaying drag responsiveness.
+
+    let lastRightMousedownTime = 0;
+    const RIGHT_DBL_TIMEOUT = 350; // ms
+    let dragStartTimer = null;
+    let dragStarterMoveHandler = null;
+    let isRectDragging = false;
+    let activeDragMoveHandler = null;
+    let activeDragUpHandler = null;
+
+    function recenterBBoxAt(latlng) {
+        if (!bboxRect) return;
+        const currentBounds = bboxRect.getBounds();
+        const latSpan = currentBounds.getNorth() - currentBounds.getSouth();
+        const lngSpan = currentBounds.getEast() - currentBounds.getWest();
+        const newBounds = [
+            [latlng.lat - latSpan / 2, latlng.lng - lngSpan / 2],
+            [latlng.lat + latSpan / 2, latlng.lng + lngSpan / 2]
+        ];
+        bboxRect.setBounds(newBounds);
+    }
+
+    map.on('mousedown', function(e) {
+        const original = e.originalEvent || {};
+        if (original.button !== 2) return; // only care about right-button
+        if (!bboxRect) return;
+
+        // Prevent context menu when clicking inside bbox
+        original.preventDefault && original.preventDefault();
+
+        const now = Date.now();
+        if (lastRightMousedownTime && (now - lastRightMousedownTime) <= RIGHT_DBL_TIMEOUT) {
+            // Double-right-click detected: cancel any pending drag starter and recenter
+            lastRightMousedownTime = 0;
+            if (dragStartTimer) { clearTimeout(dragStartTimer); dragStartTimer = null; }
+            if (dragStarterMoveHandler) { map.off('mousemove', dragStarterMoveHandler); dragStarterMoveHandler = null; }
+            recenterBBoxAt(e.latlng);
+            return;
+        }
+
+        // Not a double yet: record time and set up drag starter
+        lastRightMousedownTime = now;
+
+        // Compute container point to detect movement in pixels
+        const startPoint = map.latLngToContainerPoint(e.latlng);
+        const MOVE_THRESHOLD = 6; // pixels
+
+        function startDrag(startLatLng) {
+            isRectDragging = true;
+            map.dragging.disable();
+            let prevLatLng = startLatLng;
+
+            activeDragMoveHandler = function(ev) {
+                const deltaLat = ev.latlng.lat - prevLatLng.lat;
+                const deltaLng = ev.latlng.lng - prevLatLng.lng;
+                const currentBounds = bboxRect.getBounds();
+                const newBounds = [
+                    [currentBounds.getSouth() + deltaLat, currentBounds.getWest() + deltaLng],
+                    [currentBounds.getNorth() + deltaLat, currentBounds.getEast() + deltaLng]
+                ];
+                bboxRect.setBounds(newBounds);
+                prevLatLng = ev.latlng;
+            };
+
+            activeDragUpHandler = function() {
+                map.off('mousemove', activeDragMoveHandler);
+                map.off('mouseup', activeDragUpHandler);
+                isRectDragging = false;
+                map.dragging.enable();
+            };
+
+            map.on('mousemove', activeDragMoveHandler);
+            map.on('mouseup', activeDragUpHandler);
+        }
+
+        // Watch for small movement to start drag immediately
+        dragStarterMoveHandler = function(ev) {
+            const pt = map.latLngToContainerPoint(ev.latlng);
+            if (pt.distanceTo(startPoint) > MOVE_THRESHOLD) {
+                if (dragStartTimer) { clearTimeout(dragStartTimer); dragStartTimer = null; }
+                map.off('mousemove', dragStarterMoveHandler);
+                dragStarterMoveHandler = null;
+                startDrag(ev.latlng);
+            }
+        };
+
+        map.on('mousemove', dragStarterMoveHandler);
+
+        // If no movement within a short delay, start drag (for press-and-hold drags)
+        dragStartTimer = setTimeout(() => {
+            dragStartTimer = null;
+            if (dragStarterMoveHandler) { map.off('mousemove', dragStarterMoveHandler); dragStarterMoveHandler = null; }
+            startDrag(e.latlng);
+        }, 220);
+
+        // Ensure we clean up if mouseup occurs without dragging
+        const oneUp = function() {
+            if (dragStartTimer) { clearTimeout(dragStartTimer); dragStartTimer = null; }
+            if (dragStarterMoveHandler) { map.off('mousemove', dragStarterMoveHandler); dragStarterMoveHandler = null; }
+            map.off('mouseup', oneUp);
+        };
+        map.on('mouseup', oneUp);
+    });
+
+    // Update rectangle on control changes
+    document.getElementById('paperSize').addEventListener('change', updateBBoxBounds);
+    document.getElementById('orientation').addEventListener('change', updateBBoxBounds);
+    document.getElementById('scale').addEventListener('input', updateBBoxBounds);
+
+    // --- Generate PDF Button ---
+    document.getElementById('generatePdfBtn').addEventListener('click', async () => {
+        if (!bboxRect) return alert("Rectangle not ready");
+
+        const center = bboxRect.getBounds().getCenter();
+        const scale = parseInt(document.getElementById('scale').value);
+        const paperSize = document.getElementById('paperSize').value;
+        const orientation = document.getElementById('orientation').value;
+
+        const payload = {
+            lat: center.lat,
+            lon: center.lng,
+            scale: scale,
+            paper_size: paperSize,
+            orientation: orientation
+        };
+
+        try {
+            const response = await fetch('http://127.0.0.1:8000/generate-map', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+
+            if (!response.ok) throw new Error("Failed to generate PDF");
+
+            const blob = await response.blob();
+
+            // Try to get filename from Content-Disposition header
+            let filename = 'map.pdf';
+            try {
+                const disposition = response.headers.get('content-disposition') || response.headers.get('Content-Disposition');
+                if (disposition) {
+                    // Support both filename="name.pdf" and filename*=UTF-8''name.pdf
+                    const fileNameMatch = disposition.match(/filename\*=(?:UTF-8'')?"?([^";]+)"?/i);
+                    if (fileNameMatch && fileNameMatch[1]) {
+                        filename = decodeURIComponent(fileNameMatch[1]);
+                    } else {
+                        const fileNameMatch2 = disposition.match(/filename="?([^";]+)"?/i);
+                        if (fileNameMatch2 && fileNameMatch2[1]) {
+                            filename = fileNameMatch2[1];
+                        }
+                    }
+                }
+            } catch (e) {
+                // ignore parsing errors and fall back to default
+            }
+
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            URL.revokeObjectURL(url);
+
+        } catch (err) {
+            alert("Error: " + err.message);
+        }
+    });
+
+</script>
+</body>
+</html>
