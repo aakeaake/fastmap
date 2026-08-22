@@ -1,289 +1,285 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="fi">
 <head>
     <meta charset="UTF-8">
-    <title>FastMap PDF Generator</title>
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FastMap – tulostuskelpoiset kartat</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ol@10/ol.css">
     <style>
-        body, html { height: 100%; margin: 0; }
-        #map { height: 100%; width: 100%; }
-        .controls {
-            position: absolute;
-            top: 10px;
-            left: 10px;
-            background: rgba(255,255,255,0.95);
-            padding: 12px;
-            border-radius: 6px;
-            font-family: sans-serif;
-            z-index: 1000;
-            min-width: 200px;
+        html, body { height: 100%; margin: 0; font-family: system-ui, sans-serif; }
+        #map { position: absolute; inset: 0; }
+
+        .panel {
+            position: absolute; top: 12px; left: 12px; z-index: 1000;
+            background: rgba(255,255,255,.96); border-radius: 8px;
+            padding: 14px 16px; width: 250px;
+            box-shadow: 0 2px 10px rgba(0,0,0,.25);
         }
-        .controls label { display: block; margin-bottom: 6px; }
-        .controls button { margin-top: 8px; padding: 6px 12px; font-size: 14px; }
+        .panel h1 { font-size: 16px; margin: 0 0 10px; }
+        .panel label { display: block; font-size: 12px; color: #333; margin: 8px 0 2px; }
+        .panel select, .panel input {
+            width: 100%; box-sizing: border-box; padding: 5px;
+            border: 1px solid #bbb; border-radius: 4px; font-size: 13px;
+        }
+        .row { display: flex; gap: 8px; }
+        .row > div { flex: 1; }
+        #info { font-size: 12px; color: #555; margin-top: 10px; line-height: 1.45; }
+        #generateBtn {
+            margin-top: 12px; width: 100%; padding: 9px;
+            background: #1a6b3c; border: none; border-radius: 5px;
+            color: #fff; font-size: 14px; font-weight: 600; cursor: pointer;
+        }
+        #generateBtn:hover { background: #14572f; }
+        #generateBtn:disabled { background: #9bbfa8; cursor: wait; }
+        #status { font-size: 12px; margin-top: 8px; min-height: 15px; }
+        #status.error { color: #b00020; font-weight: 600; }
+        .hint {
+            position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%);
+            z-index: 1000; background: rgba(255,255,255,.85); border-radius: 4px;
+            padding: 4px 12px; font-size: 12px; color: #444;
+        }
     </style>
 </head>
 <body>
-
 <div id="map"></div>
 
-<div class="controls">
-    <label>
-        Paper size:
-        <select id="paperSize">
-            <option value="A4">A4</option>
-            <option value="A3">A3</option>
-        </select>
-    </label>
-    <label>
-        Orientation:
-        <select id="orientation">
-            <option value="portrait">Portrait</option>
-            <option value="landscape">Landscape</option>
-        </select>
-    </label>
-    <label>
-        Scale (1:x):
-        <input type="number" id="scale" value="25000" step="5000">
-    </label>
-    <div id="bboxInfo" style="margin-top:6px; font-size:0.9em;"></div>
-    <button id="generatePdfBtn">Generate PDF</button>
+<div class="panel">
+    <h1>FastMap</h1>
+
+    <div class="row">
+        <div>
+            <label for="paperSize">Paperi</label>
+            <select id="paperSize">
+                <option value="A4" selected>A4</option>
+                <option value="A3">A3</option>
+            </select>
+        </div>
+        <div>
+            <label for="orientation">Asento</label>
+            <select id="orientation">
+                <option value="portrait" selected>Pysty</option>
+                <option value="landscape">Vaaka</option>
+            </select>
+        </div>
+    </div>
+
+    <label for="scale">Mittakaava 1:</label>
+    <input id="scale" type="number" value="20000" step="5000" min="500" max="1000000">
+
+    <label for="baseLayer">Taustakartta</label>
+    <select id="baseLayer">
+        <option value="maastokartta" selected>Maastokartta</option>
+        <option value="taustakartta">Taustakartta</option>
+        <option value="selkokartta">Selkokartta</option>
+        <option value="ortokuva">Ortoilma kuva</option>
+    </select>
+
+    <label for="title">Otsikko (valinnainen)</label>
+    <input id="title" type="text" maxlength="120" placeholder="es. Mökki Koli">
+
+    <button id="generateBtn">Lataa PDF</button>
+    <div id="status"></div>
+
+    <div id="info"></div>
 </div>
 
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script>
-    // Initialize map
-    const map = L.map('map').setView([60.2055, 24.6559], 13);
-    L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
-        maxZoom: 19,
-        attribution: '&copy; OpenTopoMap contributors'
-    }).addTo(map);
+<div class="hint">Vedä punaista aluetta siirtääksesi · kaksoisnapsauta keskitä · valitse paperi ja mittakaava vasemmalta</div>
 
-    const PAPER_SIZES = {
-        "A4": {width: 210, height: 297}, // mm
-        "A3": {width: 297, height: 420}
-    };
+<script type="importmap">
+{
+    "imports": {
+        "ol": "https://cdn.jsdelivr.net/npm/ol@10/index.js",
+        "ol/": "https://cdn.jsdelivr.net/npm/ol@10/",
+        "proj4": "https://cdn.jsdelivr.net/npm/proj4@2/+esm"
+    }
+}
+</script>
 
-    let bboxRect = null;
+<script type="module">
+    import Map from 'ol/Map.js';
+    import View from 'ol/View.js';
+    import TileLayer from 'ol/layer/Tile.js';
+    import VectorLayer from 'ol/layer/Vector.js';
+    import TileImage from 'ol/source/TileImage.js';
+    import VectorSource from 'ol/source/Vector.js';
+    import Feature from 'ol/Feature.js';
+    import Polygon from 'ol/geom/Polygon.js';
+    import Style from 'ol/style/Style.js';
+    import Stroke from 'ol/style/Stroke.js';
+    import Fill from 'ol/style/Fill.js';
+    import TileGrid from 'ol/tilegrid/TileGrid.js';
+    import Translate from 'ol/interaction/Translate.js';
+    import proj4 from 'proj4';
+    import { register } from 'ol/proj.js';
 
-    function metersToDegrees(lat, metersX, metersY) {
-        const degLat = metersY / 111320;
-        const degLon = metersX / (111320 * Math.cos(lat * Math.PI / 180));
-        return [degLat, degLon];
+    // --- EPSG:3067 (ETRS-TM35FIN) -----------------------------------------
+    proj4.defs('EPSG:3067',
+        '+proj=utm +zone=35 +ellps=GRS80 +towgs84=0,0,0 +units=m +no_defs');
+    register(proj4);
+    const PROJ = 'EPSG:3067';
+    const MAX_EXTENT = [-548576, 6291456, 1548576, 8388608];
+
+    // NLS ETRS-TM35FIN tile matrix set: res = 8192 / 2^z, origin top-left
+    const RESOLUTIONS = Array.from({ length: 15 }, (_, z) => 8192 / 2 ** z);
+
+    function makeBaseSource(layer) {
+        return new TileImage({
+            projection: PROJ,
+            tileGrid: new TileGrid({
+                origin: [-548576, 8388608],
+                resolutions: RESOLUTIONS,
+                tileSize: 256,
+            }),
+            tileUrlFunction: ([z, x, y]) =>
+                `/api/nls-tiles/${z}/${x}/${y}.png?layer=${layer}`,
+        });
     }
 
-    function updateBBoxBounds() {
-        const paperSize = document.getElementById('paperSize').value;
-        const orientation = document.getElementById('orientation').value;
-        const scale = parseInt(document.getElementById('scale').value);
+    const baseLayer = new TileLayer({ source: makeBaseSource('maastokartta') });
 
-        const center = map.getCenter();
-        const lat = center.lat;
-        const lon = center.lng;
+    // --- Paper footprint rectangle ----------------------------------------
+    const PAPER_MM = { A4: [210, 297], A3: [297, 420] };
 
-        let width_mm = PAPER_SIZES[paperSize].width;
-        let height_mm = PAPER_SIZES[paperSize].height;
-        if (orientation === "landscape") [width_mm, height_mm] = [height_mm, width_mm];
+    let rectFeature = null;
 
-        const width_m = width_mm / 1000 * scale;
-        const height_m = height_mm / 1000 * scale;
-
-        const [deltaLat, deltaLon] = metersToDegrees(lat, width_m, height_m);
-
-        const south = lat - deltaLat / 2;
-        const north = lat + deltaLat / 2;
-        const west = lon - deltaLon / 2;
-        const east = lon + deltaLon / 2;
-
-        const bounds = [[south, west], [north, east]];
-
-        if (bboxRect) {
-            bboxRect.setBounds(bounds);
-        } else {
-            // Make rectangle non-interactive so left-button drags pass through to the map (map panning)
-            bboxRect = L.rectangle(bounds, {color: "red", weight: 2, fillOpacity: 0.1, interactive: false});
-            bboxRect.addTo(map);
+    function rectCenter() {
+        if (rectFeature) {
+            const e = rectFeature.getGeometry().getExtent();
+            return [(e[0] + e[2]) / 2, (e[1] + e[3]) / 2];
         }
-
-        document.getElementById('bboxInfo').innerText =
-            `Width: ${width_m.toFixed(0)} m, Height: ${height_m.toFixed(0)} m`;
+        return view.getCenter();
     }
 
-    // Initial draw
-    updateBBoxBounds();
+    function updateRect() {
+        const paper = document.getElementById('paperSize').value;
+        const orient = document.getElementById('orientation').value;
+        const scale = parseInt(document.getElementById('scale').value, 10) || 20000;
 
-    // Allow map panning with left-button drag by making the rectangle non-interactive.
-    // Use right-button drag to move the rectangle: listen for right-button mousedown on the map,
-    // check whether the click started inside the rectangle, and then move the rectangle while
-    // the right button is held.
+        let [wmm, hmm] = PAPER_MM[paper];
+        if (orient === 'landscape') [wmm, hmm] = [hmm, wmm];
+        const w_m = wmm / 1000 * scale;
+        const h_m = hmm / 1000 * scale;
 
-    // Prevent the browser context menu from appearing on right-click inside the map
-    map.getContainer().addEventListener('contextmenu', function(ev) { ev.preventDefault(); });
-
-    // Right-click drag & double-right-click handling
-    // We'll implement a custom double-right-click detector because browsers
-    // often don't emit dblclick for the right button. The logic below:
-    // - On right-button mousedown inside the bbox, start a short timer
-    //   (and a small movement watcher). If a second right mousedown occurs
-    //   inside the timeout, treat it as a double-right-click and recenter
-    //   the bbox.
-    // - If the user moves the mouse beyond a small threshold, begin a drag
-    //   immediately. This avoids delaying drag responsiveness.
-
-    let lastRightMousedownTime = 0;
-    const RIGHT_DBL_TIMEOUT = 350; // ms
-    let dragStartTimer = null;
-    let dragStarterMoveHandler = null;
-    let isRectDragging = false;
-    let activeDragMoveHandler = null;
-    let activeDragUpHandler = null;
-
-    function recenterBBoxAt(latlng) {
-        if (!bboxRect) return;
-        const currentBounds = bboxRect.getBounds();
-        const latSpan = currentBounds.getNorth() - currentBounds.getSouth();
-        const lngSpan = currentBounds.getEast() - currentBounds.getWest();
-        const newBounds = [
-            [latlng.lat - latSpan / 2, latlng.lng - lngSpan / 2],
-            [latlng.lat + latSpan / 2, latlng.lng + lngSpan / 2]
+        const [cx, cy] = rectCenter();
+        const coords = [
+            [cx - w_m / 2, cy - h_m / 2],
+            [cx + w_m / 2, cy - h_m / 2],
+            [cx + w_m / 2, cy + h_m / 2],
+            [cx - w_m / 2, cy + h_m / 2],
+            [cx - w_m / 2, cy - h_m / 2],
         ];
-        bboxRect.setBounds(newBounds);
+
+        if (!rectFeature) {
+            rectFeature = new Feature(new Polygon([coords]));
+            vectorLayer.getSource().addFeature(rectFeature);
+        } else {
+            rectFeature.getGeometry().setCoordinates([coords]);
+        }
+
+        const km = v => v >= 1000 ? `${(v / 1000).toLocaleString('fi-FI')} km` : `${Math.round(v)} m`;
+        document.getElementById('info').innerHTML =
+            `Alue: ${km(w_m)} × ${km(h_m)}<br>` +
+            `Paperi: ${paper} ${orient === 'portrait' ? 'pysty' : 'vaaka'}, 1:${scale.toLocaleString('fi-FI')}`;
     }
 
-    map.on('mousedown', function(e) {
-        const original = e.originalEvent || {};
-        if (original.button !== 2) return; // only care about right-button
-        if (!bboxRect) return;
-
-        // Prevent context menu when clicking inside bbox
-        original.preventDefault && original.preventDefault();
-
-        const now = Date.now();
-        if (lastRightMousedownTime && (now - lastRightMousedownTime) <= RIGHT_DBL_TIMEOUT) {
-            // Double-right-click detected: cancel any pending drag starter and recenter
-            lastRightMousedownTime = 0;
-            if (dragStartTimer) { clearTimeout(dragStartTimer); dragStartTimer = null; }
-            if (dragStarterMoveHandler) { map.off('mousemove', dragStarterMoveHandler); dragStarterMoveHandler = null; }
-            recenterBBoxAt(e.latlng);
-            return;
-        }
-
-        // Not a double yet: record time and set up drag starter
-        lastRightMousedownTime = now;
-
-        // Compute container point to detect movement in pixels
-        const startPoint = map.latLngToContainerPoint(e.latlng);
-        const MOVE_THRESHOLD = 6; // pixels
-
-        function startDrag(startLatLng) {
-            isRectDragging = true;
-            map.dragging.disable();
-            let prevLatLng = startLatLng;
-
-            activeDragMoveHandler = function(ev) {
-                const deltaLat = ev.latlng.lat - prevLatLng.lat;
-                const deltaLng = ev.latlng.lng - prevLatLng.lng;
-                const currentBounds = bboxRect.getBounds();
-                const newBounds = [
-                    [currentBounds.getSouth() + deltaLat, currentBounds.getWest() + deltaLng],
-                    [currentBounds.getNorth() + deltaLat, currentBounds.getEast() + deltaLng]
-                ];
-                bboxRect.setBounds(newBounds);
-                prevLatLng = ev.latlng;
-            };
-
-            activeDragUpHandler = function() {
-                map.off('mousemove', activeDragMoveHandler);
-                map.off('mouseup', activeDragUpHandler);
-                isRectDragging = false;
-                map.dragging.enable();
-            };
-
-            map.on('mousemove', activeDragMoveHandler);
-            map.on('mouseup', activeDragUpHandler);
-        }
-
-        // Watch for small movement to start drag immediately
-        dragStarterMoveHandler = function(ev) {
-            const pt = map.latLngToContainerPoint(ev.latlng);
-            if (pt.distanceTo(startPoint) > MOVE_THRESHOLD) {
-                if (dragStartTimer) { clearTimeout(dragStartTimer); dragStartTimer = null; }
-                map.off('mousemove', dragStarterMoveHandler);
-                dragStarterMoveHandler = null;
-                startDrag(ev.latlng);
-            }
-        };
-
-        map.on('mousemove', dragStarterMoveHandler);
-
-        // If no movement within a short delay, start drag (for press-and-hold drags)
-        dragStartTimer = setTimeout(() => {
-            dragStartTimer = null;
-            if (dragStarterMoveHandler) { map.off('mousemove', dragStarterMoveHandler); dragStarterMoveHandler = null; }
-            startDrag(e.latlng);
-        }, 220);
-
-        // Ensure we clean up if mouseup occurs without dragging
-        const oneUp = function() {
-            if (dragStartTimer) { clearTimeout(dragStartTimer); dragStartTimer = null; }
-            if (dragStarterMoveHandler) { map.off('mousemove', dragStarterMoveHandler); dragStarterMoveHandler = null; }
-            map.off('mouseup', oneUp);
-        };
-        map.on('mouseup', oneUp);
+    const vectorLayer = new VectorLayer({
+        source: new VectorSource(),
+        style: new Style({
+            stroke: new Stroke({ color: '#d40000', width: 2 }),
+            fill: new Fill({ color: 'rgba(255, 60, 60, 0.08)' }),
+        }),
     });
 
-    // Update rectangle on control changes
-    document.getElementById('paperSize').addEventListener('change', updateBBoxBounds);
-    document.getElementById('orientation').addEventListener('change', updateBBoxBounds);
-    document.getElementById('scale').addEventListener('input', updateBBoxBounds);
+    const view = new View({
+        projection: PROJ,
+        center: [430000, 6668000],   // Otaniemi / Espoo
+        resolution: 128,
+        extent: MAX_EXTENT,
+    });
 
-    // --- Generate PDF Button ---
-    document.getElementById('generatePdfBtn').addEventListener('click', async () => {
-        if (!bboxRect) return alert("Rectangle not ready");
+    const map = new Map({
+        target: 'map',
+        layers: [baseLayer, vectorLayer],
+        view,
+    });
 
-        const center = bboxRect.getBounds().getCenter();
-        const scale = parseInt(document.getElementById('scale').value);
-        const paperSize = document.getElementById('paperSize').value;
-        const orientation = document.getElementById('orientation').value;
+    updateRect();
+
+    // Drag the rectangle with the mouse
+    map.addInteraction(new Translate({ layers: [vectorLayer] }));
+
+    // Double-click centers the rectangle there
+    map.on('dblclick', e => {
+        const ext = rectFeature.getGeometry().getExtent();
+        const cx = e.coordinate[0], cy = e.coordinate[1];
+        const hw = (ext[2] - ext[0]) / 2, hh = (ext[3] - ext[1]) / 2;
+        const coords = [
+            [cx - hw, cy - hh], [cx + hw, cy - hh],
+            [cx + hw, cy + hh], [cx - hw, cy + hh], [cx - hw, cy - hh],
+        ];
+        rectFeature.getGeometry().setCoordinates([coords]);
+    });
+
+    for (const id of ['paperSize', 'orientation', 'scale']) {
+        document.getElementById(id).addEventListener('change', updateRect);
+        document.getElementById(id).addEventListener('input', updateRect);
+    }
+
+    document.getElementById('baseLayer').addEventListener('change', e => {
+        baseLayer.setSource(makeBaseSource(e.target.value));
+    });
+
+    // --- PDF generation ----------------------------------------------------
+    const btn = document.getElementById('generateBtn');
+    const statusEl = document.getElementById('status');
+
+    function setStatus(msg, isError = false) {
+        statusEl.textContent = msg;
+        statusEl.classList.toggle('error', isError);
+    }
+
+    btn.addEventListener('click', async () => {
+        if (!rectFeature) return;
+        const [minx, miny, maxx, maxy] =
+            rectFeature.getGeometry().getExtent();
 
         const payload = {
-            lat: center.lat,
-            lon: center.lng,
-            scale: scale,
-            paper_size: paperSize,
-            orientation: orientation
+            bbox: { minx, miny, maxx, maxy },
+            scale: parseInt(document.getElementById('scale').value, 10),
+            paper_size: document.getElementById('paperSize').value,
+            orientation: document.getElementById('orientation').value,
+            layer: document.getElementById('baseLayer').value,
+            dpi: 300,
         };
+        const title = document.getElementById('title').value.trim();
+        if (title) payload.title = title;
+
+        btn.disabled = true;
+        setStatus('Laaditaan karttaa… tämä voi kestää hetken.');
 
         try {
-            const response = await fetch('http://127.0.0.1:8000/generate-map', {
+            const resp = await fetch('/generate-map', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
+                body: JSON.stringify(payload),
             });
-
-            if (!response.ok) throw new Error("Failed to generate PDF");
-
-            const blob = await response.blob();
-
-            // Try to get filename from Content-Disposition header
-            let filename = 'map.pdf';
-            try {
-                const disposition = response.headers.get('content-disposition') || response.headers.get('Content-Disposition');
-                if (disposition) {
-                    // Support both filename="name.pdf" and filename*=UTF-8''name.pdf
-                    const fileNameMatch = disposition.match(/filename\*=(?:UTF-8'')?"?([^";]+)"?/i);
-                    if (fileNameMatch && fileNameMatch[1]) {
-                        filename = decodeURIComponent(fileNameMatch[1]);
-                    } else {
-                        const fileNameMatch2 = disposition.match(/filename="?([^";]+)"?/i);
-                        if (fileNameMatch2 && fileNameMatch2[1]) {
-                            filename = fileNameMatch2[1];
-                        }
-                    }
-                }
-            } catch (e) {
-                // ignore parsing errors and fall back to default
+            if (!resp.ok) {
+                let detail = `HTTP ${resp.status}`;
+                try {
+                    const err = await resp.json();
+                    if (err.detail) detail = typeof err.detail === 'string'
+                        ? err.detail : JSON.stringify(err.detail);
+                } catch { /* ignore */ }
+                throw new Error(detail);
             }
 
+            const blob = await resp.blob();
+            let filename = 'fastmap.pdf';
+            const disposition = resp.headers.get('content-disposition');
+            if (disposition) {
+                const m = disposition.match(/filename="?([^";]+)"?/i);
+                if (m) filename = decodeURIComponent(m[1]);
+            }
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
@@ -293,11 +289,13 @@
             a.remove();
             URL.revokeObjectURL(url);
 
+            setStatus(`Valmis! Ladataan ${filename}`);
         } catch (err) {
-            alert("Error: " + err.message);
+            setStatus(`Virhe: ${err.message}`, true);
+        } finally {
+            btn.disabled = false;
         }
     });
-
 </script>
 </body>
 </html>

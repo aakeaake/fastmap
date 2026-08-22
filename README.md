@@ -1,138 +1,100 @@
-FastMap Project Roadmap
-=======================
+# FastMap
 
-Project Goal:
--------------
-Build a web service to generate printable maps (PDF) of Finland using topographic maps or OpenStreetMap tiles, with correct scaling and selectable bounding boxes.
+Print-ready PDF maps of Finland. Draw an A4/A3-sized rectangle anywhere on a
+map of Finland in your browser, pick a paper size and scale, and download a
+geometrically exact, 300-dpi PDF built from [MML](https://www.maanmittauslaitos.fi/)
+(National Land Survey of Finland) raster data.
 
----
+## Why the maps are true to scale
 
-1. Project Setup (Completed)
----------------------------
-- Initialize FastAPI project (`fastmap`)
-- Create virtual environment and install dependencies:
-    - fastapi, uvicorn, pillow, requests, mercantile, pyproj, reportlab, rasterio
-- Basic folder structure:
-    fastmap/
-        ├── src/fastmap/
-        │   ├── api/
-        │   │   └── routes.py
-        │   ├── services/
-        │   │   ├── map_renderer.py
-        │   │   └── bbox.py
-        │   ├── main.py
-        ├── tests/
-        ├── output/ (generated PDFs)
-        ├── pyproject.toml
-        └── README.md
+Everything is computed in **EPSG:3067** (ETRS-TM35FIN), a metric projection:
 
-- Barebones endpoint `/generate-map` returning a PDF
-- Bounding box calculation working for WGS84 (OSM) and EPSG:3067 (future NLS)
-- Tile fetching with User-Agent and subdomain support
-- Tile merging and PDF generation
+1. Paper size minus margins gives a content area in millimetres.
+2. `content_mm / 1000 × scale` gives the ground extent in metres.
+3. That extent is rendered at `mm / 25.4 × dpi` pixels and placed at *exactly*
+   that rectangle on the PDF page — no aspect-ratio fitting, no Web-Mercator
+   distortion.
 
----
+A map labelled 1 : 20 000 measures exactly 1 : 20 000 on paper.
 
-2. Input Validation & Error Handling
------------------------------------
-- Validate input parameters (lat/lon, scale, paper size, orientation)
-- Catch tile download errors:
-    - Return placeholders if some tiles fail
-- Handle edge cases (tiny bbox, extremely high zoom)
-- Return clear API error messages instead of 500 Internal Server Error
+## Architecture
 
----
+```
+frontend/index.html        Single-file UI (OpenLayers v10 via CDN, EPSG:3067,
+                           draggable paper-footprint rectangle)
+src/fastmap/
+├── api/routes.py          POST /generate-map, GET /api/nls-tiles proxy, /health
+├── schemas/               Pydantic request models + validation
+├── services/
+│   ├── print_layout.py    Pure maths: paper sizes, extents, pixel dims, scale bar
+│   ├── mml_source.py      MML WMS GetMap (primary) + WMTS tile stitching (fallback)
+│   └── pdf_generator.py   ReportLab page composition, scale bar, attribution
+└── core/config.py         Env-based configuration
+```
 
-3. Tile Caching & Performance
------------------------------
-- Implement caching for OSM/OpenTopoMap tiles:
-    - Save tiles locally (`cache/{z}/{x}/{y}.png`)
-    - Check cache before downloading
-- Optional: use `functools.lru_cache` for small-scale testing
-- Optimize tile merging:
-    - Use Numpy arrays for large maps (optional)
-- Consider **async requests** for faster tile downloads
+The browser never sees the MML API key: preview tiles are proxied through
+`/api/nls-tiles/{z}/{x}/{y}.png`.
 
----
+## Setup
 
-4. Frontend Integration
-----------------------
-- Allow users to select center, scale, paper size, and orientation
-- Options:
-    1. **Simple HTML form** (for quick testing)
-    2. **React / Vue frontend**:
-        - Leaflet.js or OpenLayers for interactive map
-        - Draw bounding box / center selection
-        - Submit parameters to FastAPI `/generate-map` endpoint
-- Display PDF download link or embed in browser
+Requires Python ≥ 3.10.
 
----
+```bash
+python -m venv .venv
+source .venv/bin/activate
+pip install -e ".[dev]"
 
-5. PDF Enhancements
-------------------
-- Add scale bar
-- Optional: add title, date, coordinates
-- Proper DPI handling for printing
-- Maintain aspect ratio and center map on page
-- Optional: include gridlines for topographic maps
+cp .env.example .env       # then paste your own MML API key into it
+```
 
----
+Get a free API key for the Karttakuva service at
+<https://www.maanmittauslaitos.fi/kartat-ja-aineistot-rajapinnassa/palvelut-ja-rajapinnat>.
 
-6. NLS Data Integration (Finland Topo)
---------------------------------------
-- Prepare EPSG:3067 workflow for NLS datasets
-- Integrate raster/vector layers from National Land Survey of Finland
-- Extract bounding boxes using `rasterio` or vector clipping
-- Generate map images from NLS data
-- Keep OSM/OpenTopoMap as fallback for testing
+## Run
 
----
+```bash
+uvicorn fastmap.main:app --reload      # or: python run_server.py
+```
 
-7. Deployment & Scalability
---------------------------
-- Deploy using Uvicorn/Gunicorn
-- Optional: Docker containerization
-- Configure storage for generated PDFs and tile cache
-- Consider **rate limiting** and tile usage policies
-- Optional: CDN / S3 for large-scale PDF delivery
+Open <http://127.0.0.1:8000/> — the UI is served by the same server.
 
----
+## Usage
 
-8. Testing & QA
----------------
-- Unit tests for:
-    - Bounding box calculations
-    - Tile fetching / merging
-    - PDF generation
-- Integration tests: API returns valid PDFs
-- Manual verification: maps look correct in Finland, scale accurate
+* Drag the red rectangle to position the print area.
+* Double-click to centre it somewhere new.
+* Choose paper (A4/A3), orientation, scale, base layer, optional title.
+* **Lataa PDF** downloads the finished file.
 
----
+### API
 
-9. Optional Advanced Features
------------------------------
-- User accounts / saved maps
-- Multiple layers (contours, roads, water)
-- Export in other formats (GeoTIFF, PNG)
-- Interactive web preview before PDF generation
+```bash
+curl -X POST http://127.0.0.1:8000/generate-map \
+  -H 'Content-Type: application/json' \
+  -d '{
+        "bbox": {"minx": 428100, "miny": 6665230, "maxx": 431900, "maxy": 6670770},
+        "scale": 20000,
+        "paper_size": "A4",
+        "orientation": "portrait",
+        "layer": "maastokartta"
+      }' \
+  -o map.pdf
+```
 
----
+Either `bbox` (EPSG:3067 metres) or `center_x`, `center_y` + `scale` must be
+given. Optional fields: `dpi` (default 300), `margin_mm` (default 10),
+`title`. See `/docs` for the interactive schema.
 
-10. Maintenance & Documentation
--------------------------------
-- Document API endpoints
-- Write README with usage examples
-- Maintain changelog for future features
-- Track NLS dataset updates
+## Tests
 
----
+```bash
+pytest
+```
 
-Milestones
-----------
-- Milestone 1: Barebones API + working OSM PDF (done)
-- Milestone 2: Input validation + error handling
-- Milestone 3: Tile caching and improved performance
-- Milestone 4: Frontend integration
-- Milestone 5: PDF enhancements (scale bars, proper layout)
-- Milestone 6: NLS data integration
-- Milestone 7: Deployment & scalability
+Unit tests cover the scale/pixel maths, WMTS tile-index geometry, WMS URL
+building and offline PDF generation; no network access is needed for the test
+suite.
+
+## License notes
+
+Map data © Maanmittauslaitos, licensed CC BY 4.0. Every generated PDF carries
+the required attribution.
