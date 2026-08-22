@@ -1,4 +1,8 @@
 import os
+import re
+import tempfile
+import zipfile
+from datetime import datetime
 
 import requests
 from fastapi import APIRouter, HTTPException
@@ -10,13 +14,16 @@ from fastmap.core.config import (
     MML_WMTS_URL,
     USER_AGENT,
 )
-from fastmap.schemas.map_request import MapRequest
+from fastmap.schemas.map_request import BatchMapRequest, MapRequest
 from fastmap.services.mml_source import (
     MMLError,
     MML_LAYERS,
     WMTS_MAX_LEVEL,
 )
-from fastmap.services.pdf_generator import generate_pdf_to_temp
+from fastmap.services.pdf_generator import (
+    generate_multi_pdf,
+    generate_pdf_to_temp,
+)
 from fastmap.services.print_layout import (
     clamp_extent_to_finland,
     content_area_mm,
@@ -31,6 +38,10 @@ def _resolve_extent(req: MapRequest):
     )
     extent = req.resolve_extent(content_aspect_wh=cont_h_mm / cont_w_mm)
     return clamp_extent_to_finland(extent)
+
+
+def _timestamp() -> str:
+    return datetime.now().strftime("%Y%m%d-%H%M")
 
 
 @router.post("/generate-map")
@@ -65,7 +76,7 @@ def generate_map(req: MapRequest):
 
     display_name = (
         f"fastmap_{req.paper_size}_{req.orientation}_"
-        f"1-{result.actual_scale}.pdf"
+        f"1-{result.actual_scale}_{_timestamp()}.pdf"
     )
 
     return FileResponse(
@@ -73,6 +84,96 @@ def generate_map(req: MapRequest):
         media_type="application/pdf",
         filename=display_name,
         background=BackgroundTask(os.remove, result.path),
+    )
+
+
+def _req_kwargs(req: MapRequest) -> dict:
+    return {
+        "paper_size": req.paper_size,
+        "orientation": req.orientation,
+        "layer": req.layer,
+        "dpi": req.dpi,
+        "margin_mm": req.margin_mm,
+        "title": req.title,
+    }
+
+
+def _slug(text: str) -> str:
+    s = re.sub(r"[^A-Za-z0-9_-]+", "_", text.strip())
+    s = s.strip("_")
+    return s[:40] or "kartta"
+
+
+def _remove_quietly(paths: list[str]) -> None:
+    for p in paths:
+        try:
+            os.remove(p)
+        except OSError:
+            pass
+
+
+@router.post("/generate-maps-batch")
+def generate_maps_batch(batch: BatchMapRequest):
+    """Render several maps as one multi-page PDF or a ZIP of PDFs."""
+    if not MML_API_KEY:
+        raise HTTPException(
+            status_code=503,
+            detail="Server is missing MML_API_KEY configuration.",
+        )
+
+    try:
+        pairs = [(_resolve_extent(m), m) for m in batch.maps]
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    if batch.output == "pdf":
+        tmp = tempfile.NamedTemporaryFile(
+            prefix="fastmap_batch_", suffix=".pdf", delete=False
+        )
+        tmp.close()
+        try:
+            generate_multi_pdf(
+                [(extent, _req_kwargs(m)) for extent, m in pairs], tmp.name
+            )
+        except MMLError as exc:
+            _remove_quietly([tmp.name])
+            raise HTTPException(
+                status_code=502, detail=f"Map data source failed: {exc}"
+            ) from exc
+
+        return FileResponse(
+            tmp.name,
+            media_type="application/pdf",
+            filename=f"fastmap_batch_{len(pairs)}pages_{_timestamp()}.pdf",
+            background=BackgroundTask(_remove_quietly, [tmp.name]),
+        )
+
+    # ZIP of individual PDFs
+    pdf_paths: list[str] = []
+    try:
+        for extent, req in pairs:
+            result = generate_pdf_to_temp(extent, **_req_kwargs(req))
+            pdf_paths.append(result.path)
+    except MMLError as exc:
+        _remove_quietly(pdf_paths)
+        raise HTTPException(
+            status_code=502, detail=f"Map data source failed: {exc}"
+        ) from exc
+
+    zip_tmp = tempfile.NamedTemporaryFile(
+        prefix="fastmap_maps_", suffix=".zip", delete=False
+    )
+    zip_tmp.close()
+    with zipfile.ZipFile(zip_tmp.name, "w", zipfile.ZIP_DEFLATED) as zf:
+        for i, (path, (_, req)) in enumerate(zip(pdf_paths, pairs), start=1):
+            name_title = req.title or f"Kartta {i}"
+            zf.write(path, arcname=f"{i:02d}_{_slug(name_title)}.pdf")
+
+    return FileResponse(
+        zip_tmp.name,
+        media_type="application/zip",
+        filename=f"fastmap_maps_{_timestamp()}.zip",
+        background=BackgroundTask(_remove_quietly, [*pdf_paths, zip_tmp.name]),
     )
 
 

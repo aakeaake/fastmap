@@ -28,7 +28,7 @@ src/fastmap/
 ├── services/
 │   ├── print_layout.py    Pure maths: paper sizes, extents, pixel dims, scale bar
 │   ├── mml_source.py      MML WMTS tile stitching (open data) + optional WMS
-│   └── pdf_generator.py   ReportLab page composition, scale bar, attribution
+│   └── pdf_generator.py   ReportLab page composition, inside-map overlays
 └── core/config.py         Env-based configuration
 ```
 
@@ -69,10 +69,16 @@ Open <http://127.0.0.1:8000/> — the UI is served by the same server.
 
 ## Usage
 
-* Drag the red rectangle to position the print area.
-* Double-click to centre it somewhere new.
-* Choose paper (A4/A3), orientation, scale, base layer, optional title.
-* **Lataa PDF** downloads the finished file.
+* The panel lists your rectangles: **red = active** (drag it, double-click to
+  re-centre), **grey = locked**. Click a list row to edit or ✕ to delete.
+* **+ Uusi kartta** adds a rectangle at the view centre; settings
+  (paper, orientation, scale, margin, layer, title) are stored per rectangle.
+* The rectangle shows the printable *content area* (paper minus margins),
+  so what you see is exactly what prints.
+* **Lataa aktiivinen PDF** downloads the current map;
+  **Lataa kaikki** renders every rectangle as either one multi-page PDF
+  (mixed page sizes allowed) or a ZIP of individual PDFs.
+* The rectangle list is saved in your browser and restored on the next visit.
 
 ### API
 
@@ -83,14 +89,26 @@ curl -X POST http://127.0.0.1:8000/generate-map \
         "bbox": {"minx": 428100, "miny": 6665230, "maxx": 431900, "maxy": 6670770},
         "scale": 20000,
         "paper_size": "A4",
-        "orientation": "portrait",
-        "layer": "maastokartta"
+        "orientation": "portrait"
       }' \
   -o map.pdf
+
+# Batch: up to 25 maps as one multi-page PDF ("output":"pdf", default)
+# or a ZIP of individual files ("output":"zip")
+curl -X POST http://127.0.0.1:8000/generate-maps-batch \
+  -H 'Content-Type: application/json' \
+  -d '{
+        "output": "pdf",
+        "maps": [
+          {"bbox": {"minx": 640220, "miny": 6998835, "maxx": 650220, "maxy": 7013405}, "scale": 20000},
+          {"center_x": 379667, "center_y": 6673891, "scale": 25000, "orientation": "landscape"}
+        ]
+      }' \
+  -o batch.pdf
 ```
 
 Either `bbox` (EPSG:3067 metres) or `center_x`, `center_y` + `scale` must be
-given. Optional fields: `dpi` (default 300), `margin_mm` (default 10),
+given per map. Optional fields: `dpi` (default 300), `margin_mm` (default 7),
 `title`. See `/docs` for the interactive schema.
 
 ## Tests

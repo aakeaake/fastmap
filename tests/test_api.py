@@ -1,3 +1,7 @@
+import io
+import re
+import zipfile
+
 import pytest
 from fastapi.testclient import TestClient
 from PIL import Image
@@ -85,3 +89,67 @@ def test_tile_proxy_validates_layer(monkeypatch):
     # no network needed: invalid layer must be rejected before fetching
     resp = client.get("/api/nls-tiles/8/119/210.png", params={"layer": "nope"})
     assert resp.status_code == 400
+
+
+# ---------------------------------------------------------------------------
+# Batch generation
+# ---------------------------------------------------------------------------
+
+def _batch_map(i: int) -> dict:
+    return {
+        "bbox": {
+            "minx": 428100 + i * 20000,
+            "miny": 6665230,
+            "maxx": 431900 + i * 20000,
+            "maxy": 6670770,
+        },
+        "scale": 20000,
+        "paper_size": "A4" if i % 2 == 0 else "A3",
+        "orientation": "portrait" if i % 2 == 0 else "landscape",
+        "title": f"Koe {i + 1}",
+    }
+
+
+def test_generate_batch_pdf_mixed_pages():
+    resp = client.post(
+        "/generate-maps-batch", json={"output": "pdf", "maps": [_batch_map(0), _batch_map(1)]}
+    )
+    assert resp.status_code == 200
+    assert resp.headers["content-type"] == "application/pdf"
+    assert re.fullmatch(
+        r'attachment; filename="fastmap_batch_2pages_\d{8}-\d{4}\.pdf"',
+        resp.headers["content-disposition"],
+    )
+    assert resp.content[:5] == b"%PDF-"
+    pages = re.findall(rb"/Type\s*/Page(?![A-Za-z])", resp.content)
+    assert len(pages) == 2
+
+
+def test_generate_batch_zip_members_are_pdfs():
+    resp = client.post(
+        "/generate-maps-batch", json={"output": "zip", "maps": [_batch_map(0), _batch_map(1)]}
+    )
+    assert resp.status_code == 200
+    assert resp.headers["content-type"] == "application/zip"
+    assert re.fullmatch(
+        r'attachment; filename="fastmap_maps_\d{8}-\d{4}\.zip"',
+        resp.headers["content-disposition"],
+    )
+
+    zf = zipfile.ZipFile(io.BytesIO(resp.content))
+    names = zf.namelist()
+    assert len(names) == 2
+    for name in names:
+        assert zf.read(name)[:5] == b"%PDF-"
+
+
+def test_batch_empty_map_list_is_422():
+    resp = client.post("/generate-maps-batch", json={"maps": []})
+    assert resp.status_code == 422
+
+
+def test_batch_over_limit_is_422():
+    resp = client.post(
+        "/generate-maps-batch", json={"maps": [_batch_map(0)] * 26}
+    )
+    assert resp.status_code == 422

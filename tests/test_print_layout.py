@@ -8,7 +8,6 @@ from fastmap.services.print_layout import (
     content_pixels,
     extent_for_center,
     format_scale_label,
-    scale_bar_distance,
     snap_extent_to_scale,
     with_aspect,
 )
@@ -63,16 +62,6 @@ def test_clamp_extent_keeps_size_inside_bounds():
     assert clamped.height_m == pytest.approx(huge.height_m)
     assert clamped.minx >= -548576
     assert clamped.maxy <= 8388608
-
-
-def test_scale_bar_distance_fits_content():
-    dist = scale_bar_distance(20000, 190.0)
-    bar_mm = dist / 20000 * 1000
-    assert bar_mm <= 190.0 * 0.4
-    assert dist in (500, 1000)  # 76mm limit -> 1 km fits (50mm)
-
-    dist_small = scale_bar_distance(500000, 190.0)
-    assert dist_small == 20000  # 76 mm limit at 1:500000 -> largest fitting nice value
 
 
 def test_format_scale_label():

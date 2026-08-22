@@ -42,7 +42,7 @@ def test_generate_pdf_landscape_actual_scale(tmp_path, monkeypatch):
     monkeypatch.setattr(pdf_generator, "render_extent_image", _fake_render)
     from fastmap.services.print_layout import extent_for_center
 
-    ext = extent_for_center(735000, 7560000, 50000, "A3", "landscape", 10)
+    ext = extent_for_center(735000, 7560000, 50000, "A3", "landscape", 7)
     out = tmp_path / "a3.pdf"
 
     result = pdf_generator.generate_pdf(

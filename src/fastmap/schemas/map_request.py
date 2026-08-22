@@ -46,7 +46,7 @@ class MapRequest(BaseModel):
     orientation: Orientation = "portrait"
     layer: MMLLayer = "maastokartta"
     dpi: int = Field(default=300, ge=72, le=600)
-    margin_mm: float = Field(default=10.0, ge=0.0, le=30.0)
+    margin_mm: float = Field(default=7.0, ge=0.0, le=30.0)
     title: str | None = Field(default=None, max_length=120)
 
     @model_validator(mode="after")
@@ -91,3 +91,14 @@ class MapRequest(BaseModel):
             self.orientation,
             self.margin_mm,
         )
+
+
+class BatchMapRequest(BaseModel):
+    """Several maps rendered in one request.
+
+    ``output`` selects the delivery format: a single multi-page PDF (pages
+    may mix paper sizes/orientations) or a ZIP of individual PDFs.
+    """
+
+    maps: list[MapRequest] = Field(min_length=1, max_length=25)
+    output: Literal["pdf", "zip"] = "pdf"

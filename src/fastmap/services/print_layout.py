@@ -150,29 +150,6 @@ def clamp_extent_to_finland(extent: Extent) -> Extent:
     return Extent(minx, miny, maxx, maxy)
 
 
-# ---------------------------------------------------------------------------
-# Scale bar helpers
-# ---------------------------------------------------------------------------
-
-NICE_DISTANCES_M = [
-    50, 100, 200, 250, 500,
-    1000, 2000, 2500, 5000, 10000, 20000, 50000,
-]
-
-
-def scale_bar_distance(actual_scale: int, content_w_mm: float, max_frac: float = 0.4) -> int:
-    """Pick a nice round ground distance whose bar fits within the content width."""
-    limit_mm = content_w_mm * max_frac
-    best = NICE_DISTANCES_M[0]
-    for dist in NICE_DISTANCES_M:
-        bar_mm = dist / actual_scale * 1000.0
-        if bar_mm <= limit_mm:
-            best = dist
-        else:
-            break
-    return best
-
-
 def format_scale_label(scale_value: float) -> str:
     """Format 1:x with thin-space thousands separators."""
     s = f"{round(scale_value):,}".replace(",", " ")

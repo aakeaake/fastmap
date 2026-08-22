@@ -10,27 +10,69 @@
         #map { position: absolute; inset: 0; }
 
         .panel {
-            position: absolute; top: 12px; left: 12px; z-index: 1000;
+            position: absolute; top: 12px; right: 12px; z-index: 1000;
             background: rgba(255,255,255,.96); border-radius: 8px;
-            padding: 14px 16px; width: 250px;
+            padding: 14px 16px; width: 262px;
             box-shadow: 0 2px 10px rgba(0,0,0,.25);
+            max-height: calc(100vh - 24px); overflow-y: auto;
         }
         .panel h1 { font-size: 16px; margin: 0 0 10px; }
         .panel label { display: block; font-size: 12px; color: #333; margin: 8px 0 2px; }
-        .panel select, .panel input {
+        .panel select, .panel input[type=number], .panel input[type=text] {
             width: 100%; box-sizing: border-box; padding: 5px;
             border: 1px solid #bbb; border-radius: 4px; font-size: 13px;
         }
         .row { display: flex; gap: 8px; }
         .row > div { flex: 1; }
-        #info { font-size: 12px; color: #555; margin-top: 10px; line-height: 1.45; }
-        #generateBtn {
-            margin-top: 12px; width: 100%; padding: 9px;
-            background: #1a6b3c; border: none; border-radius: 5px;
-            color: #fff; font-size: 14px; font-weight: 600; cursor: pointer;
+
+        #mapList { list-style: none; margin: 10px 0 0; padding: 0; max-height: 190px; overflow-y: auto; }
+        #mapList li {
+            display: flex; align-items: center; gap: 6px;
+            border: 1px solid #ccc; border-radius: 5px;
+            padding: 5px 7px; margin-bottom: 5px; cursor: pointer; font-size: 12px;
         }
-        #generateBtn:hover { background: #14572f; }
-        #generateBtn:disabled { background: #9bbfa8; cursor: wait; }
+        #mapList li:hover { background: #f2f2f2; }
+        #mapList .chip {
+            width: 12px; height: 12px; border-radius: 3px; flex: 0 0 auto;
+            border: 1px solid rgba(0,0,0,.18);
+        }
+        #mapList li.active { border-color: #d40000; background: #fdeaea; }
+        #mapList .m-name { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        #mapList .m-sum { color: #666; flex: 1; text-align: right; white-space: nowrap; }
+        #mapList .del {
+            border: none; background: none; color: #b00020; cursor: pointer;
+            font-size: 13px; font-weight: 700; padding: 0 2px; line-height: 1;
+        }
+
+        .btn {
+            width: 100%; padding: 8px; border: none; border-radius: 5px;
+            font-size: 13px; font-weight: 600; cursor: pointer;
+        }
+        #newBtn { margin-top: 12px; background: #e8e8e8; color: #222; }
+        #newBtn:hover { background: #dcdcdc; }
+        #downloadBtn {
+            margin-top: 12px; background: #1a6b3c; color: #fff;
+        }
+        #downloadBtn:hover { background: #14572f; }
+        #downloadBtn:disabled { background: #9bbfa8; cursor: wait; }
+        #downloadAllBtn {
+            margin-top: 8px; background: #245c85; color: #fff;
+        }
+        #downloadAllBtn:hover { background: #1c4a6c; }
+        #downloadAllBtn:disabled { background: #9db6c7; cursor: wait; }
+
+        .dl-row { display: flex; gap: 8px; align-items: stretch; }
+        .dl-row select {
+            flex: 0 0 46%; box-sizing: border-box; padding: 4px;
+            border: 1px solid #bbb; border-radius: 4px; font-size: 12px;
+        }
+        .dl-row button { flex: 1; margin-top: 8px; }
+        #clearAllBtn {
+            margin-top: 8px; background: none; border: none; color: #888;
+            font-size: 11px; text-decoration: underline; cursor: pointer; padding: 0;
+        }
+
+        #info { font-size: 12px; color: #555; margin-top: 10px; line-height: 1.45; }
         #status { font-size: 12px; margin-top: 8px; min-height: 15px; }
         #status.error { color: #b00020; font-weight: 600; }
         .hint {
@@ -45,6 +87,10 @@
 
 <div class="panel">
     <h1>FastMap</h1>
+
+    <div id="mapList"></div>
+
+    <button id="newBtn" class="btn">+ Uusi kartta</button>
 
     <div class="row">
         <div>
@@ -63,27 +109,44 @@
         </div>
     </div>
 
-    <label for="scale">Mittakaava 1:</label>
-    <input id="scale" type="number" value="20000" step="5000" min="500" max="1000000">
+    <div class="row">
+        <div>
+            <label for="scale">Mittakaava 1:</label>
+            <input id="scale" type="number" value="20000" step="5000" min="500" max="1000000">
+        </div>
+        <div>
+            <label for="margin">Marginaali (mm)</label>
+            <input id="margin" type="number" value="7" step="1" min="0" max="30">
+        </div>
+    </div>
 
     <label for="baseLayer">Taustakartta</label>
     <select id="baseLayer">
         <option value="maastokartta" selected>Maastokartta</option>
         <option value="taustakartta">Taustakartta</option>
         <option value="selkokartta">Selkokartta</option>
-        <option value="ortokuva">Ortoilma kuva</option>
+        <option value="ortokuva">Ortoilmakuva</option>
     </select>
 
     <label for="title">Otsikko (valinnainen)</label>
     <input id="title" type="text" maxlength="120" placeholder="es. Mökki Koli">
 
-    <button id="generateBtn">Lataa PDF</button>
+    <button id="downloadBtn" class="btn">Lataa aktiivinen PDF</button>
+    <div class="dl-row">
+        <select id="batchFormat">
+            <option value="pdf" selected>Yksi PDF (kaikki sivut)</option>
+            <option value="zip">ZIP (erilliset tiedostot)</option>
+        </select>
+        <button id="downloadAllBtn" class="btn">Lataa kaikki</button>
+    </div>
+    <button id="clearAllBtn">Tyhjennä kaikki kartat</button>
+
     <div id="status"></div>
 
     <div id="info"></div>
 </div>
 
-<div class="hint">Vedä punaista aluetta siirtääksesi · kaksoisnapsauta keskitä · valitse paperi ja mittakaava vasemmalta</div>
+<div class="hint">Vedä punaista aluetta · kaksoisnapsauta keskitä · klikkaa listasta muokataksesi harmaata karttaa</div>
 
 <script type="importmap">
 {
@@ -103,13 +166,16 @@
     import VectorLayer from 'ol/layer/Vector.js';
     import TileImage from 'ol/source/TileImage.js';
     import VectorSource from 'ol/source/Vector.js';
-    import Feature from 'ol/Feature.js';
-    import Polygon from 'ol/geom/Polygon.js';
+import Feature from 'ol/Feature.js';
+import Polygon from 'ol/geom/Polygon.js';
+import Point from 'ol/geom/Point.js';
     import Style from 'ol/style/Style.js';
     import Stroke from 'ol/style/Stroke.js';
     import Fill from 'ol/style/Fill.js';
     import TileGrid from 'ol/tilegrid/TileGrid.js';
     import Translate from 'ol/interaction/Translate.js';
+    import { defaults } from 'ol/interaction/defaults.js';
+    import Text from 'ol/style/Text.js';
     import proj4 from 'proj4';
     import { register } from 'ol/proj/proj4.js';
 
@@ -119,6 +185,7 @@
     register(proj4);
     const PROJ = 'EPSG:3067';
     const MAX_EXTENT = [-548576, 6291456, 1548576, 8388608];
+    const DEF_CENTER = [379667, 6673891];   // Otaniemi / Espoo
 
     // NLS ETRS-TM35FIN tile matrix set: res = 8192 / 2^z, origin top-left.
     // The open-data service offers levels 0-13 for this matrix set.
@@ -139,128 +206,426 @@
 
     const baseLayer = new TileLayer({ source: makeBaseSource('maastokartta') });
 
-    // --- Paper footprint rectangle ----------------------------------------
+    // --- Paper footprint rectangles ---------------------------------------
     const PAPER_MM = { A4: [210, 297], A3: [297, 420] };
+    const LAYERS = ['maastokartta', 'taustakartta', 'selkokartta', 'ortokuva'];
+    const STORAGE_KEY = 'fastmap.maps.v1';
+    const PALETTE = [
+        '#245c85', '#1a7a3c', '#b8860b', '#7d3c98', '#c05f2a',
+        '#0e7490', '#9d174d', '#455a64',
+    ];
+    const ACTIVE_COLOR = '#d40000';
+    const DEFAULTS = {
+        paperSize: 'A4',
+        orientation: 'portrait',
+        scale: 20000,
+        layer: 'maastokartta',
+        margin: 7,
+    };
 
-    let rectFeature = null;
+    let maps = [];          // [{id, title, paperSize, orientation, scale, layer, margin, feature, labelFeature}]
+    let activeId = null;
+    let nextId = 1;
 
-    function rectCenter() {
-        if (rectFeature) {
-            const e = rectFeature.getGeometry().getExtent();
-            return [(e[0] + e[2]) / 2, (e[1] + e[3]) / 2];
-        }
-        return view.getCenter();
+    function sourceOf(layer) { return layer.getSource(); }
+
+    function entryColor(e) {
+        if (!e) return ACTIVE_COLOR;
+        if (e.id === activeId) return ACTIVE_COLOR;
+        return PALETTE[((e.colorIdx ?? e.id) % PALETTE.length + PALETTE.length) % PALETTE.length];
     }
 
-    function updateRect() {
-        const paper = document.getElementById('paperSize').value;
-        const orient = document.getElementById('orientation').value;
-        const scale = parseInt(document.getElementById('scale').value, 10) || 20000;
+    function styleFor(feature) {
+        const e = getEntry(feature.get('mapId'));
+        if (feature.get('label')) {
+            return new Style({
+                text: new Text({
+                    text: feature.get('labelText') || '',
+                    font: 'bold 11px system-ui, sans-serif',
+                    fill: new Fill({ color: entryColor(e) }),
+                    stroke: new Stroke({ color: '#ffffff', width: 3 }),
+                    offsetX: -5,
+                    offsetY: 5,
+                    textAlign: 'right',
+                    textBaseline: 'top',
+                }),
+            });
+        }
+        const isActive = !!e && e.id === activeId;
+        return new Style({
+            stroke: new Stroke({ color: entryColor(e), width: 2 }),
+            fill: new Fill({
+                color: isActive ? 'rgba(255, 60, 60, 0.08)' : 'rgba(120, 120, 120, 0.06)',
+            }),
+        });
+    }
 
-        let [wmm, hmm] = PAPER_MM[paper];
-        if (orient === 'landscape') [wmm, hmm] = [hmm, wmm];
-        const w_m = wmm / 1000 * scale;
-        const h_m = hmm / 1000 * scale;
+    function moveFeature(entry, layer) {
+        if (!entry) return;
+        for (const f of [entry.feature, entry.labelFeature]) {
+            if (!f) continue;
+            sourceOf(lockedLayer).removeFeature(f);
+            sourceOf(activeLayer).removeFeature(f);
+            if (layer) sourceOf(layer).addFeature(f);
+        }
+    }
 
-        const [cx, cy] = rectCenter();
-        const coords = [
-            [cx - w_m / 2, cy - h_m / 2],
-            [cx + w_m / 2, cy - h_m / 2],
-            [cx + w_m / 2, cy + h_m / 2],
-            [cx - w_m / 2, cy + h_m / 2],
-            [cx - w_m / 2, cy - h_m / 2],
+    const activeLayer = new VectorLayer({ source: new VectorSource(), style: styleFor });
+    const lockedLayer = new VectorLayer({ source: new VectorSource(), style: styleFor });
+
+    // Printable content size in metres for an entry's settings.
+    function contentMeters(e) {
+        let [wmm, hmm] = PAPER_MM[e.paperSize] || PAPER_MM.A4;
+        if (e.orientation === 'landscape') [wmm, hmm] = [hmm, wmm];
+        // Mirror backend content_area_mm(): paper minus equal margins.
+        const m = Math.max(0, Math.min(e.margin, Math.min(wmm, hmm) / 2 - 0.5));
+        return [(wmm - 2 * m) / 1000 * e.scale, (hmm - 2 * m) / 1000 * e.scale];
+    }
+
+    function ring(cx, cy, w, h) {
+        return [
+            [cx - w / 2, cy - h / 2], [cx + w / 2, cy - h / 2],
+            [cx + w / 2, cy + h / 2], [cx - w / 2, cy + h / 2],
+            [cx - w / 2, cy - h / 2],
         ];
-
-        if (!rectFeature) {
-            rectFeature = new Feature(new Polygon([coords]));
-            vectorLayer.getSource().addFeature(rectFeature);
-        } else {
-            rectFeature.getGeometry().setCoordinates([coords]);
-        }
-
-        const km = v => v >= 1000 ? `${(v / 1000).toLocaleString('fi-FI')} km` : `${Math.round(v)} m`;
-        document.getElementById('info').innerHTML =
-            `Alue: ${km(w_m)} × ${km(h_m)}<br>` +
-            `Paperi: ${paper} ${orient === 'portrait' ? 'pysty' : 'vaaka'}, 1:${scale.toLocaleString('fi-FI')}`;
     }
 
-    const vectorLayer = new VectorLayer({
-        source: new VectorSource(),
-        style: new Style({
-            stroke: new Stroke({ color: '#d40000', width: 2 }),
-            fill: new Fill({ color: 'rgba(255, 60, 60, 0.08)' }),
-        }),
-    });
+    function entryCenter(e) {
+        const ext = e.feature.getGeometry().getExtent();
+        return [(ext[0] + ext[2]) / 2, (ext[1] + ext[3]) / 2];
+    }
 
+    function resizeToSettings(e) {
+        const [cx, cy] = entryCenter(e);
+        const [w, h] = contentMeters(e);
+        e.feature.getGeometry().setCoordinates([ring(cx, cy, w, h)]);
+        if (e.labelFeature) syncLabel(e);
+    }
+
+    function createEntry(center, settings = {}, coords = null) {
+        const entry = { ...DEFAULTS, title: '', ...settings };
+        entry.id = nextId++;
+        entry.colorIdx = entry.colorIdx ?? entry.id % PALETTE.length;
+        const [w, h] = contentMeters(entry);
+        entry.feature = new Feature(
+            new Polygon([coords ?? ring(center[0], center[1], w, h)])
+        );
+        entry.feature.set('mapId', entry.id);
+        entry.labelFeature = new Feature(new Point(entryCenter(entry)));
+        entry.labelFeature.set('mapId', entry.id);
+        entry.labelFeature.set('label', true);
+        maps.push(entry);
+        return entry;
+    }
+
+    function getEntry(id) { return maps.find(m => m.id === id); }
+    function active() { return getEntry(activeId); }
+
+    function setActive(id) {
+        const cur = active();
+        if (cur && cur.id !== id) moveFeature(cur, lockedLayer);
+        activeId = id;
+        const nxt = active();
+        if (nxt) moveFeature(nxt, activeLayer);
+        syncPanel();
+        renderList();
+        persist();
+    }
+
+    function deleteEntry(id) {
+        const i = maps.findIndex(m => m.id === id);
+        if (i === -1) return;
+        moveFeature(maps[i], null);
+        maps.splice(i, 1);
+        if (id === activeId) {
+            if (maps.length) setActive(maps[Math.max(0, i - 1)].id);
+            else newMap();
+        } else {
+            renderList();
+            persist();
+        }
+    }
+
+    function newMap() {
+        // inherit the active map's settings so consecutive maps stay consistent
+        const cur = active();
+        const settings = cur ? {
+            paperSize: cur.paperSize,
+            orientation: cur.orientation,
+            scale: cur.scale,
+            layer: cur.layer,
+            margin: cur.margin,
+        } : {};
+        setActive(createEntry(view.getCenter(), settings).id);
+    }
+
+    function clearAll() {
+        for (const e of maps) moveFeature(e, null);
+        maps = [];
+        localStorage.removeItem(STORAGE_KEY);
+        newMap();
+    }
+
+    // --- Panel <-> active entry -------------------------------------------
+    const el = id => document.getElementById(id);
+
+    function syncPanel() {
+        const e = active();
+        if (!e) return;
+        el('paperSize').value = e.paperSize;
+        el('orientation').value = e.orientation;
+        el('scale').value = e.scale;
+        el('margin').value = e.margin;
+        el('baseLayer').value = e.layer;
+        baseLayer.setSource(makeBaseSource(e.layer));
+        el('title').value = e.title;
+        updateInfo();
+    }
+
+    function panelChanged() {
+        const e = active();
+        if (!e) return;
+        e.paperSize = PAPER_MM[el('paperSize').value] ? el('paperSize').value : 'A4';
+        e.orientation = el('orientation').value === 'landscape' ? 'landscape' : 'portrait';
+        e.scale = parseInt(el('scale').value, 10) || 20000;
+        e.margin = parseFloat(el('margin').value);
+        if (!Number.isFinite(e.margin)) e.margin = DEFAULTS.margin;
+        e.margin = Math.min(Math.max(e.margin, 0), 30);
+        e.layer = LAYERS.includes(el('baseLayer').value)
+            ? el('baseLayer').value : 'maastokartta';
+        e.title = el('title').value.trim();
+        resizeToSettings(e);
+        renderList();
+        persist();
+        updateInfo();
+    }
+
+    function fmtKm(v) {
+        return v >= 1000 ? `${(v / 1000).toLocaleString('fi-FI')} km` : `${Math.round(v)} m`;
+    }
+
+    function displayName(e) {
+        return e.title || `Kartta ${maps.indexOf(e) + 1}`;
+    }
+
+    function shortName(e) {
+        const t = displayName(e);
+        return t.length > 16 ? `${t.slice(0, 15)}…` : t;
+    }
+
+    function syncLabel(e) {
+        const ext = e.feature.getGeometry().getExtent();
+        e.labelFeature.getGeometry().setCoordinates([ext[2], ext[3]]);
+    }
+
+    function refreshLabels() {
+        for (const e of maps) {
+            if (!e.labelFeature) continue;
+            e.labelFeature.set('labelText', shortName(e));
+            syncLabel(e);
+        }
+        lockedLayer.changed();
+        activeLayer.changed();
+    }
+
+    function updateInfo() {
+        const e = active();
+        if (!e) { el('info').innerHTML = ''; return; }
+        const [w, h] = contentMeters(e);
+        el('info').innerHTML =
+            `${displayName(e)}: ${fmtKm(w)} × ${fmtKm(h)}<br>` +
+            `Paperi: ${e.paperSize} ${e.orientation === 'portrait' ? 'pysty' : 'vaaka'}, ` +
+            `1:${e.scale.toLocaleString('fi-FI')}, marginaali ${Math.round(e.margin)} mm`;
+    }
+
+    function renderList() {
+        const ul = el('mapList');
+        ul.innerHTML = '';
+        maps.forEach(e => {
+            const li = document.createElement('li');
+            li.dataset.id = e.id;
+            if (e.id === activeId) li.classList.add('active');
+
+            const chip = document.createElement('span');
+            chip.className = 'chip';
+            chip.style.background =
+                e.id === activeId ? ACTIVE_COLOR : entryColor(e);
+
+            const name = document.createElement('span');
+            name.className = 'm-name';
+            name.textContent = displayName(e);
+
+            const sum = document.createElement('span');
+            sum.className = 'm-sum';
+            sum.textContent = `${e.paperSize} · 1:${e.scale.toLocaleString('fi-FI')}`;
+
+            const del = document.createElement('button');
+            del.className = 'del';
+            del.textContent = '✕';
+            del.title = 'Poista kartta';
+            del.addEventListener('click', ev => {
+                ev.stopPropagation();
+                deleteEntry(e.id);
+            });
+
+            li.append(chip, name, sum, del);
+            li.addEventListener('click', () => setActive(e.id));
+            ul.appendChild(li);
+        });
+        refreshLabels();
+    }
+
+    // --- Persistence --------------------------------------------------------
+    function serialize() {
+        return {
+            nextId,
+            maps: maps.map(e => ({
+                title: e.title,
+                paperSize: e.paperSize,
+                orientation: e.orientation,
+                scale: e.scale,
+                layer: e.layer,
+                margin: e.margin,
+                colorIdx: e.colorIdx,
+                coords: e.feature.getGeometry().getExtent(),
+            })),
+        };
+    }
+
+    function persist() {
+        try { localStorage.setItem(STORAGE_KEY, JSON.stringify(serialize())); }
+        catch { /* storage may be unavailable - ignore */ }
+    }
+
+    function restore() {
+        try {
+            const raw = localStorage.getItem(STORAGE_KEY);
+            if (!raw) return false;
+            const data = JSON.parse(raw);
+            if (!Array.isArray(data.maps)) return false;
+            for (const m of data.maps) {
+                const c = m.coords;
+                if (!Array.isArray(c) || c.length !== 4 ||
+                    !c.every(Number.isFinite) || !(c[2] > c[0]) || !(c[3] > c[1])) continue;
+                if (!PAPER_MM[m.paperSize] || !['portrait', 'landscape'].includes(m.orientation)) continue;
+                if (!LAYERS.includes(m.layer)) continue;
+                if (!Number.isFinite(m.scale) || m.scale < 100 || m.scale > 2000000) continue;
+                createEntry([0, 0], {
+                    title: typeof m.title === 'string' ? m.title : '',
+                    paperSize: m.paperSize,
+                    orientation: m.orientation,
+                    scale: m.scale,
+                    layer: m.layer,
+                    margin: Number.isFinite(m.margin) ? Math.min(Math.max(m.margin, 0), 30) : DEFAULTS.margin,
+                    ...(Number.isInteger(m.colorIdx)
+                        && m.colorIdx >= 0 && m.colorIdx < PALETTE.length
+                        ? { colorIdx: m.colorIdx } : {}),
+                }, c);
+                moveFeature(maps[maps.length - 1], lockedLayer);
+            }
+            if (!maps.length) return false;
+            nextId = Number.isFinite(data.nextId) ? Math.max(data.nextId, 1) : maps.length + 1;
+            return true;
+        } catch {
+            return false;
+        }
+    }
+
+    // --- Map ----------------------------------------------------------------
     const view = new View({
         projection: PROJ,
-        center: [379667, 6673891],   // Otaniemi / Espoo
+        center: DEF_CENTER,
         resolution: 128,
         extent: MAX_EXTENT,
     });
 
     const map = new Map({
         target: 'map',
-        layers: [baseLayer, vectorLayer],
+        layers: [baseLayer, lockedLayer, activeLayer],
         view,
+        interactions: defaults({ doubleClickZoom: false }),
     });
 
-    updateRect();
+    const translate = new Translate({
+        layers: [activeLayer],
+        filter: f => !f.get('label'),   // labels ride along, not draggable
+    });
+    translate.on('translating', ev => {
+        for (const f of ev.features.getArray()) {
+            const e = getEntry(f.get('mapId'));
+            if (e && !f.get('label')) syncLabel(e);
+        }
+    });
+    translate.on('translateend', () => { persist(); updateInfo(); });
+    map.addInteraction(translate);
 
-    // Drag the rectangle with the mouse
-    map.addInteraction(new Translate({ layers: [vectorLayer] }));
-
-    // Double-click centers the rectangle there
+    // Double-click centres the ACTIVE rectangle there (no zoom)
     map.on('dblclick', e => {
-        const ext = rectFeature.getGeometry().getExtent();
-        const cx = e.coordinate[0], cy = e.coordinate[1];
-        const hw = (ext[2] - ext[0]) / 2, hh = (ext[3] - ext[1]) / 2;
-        const coords = [
-            [cx - hw, cy - hh], [cx + hw, cy - hh],
-            [cx + hw, cy + hh], [cx - hw, cy + hh], [cx - hw, cy - hh],
-        ];
-        rectFeature.getGeometry().setCoordinates([coords]);
+        const cur = active();
+        if (!cur) return;
+        const [cx, cy] = e.coordinate;
+        const [hw, hh] = contentMeters(cur).map(v => v / 2);
+        cur.feature.getGeometry().setCoordinates([
+            ring(cx, cy, hw * 2, hh * 2),
+        ]);
+        syncLabel(cur);
+        persist();
+        updateInfo();
     });
 
-    for (const id of ['paperSize', 'orientation', 'scale']) {
-        document.getElementById(id).addEventListener('change', updateRect);
-        document.getElementById(id).addEventListener('input', updateRect);
+    if (!restore()) newMap(); else setActive(maps[maps.length - 1].id);
+
+    // --- Wiring -------------------------------------------------------------
+    for (const id of ['paperSize', 'orientation', 'scale', 'margin']) {
+        el(id).addEventListener('change', panelChanged);
+        el(id).addEventListener('input', panelChanged);
     }
-
-    document.getElementById('baseLayer').addEventListener('change', e => {
-        baseLayer.setSource(makeBaseSource(e.target.value));
+    el('title').addEventListener('input', () => {
+        const e = active();
+        if (!e) return;
+        e.title = el('title').value.trim();
+        renderList();
+        persist();
     });
+    el('baseLayer').addEventListener('change', e => {
+        baseLayer.setSource(makeBaseSource(e.target.value));
+        panelChanged();
+    });
+    el('newBtn').addEventListener('click', newMap);
+    el('clearAllBtn').addEventListener('click', clearAll);
 
-    // --- PDF generation ----------------------------------------------------
-    const btn = document.getElementById('generateBtn');
-    const statusEl = document.getElementById('status');
+    // --- PDF generation -----------------------------------------------------
+    const statusEl = el('status');
 
     function setStatus(msg, isError = false) {
         statusEl.textContent = msg;
         statusEl.classList.toggle('error', isError);
     }
 
-    btn.addEventListener('click', async () => {
-        if (!rectFeature) return;
-        const [minx, miny, maxx, maxy] =
-            rectFeature.getGeometry().getExtent();
-
+    function requestPayload(e) {
         const payload = {
-            bbox: { minx, miny, maxx, maxy },
-            scale: parseInt(document.getElementById('scale').value, 10),
-            paper_size: document.getElementById('paperSize').value,
-            orientation: document.getElementById('orientation').value,
-            layer: document.getElementById('baseLayer').value,
+            bbox: bboxOf(e),
+            scale: e.scale,
+            paper_size: e.paperSize,
+            orientation: e.orientation,
+            layer: e.layer,
             dpi: 300,
+            margin_mm: e.margin,
         };
-        const title = document.getElementById('title').value.trim();
-        if (title) payload.title = title;
+        if (e.title) payload.title = e.title;
+        return payload;
+    }
 
-        btn.disabled = true;
+    function bboxOf(e) {
+        const [minx, miny, maxx, maxy] = e.feature.getGeometry().getExtent();
+        return { minx, miny, maxx, maxy };
+    }
+
+    async function download(url, payload, busyButtons) {
+        busyButtons.forEach(b => b.disabled = true);
         setStatus('Laaditaan karttaa… tämä voi kestää hetken.');
-
         try {
-            const resp = await fetch('/generate-map', {
+            const resp = await fetch(url, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload),
@@ -282,21 +647,35 @@
                 const m = disposition.match(/filename="?([^";]+)"?/i);
                 if (m) filename = decodeURIComponent(m[1]);
             }
-            const url = URL.createObjectURL(blob);
+            const urlObj = URL.createObjectURL(blob);
             const a = document.createElement('a');
-            a.href = url;
+            a.href = urlObj;
             a.download = filename;
             document.body.appendChild(a);
             a.click();
             a.remove();
-            URL.revokeObjectURL(url);
+            URL.revokeObjectURL(urlObj);
 
             setStatus(`Valmis! Ladataan ${filename}`);
         } catch (err) {
             setStatus(`Virhe: ${err.message}`, true);
         } finally {
-            btn.disabled = false;
+            busyButtons.forEach(b => b.disabled = false);
         }
+    }
+
+    el('downloadBtn').addEventListener('click', () => {
+        const e = active();
+        if (!e) return;
+        download('/generate-map', requestPayload(e), [el('downloadBtn'), el('downloadAllBtn')]);
+    });
+
+    el('downloadAllBtn').addEventListener('click', () => {
+        if (!maps.length) return;
+        download('/generate-maps-batch', {
+            output: el('batchFormat').value,
+            maps: maps.map(requestPayload),
+        }, [el('downloadBtn'), el('downloadAllBtn')]);
     });
 </script>
 </body>
