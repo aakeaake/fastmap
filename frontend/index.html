@@ -90,7 +90,8 @@
     "imports": {
         "ol": "https://cdn.jsdelivr.net/npm/ol@10/index.js",
         "ol/": "https://cdn.jsdelivr.net/npm/ol@10/",
-        "proj4": "https://cdn.jsdelivr.net/npm/proj4@2/+esm"
+        "proj4": "https://cdn.jsdelivr.net/npm/proj4@2/+esm",
+        "rbush": "https://cdn.jsdelivr.net/npm/rbush@4/+esm"
     }
 }
 </script>
@@ -110,7 +111,7 @@
     import TileGrid from 'ol/tilegrid/TileGrid.js';
     import Translate from 'ol/interaction/Translate.js';
     import proj4 from 'proj4';
-    import { register } from 'ol/proj.js';
+    import { register } from 'ol/proj/proj4.js';
 
     // --- EPSG:3067 (ETRS-TM35FIN) -----------------------------------------
     proj4.defs('EPSG:3067',
@@ -119,8 +120,9 @@
     const PROJ = 'EPSG:3067';
     const MAX_EXTENT = [-548576, 6291456, 1548576, 8388608];
 
-    // NLS ETRS-TM35FIN tile matrix set: res = 8192 / 2^z, origin top-left
-    const RESOLUTIONS = Array.from({ length: 15 }, (_, z) => 8192 / 2 ** z);
+    // NLS ETRS-TM35FIN tile matrix set: res = 8192 / 2^z, origin top-left.
+    // The open-data service offers levels 0-13 for this matrix set.
+    const RESOLUTIONS = Array.from({ length: 14 }, (_, z) => 8192 / 2 ** z);
 
     function makeBaseSource(layer) {
         return new TileImage({
@@ -192,7 +194,7 @@
 
     const view = new View({
         projection: PROJ,
-        center: [430000, 6668000],   // Otaniemi / Espoo
+        center: [379667, 6673891],   // Otaniemi / Espoo
         resolution: 128,
         extent: MAX_EXTENT,
     });

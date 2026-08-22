@@ -1,11 +1,13 @@
 """Fetching MML (National Land Survey of Finland) raster map images.
 
-Two paths, both in EPSG:3067 (ETRS-TM35FIN) so printed scale is true:
+Both paths are in EPSG:3067 (ETRS-TM35FIN) so printed scale is true:
 
-* ``fetch_wms_image``  - WMS GetMap returns exactly the requested bbox at
-  the exact pixel size in a single request. Primary path.
 * ``fetch_wmts_mosaic`` - stitches WMTS ETRS-TM35FIN tiles and crops to
-  the bbox. Fallback if the WMS request fails.
+  the bbox. Primary path: the free open-data service ("Karttakuva avoin")
+  offers WMTS only, at matrix levels 0-13.
+* ``fetch_wms_image``  - WMS GetMap returns exactly the requested bbox at
+  the exact pixel size in a single request. Only used when ``MML_WMS_URL``
+  is configured (contract licence customers); otherwise skipped silently.
 """
 
 from __future__ import annotations
@@ -26,8 +28,9 @@ from fastmap.core.config import (
 from fastmap.services.print_layout import Extent
 
 WMTS_TILE_SIZE = 256
-# Tile matrix set "ETRS-TM35FIN": resolution = 8192 / 2**level, level 0..14
-WMTS_MAX_LEVEL = 14
+# Tile matrix set "ETRS-TM35FIN": resolution = 8192 / 2**level. The open
+# service serves levels 0-13 (0.5 m/px would be level 14 - contract only).
+WMTS_MAX_LEVEL = 13
 WMTS_ORIGIN = (-548576.0, 8388608.0)  # top-left corner of level-0 mosaic
 
 MML_LAYERS = ("maastokartta", "taustakartta", "selkokartta", "ortokuva")
@@ -49,6 +52,17 @@ def _require_api_key() -> str:
 
 
 # ---------------------------------------------------------------------------
+# Shared helpers
+# ---------------------------------------------------------------------------
+
+def _on_white(img: Image.Image) -> Image.Image:
+    """Flatten transparency onto white so no-data areas print as white."""
+    rgba = img.convert("RGBA")
+    bg = Image.new("RGBA", rgba.size, (255, 255, 255, 255))
+    return Image.alpha_composite(bg, rgba).convert("RGB")
+
+
+# ---------------------------------------------------------------------------
 # WMS
 # ---------------------------------------------------------------------------
 
@@ -59,6 +73,11 @@ def build_wms_url(
     layer: str,
 ) -> str:
     """Build a WMS 1.1.1 GetMap URL (1.1.1 keeps bbox axis order x,y)."""
+    if not MML_WMS_URL:
+        raise MMLError(
+            "No WMS endpoint configured. The free MML open-data service is "
+            "WMTS-only; set MML_WMS_URL to use a contract licence."
+        )
     key = _require_api_key()
     params = {
         "service": "WMS",
@@ -89,7 +108,7 @@ def fetch_wms_image(
             f"WMS GetMap failed ({resp.status_code}): {resp.text[:200]}"
         )
     try:
-        return Image.open(io.BytesIO(resp.content)).convert("RGB")
+        return _on_white(Image.open(io.BytesIO(resp.content)))
     except Exception as exc:  # noqa: BLE001
         raise MMLError(f"WMS returned a non-image payload: {exc}") from exc
 
@@ -124,12 +143,13 @@ def tile_range(extent: Extent, level: int) -> tuple[int, int, int, int]:
 
 
 def fetch_wmts_tile(x: int, y: int, level: int, layer: str) -> Image.Image:
+    """Fetch one tile. REST path order is {z}/{TileRow}/{TileCol}."""
     key = _require_api_key()
     url = MML_WMTS_URL.format(layer=layer, z=level, y=y, x=x) + f"?api-key={key}"
     resp = requests.get(url, headers=_HEADERS, timeout=30)
     if resp.status_code != 200:
         raise MMLError(f"WMTS tile fetch failed ({resp.status_code}) for {url}")
-    return Image.open(io.BytesIO(resp.content)).convert("RGB")
+    return _on_white(Image.open(io.BytesIO(resp.content)))
 
 
 def fetch_wmts_mosaic(
@@ -180,7 +200,7 @@ def render_extent_image(
     height_px: int,
     layer: str = "maastokartta",
 ) -> Image.Image:
-    """Render via WMS, falling back to WMTS stitching on failure."""
+    """Render via WMS when configured, otherwise via WMTS stitching."""
     try:
         return fetch_wms_image(extent, width_px, height_px, layer)
     except MMLError:

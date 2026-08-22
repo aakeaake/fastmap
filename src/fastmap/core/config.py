@@ -6,8 +6,16 @@ load_dotenv()
 
 MML_API_KEY = os.environ.get("MML_API_KEY", "")
 
-MML_WMS_URL = "https://avoin-karttakuva.maanmittauslaitos.fi/avoin/wms/1.0.1/"
-MML_WMTS_URL = "https://avoin-karttakuva.maanmittauslaitos.fi/avoin/wmts/1.0.0/{layer}/default/ETRS-TM35FIN/{z}/{y}/{x}.png"
+# The free open-data service ("Karttakuva avoin") is WMTS-only; WMS GetMap
+# exists only for contract licence customers. Leave empty to use WMTS
+# stitching, or point at your own licensed endpoint to enable the WMS path.
+MML_WMS_URL = os.environ.get("MML_WMS_URL", "")
+# Tile path template: {z} / {y}=TileRow / {x}=TileCol  (REST order per MML).
+MML_WMTS_URL = os.environ.get(
+    "MML_WMTS_URL",
+    "https://avoin-karttakuva.maanmittauslaitos.fi/avoin/wmts/1.0.0/"
+    "{layer}/default/ETRS-TM35FIN/{z}/{y}/{x}.png",
+)
 
 USER_AGENT = "fastmap/0.1 (print-ready maps of Finland)"
 

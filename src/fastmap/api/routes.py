@@ -11,7 +11,11 @@ from fastmap.core.config import (
     USER_AGENT,
 )
 from fastmap.schemas.map_request import MapRequest
-from fastmap.services.mml_source import MMLError, MML_LAYERS
+from fastmap.services.mml_source import (
+    MMLError,
+    MML_LAYERS,
+    WMTS_MAX_LEVEL,
+)
 from fastmap.services.pdf_generator import generate_pdf_to_temp
 from fastmap.services.print_layout import (
     clamp_extent_to_finland,
@@ -89,7 +93,11 @@ _TILE_MAX = 1 << 15
 def nls_tile(level: int, col: int, row: int, layer: str = "taustakartta"):
     if not MML_API_KEY:
         raise HTTPException(status_code=503, detail="Missing MML_API_KEY.")
-    if not (0 <= level <= 14 and 0 <= col < _TILE_MAX and 0 <= row < _TILE_MAX):
+    if not (
+        0 <= level <= WMTS_MAX_LEVEL
+        and 0 <= col < _TILE_MAX
+        and 0 <= row < _TILE_MAX
+    ):
         raise HTTPException(status_code=404, detail="Tile out of range")
     if layer not in MML_LAYERS:
         raise HTTPException(status_code=400, detail=f"Unknown layer '{layer}'")

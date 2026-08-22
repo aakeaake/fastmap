@@ -27,13 +27,22 @@ src/fastmap/
 ├── schemas/               Pydantic request models + validation
 ├── services/
 │   ├── print_layout.py    Pure maths: paper sizes, extents, pixel dims, scale bar
-│   ├── mml_source.py      MML WMS GetMap (primary) + WMTS tile stitching (fallback)
+│   ├── mml_source.py      MML WMTS tile stitching (open data) + optional WMS
 │   └── pdf_generator.py   ReportLab page composition, scale bar, attribution
 └── core/config.py         Env-based configuration
 ```
 
 The browser never sees the MML API key: preview tiles are proxied through
 `/api/nls-tiles/{z}/{x}/{y}.png`.
+
+## MML open-data service notes
+
+* The free "Karttakuva avoin" service is **WMTS-only** (WMS GetMap requires a
+  contract licence; set `MML_WMS_URL` in `.env` if you have one).
+* The `ETRS-TM35FIN` matrix set is served at levels 0–13
+  (resolution 8192 m/px → 1 m/px); FastMap caps rendering accordingly.
+* Areas outside Finland's map coverage render as blank white — e.g. a bbox
+  accidentally centred across the eastern border.
 
 ## Setup
 
