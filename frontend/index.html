@@ -292,8 +292,8 @@ import Point from 'ol/geom/Point.js';
         if (!entry) return;
         for (const f of [entry.feature, entry.labelFeature]) {
             if (!f) continue;
-            sourceOf(lockedLayer).removeFeature(f);
-            sourceOf(activeLayer).removeFeature(f);
+            if (lockedLayer.getSource().hasFeature(f)) lockedLayer.getSource().removeFeature(f);
+            if (activeLayer.getSource().hasFeature(f)) activeLayer.getSource().removeFeature(f);
             if (layer) sourceOf(layer).addFeature(f);
         }
     }
@@ -526,7 +526,7 @@ import Point from 'ol/geom/Point.js';
                 colorIdx: e.colorIdx,
                 gridMode: e.gridMode,
                 gridSpacing: e.gridSpacing,
-                coords: e.feature.getGeometry().getExtent(),
+                coords: e.feature.getGeometry().getCoordinates()[0],
             })),
         };
     }
