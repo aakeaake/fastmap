@@ -154,9 +154,3 @@ def format_scale_label(scale_value: float) -> str:
     """Format 1:x with thin-space thousands separators."""
     s = f"{round(scale_value):,}".replace(",", " ")
     return f"1 : {s}"
-
-
-def format_extent_name(extent: Extent) -> str:
-    """Short human-readable place tag from TM35FIN coordinates."""
-    lat = extent.center[1]
-    return f"N {round(lat)} E {round(extent.center[0])}"
