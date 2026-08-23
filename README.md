@@ -52,6 +52,8 @@ The browser never sees the MML API key: preview tiles are proxied through
 * **Timestamped filenames** — downloads include date/time to avoid collisions.
 * **Persistent state** — rectangle list saved in your browser and restored on
   the next visit.
+* **GPX track overlay** — upload a GPX file to display the track on the preview
+  map and render it on exported PDFs. Customisable colour, width, and opacity.
 
 ## MML open-data service notes
 
@@ -96,6 +98,9 @@ Open <http://127.0.0.1:8000/> — the UI is served by the same server.
   so what you see is exactly what prints.
 * **Ruudukko** selector toggles grid lines (Ei / Pystyviivat / Täysi) with
   selectable spacing. Greys out when off.
+* **GPX-reitti** button uploads a GPX file; the track appears as a coloured
+  line on the preview map and is included in exported PDFs. Use
+  **GPX-lisäasetukset** to adjust colour, width, and opacity.
 * **Lataa aktiivinen PDF** downloads the current map;
   **Lataa kaikki** renders every rectangle as either one multi-page PDF
   (mixed page sizes allowed) or a ZIP of individual PDFs.
@@ -111,6 +116,8 @@ Each generated PDF contains:
 * **Title** (top-right inside corner, optional) on a semi-transparent white box.
 * **Grid lines** (optional) — thin grey lines at the selected spacing, with
   optional coordinate labels at content-area edges.
+* **GPX route** (optional) — coloured polyline clipped to the content area,
+  with configurable colour, width, and opacity.
 
 ### API
 
@@ -143,8 +150,11 @@ Either `bbox` (EPSG:3067 metres) or `center_x`, `center_y` + `scale` must be
 given per map. Optional fields: `dpi` (default 300), `margin_mm` (default 7),
 `title`, `grid_mode` (`"off"` / `"vertical"` / `"vertical_coords"` / `"full"` /
 `"full_coords"`, default `"off"`),
-`grid_spacing_m` (500 / 1000 / 2000 / 5000, default 1000). See `/docs` for
-the interactive schema.
+`grid_spacing_m` (500 / 1000 / 2000 / 5000, default 1000),
+`gpx_routes` (list of coordinate arrays in EPSG:3067),
+`gpx_color` (hex, default `"#ff00ff"`),
+`gpx_width` (1–20 pt, default 5),
+`gpx_opacity` (0.1–1.0, default 0.6). See `/docs` for the interactive schema.
 
 ## Tests
 
