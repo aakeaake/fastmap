@@ -10,7 +10,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from PIL import Image
-from reportlab.lib.colors import black
+from reportlab.lib.colors import black, Color
 from reportlab.lib.units import mm
 from reportlab.lib.utils import ImageReader
 from reportlab.pdfgen import canvas
@@ -49,12 +49,77 @@ def _draw_overlay_text(
     size: float = 7,
     align_right: bool = False,
 ) -> None:
-    """Plain black text drawn over the map imagery."""
+    """Black text on a semi-transparent white background for legibility."""
     if align_right:
         x -= c.stringWidth(text, font, size)
+    pad = 2
+    tw = c.stringWidth(text, font, size)
+    c.saveState()
+    c.setFillColor(Color(1, 1, 1, alpha=0.85))
+    c.rect(x - pad, y - pad, tw + 2 * pad, size + 2 * pad, stroke=0, fill=1)
+    c.restoreState()
     c.setFillColor(black)
     c.setFont(font, size)
     c.drawString(x, y, text)
+
+
+def _draw_grid_lines(
+    c: canvas.Canvas,
+    extent: Extent,
+    x0: float,
+    y0: float,
+    w: float,
+    h: float,
+    *,
+    mode: str,
+    spacing_m: int,
+) -> None:
+    """Draw thin grey grid lines over the map content area."""
+    if mode == "off":
+        return
+    c.saveState()
+    c.setStrokeColor(Color(0.35, 0.35, 0.35))
+    c.setLineWidth(0.3)
+
+    # vertical lines (south-north)
+    start_x = int(extent.minx // spacing_m) * spacing_m
+    for gx in range(start_x, int(extent.maxx) + spacing_m, spacing_m):
+        if gx < extent.minx or gx > extent.maxx:
+            continue
+        px = (gx - extent.minx) / (extent.maxx - extent.minx) * w + x0
+        c.line(px, y0, px, y0 + h)
+
+    # horizontal lines (west-east) — full grid only
+    if mode == "full":
+        start_y = int(extent.miny // spacing_m) * spacing_m
+        for gy in range(start_y, int(extent.maxy) + spacing_m, spacing_m):
+            if gy < extent.miny or gy > extent.maxy:
+                continue
+            py = (gy - extent.miny) / (extent.maxy - extent.miny) * h + y0
+            c.line(x0, py, x0 + w, py)
+
+    c.restoreState()
+
+    # coordinate labels at edges — full grid only
+    if mode != "full":
+        return
+    c.setFillColor(Color(0.35, 0.35, 0.35))
+    c.setFont("Helvetica", 5.5)
+    label_pad = 1.5  # mm from edge
+
+    for gx in range(start_x, int(extent.maxx) + spacing_m, spacing_m):
+        if gx < extent.minx or gx > extent.maxx:
+            continue
+        px = (gx - extent.minx) / (extent.maxx - extent.minx) * w + x0
+        label = f"{gx // 1000}"
+        c.drawString(px - c.stringWidth(label, "Helvetica", 5.5) / 2, y0 + label_pad * mm, label)
+
+    for gy in range(start_y, int(extent.maxy) + spacing_m, spacing_m):
+        if gy < extent.miny or gy > extent.maxy:
+            continue
+        py = (gy - extent.miny) / (extent.maxy - extent.miny) * h + y0
+        label = f"{gy // 1000}"
+        c.drawString(x0 + label_pad * mm, py - 2, label)
 
 
 def _draw_page(
@@ -66,6 +131,8 @@ def _draw_page(
     orientation: str,
     margin_mm: float,
     title: str | None,
+    grid_mode: str = "off",
+    grid_spacing_m: int = 1000,
 ) -> int:
     """Draw one full page (map plus inside-corner overlays). Returns true scale."""
     cont_w_mm, cont_h_mm = content_area_mm(paper_size, orientation, margin_mm)
@@ -78,6 +145,9 @@ def _draw_page(
 
     # Map image fills the content area exactly -> printed scale is exact
     c.drawImage(ImageReader(img), x0, y0, w, h)
+
+    # optional grid lines
+    _draw_grid_lines(c, extent, x0, y0, w, h, mode=grid_mode, spacing_m=grid_spacing_m)
 
     pad = _TEXT_INSET_MM * mm
 
@@ -118,6 +188,8 @@ def generate_pdf(
     margin_mm: float = 7.0,
     title: str | None = None,
     out_pdf_path: str = "map.pdf",
+    grid_mode: str = "off",
+    grid_spacing_m: int = 1000,
 ) -> PrintResult:
     """Render ``extent`` and write a scaled PDF page.
 
@@ -142,6 +214,8 @@ def generate_pdf(
         orientation=orientation,
         margin_mm=margin_mm,
         title=title,
+        grid_mode=grid_mode,
+        grid_spacing_m=grid_spacing_m,
     )
     c.showPage()
     c.save()
@@ -175,6 +249,8 @@ def generate_multi_pdf(
         orientation = kwargs["orientation"]
         dpi = kwargs.get("dpi", DEFAULT_DPI)
         margin_mm = kwargs.get("margin_mm", 7.0)
+        grid_mode = kwargs.get("grid_mode", "off")
+        grid_spacing_m = kwargs.get("grid_spacing_m", 1000)
 
         px_w, px_h = content_pixels(paper_size, orientation, dpi, margin_mm)
         img = render_extent_image(extent, px_w, px_h, layer=layer)
@@ -194,6 +270,8 @@ def generate_multi_pdf(
             orientation=orientation,
             margin_mm=margin_mm,
             title=kwargs.get("title"),
+            grid_mode=grid_mode,
+            grid_spacing_m=grid_spacing_m,
         )
         results.append(PrintResult(
             path=out_pdf_path,

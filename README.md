@@ -21,19 +21,37 @@ A map labelled 1 : 20 000 measures exactly 1 : 20 000 on paper.
 
 ```
 frontend/index.html        Single-file UI (OpenLayers v10 via CDN, EPSG:3067,
-                           draggable paper-footprint rectangle)
+                           draggable paper-footprint rectangle, scale presets,
+                           optional grid overlay selector)
 src/fastmap/
-├── api/routes.py          POST /generate-map, GET /api/nls-tiles proxy, /health
+├── api/routes.py          POST /generate-map, POST /generate-maps-batch,
+│                          GET /api/nls-tiles proxy, GET /health
 ├── schemas/               Pydantic request models + validation
 ├── services/
-│   ├── print_layout.py    Pure maths: paper sizes, extents, pixel dims, scale bar
+│   ├── print_layout.py    Pure maths: paper sizes, extents, pixel dims
 │   ├── mml_source.py      MML WMTS tile stitching (open data) + optional WMS
-│   └── pdf_generator.py   ReportLab page composition, inside-map overlays
+│   └── pdf_generator.py   ReportLab page composition, grid lines, text overlays
 └── core/config.py         Env-based configuration
 ```
 
 The browser never sees the MML API key: preview tiles are proxied through
 `/api/nls-tiles/{z}/{x}/{y}.png`.
+
+## Features
+
+* **True-to-scale PDFs** — content area matches the printed rectangle exactly.
+* **Multiple rectangles** — draw several maps on one session; click a list row
+  to edit, drag to move, double-click to re-centre.
+* **Scale presets** — 10 000 / 15 000 / 20 000 / 25 000 / 30 000 / 50 000.
+* **Optional grid lines** — south-north (vertical) or full (vertical +
+  horizontal) with coordinate labels. Spacing selectable: 500 / 1 000 / 2 000 /
+  5 000 m.
+* **Batch export** — download all rectangles as one multi-page PDF (mixed page
+  sizes allowed) or a ZIP of individual files.
+* **Layer selection** — Maastokartta, Taustakartta, Selkokartta, Ortoilmakuva.
+* **Timestamped filenames** — downloads include date/time to avoid collisions.
+* **Persistent state** — rectangle list saved in your browser and restored on
+  the next visit.
 
 ## MML open-data service notes
 
@@ -72,13 +90,27 @@ Open <http://127.0.0.1:8000/> — the UI is served by the same server.
 * The panel lists your rectangles: **red = active** (drag it, double-click to
   re-centre), **grey = locked**. Click a list row to edit or ✕ to delete.
 * **+ Uusi kartta** adds a rectangle at the view centre; settings
-  (paper, orientation, scale, margin, layer, title) are stored per rectangle.
+  (paper, orientation, scale, margin, layer, title, grid mode/spacing) are
+  stored per rectangle.
 * The rectangle shows the printable *content area* (paper minus margins),
   so what you see is exactly what prints.
+* **Ruudukko** selector toggles grid lines (Ei / Pystyviivat / Täysi) with
+  selectable spacing. Greys out when off.
 * **Lataa aktiivinen PDF** downloads the current map;
   **Lataa kaikki** renders every rectangle as either one multi-page PDF
   (mixed page sizes allowed) or a ZIP of individual PDFs.
 * The rectangle list is saved in your browser and restored on the next visit.
+
+### PDF output
+
+Each generated PDF contains:
+
+* The map raster filling the content area exactly (no frame or border).
+* **Attribution** (bottom-left inside corner) on a semi-transparent white box.
+* **Scale label** (bottom-right inside corner) on a semi-transparent white box.
+* **Title** (top-right inside corner, optional) on a semi-transparent white box.
+* **Grid lines** (optional) — thin grey lines at the selected spacing, with
+  coordinate labels in full-grid mode.
 
 ### API
 
@@ -109,7 +141,9 @@ curl -X POST http://127.0.0.1:8000/generate-maps-batch \
 
 Either `bbox` (EPSG:3067 metres) or `center_x`, `center_y` + `scale` must be
 given per map. Optional fields: `dpi` (default 300), `margin_mm` (default 7),
-`title`. See `/docs` for the interactive schema.
+`title`, `grid_mode` (`"off"` / `"vertical"` / `"full"`, default `"off"`),
+`grid_spacing_m` (500 / 1000 / 2000 / 5000, default 1000). See `/docs` for
+the interactive schema.
 
 ## Tests
 

@@ -13,6 +13,8 @@ from fastmap.services.print_layout import (
 PaperSize = Literal["A4", "A3"]
 Orientation = Literal["portrait", "landscape"]
 MMLLayer = Literal["maastokartta", "taustakartta", "selkokartta", "ortokuva"]
+GridMode = Literal["off", "vertical", "full"]
+GridSpacing = Literal[500, 1000, 2000, 5000]
 
 
 class BBox(BaseModel):
@@ -48,6 +50,8 @@ class MapRequest(BaseModel):
     dpi: int = Field(default=300, ge=72, le=600)
     margin_mm: float = Field(default=7.0, ge=0.0, le=30.0)
     title: str | None = Field(default=None, max_length=120)
+    grid_mode: GridMode = "off"
+    grid_spacing_m: GridSpacing = 1000
 
     @model_validator(mode="after")
     def _check_location(self) -> "MapRequest":

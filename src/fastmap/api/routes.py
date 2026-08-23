@@ -67,6 +67,8 @@ def generate_map(req: MapRequest):
             dpi=req.dpi,
             margin_mm=req.margin_mm,
             title=req.title,
+            grid_mode=req.grid_mode,
+            grid_spacing_m=req.grid_spacing_m,
         )
     except MMLError as exc:
         raise HTTPException(
@@ -95,6 +97,8 @@ def _req_kwargs(req: MapRequest) -> dict:
         "dpi": req.dpi,
         "margin_mm": req.margin_mm,
         "title": req.title,
+        "grid_mode": req.grid_mode,
+        "grid_spacing_m": req.grid_spacing_m,
     }
 
 

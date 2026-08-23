@@ -112,11 +112,38 @@
     <div class="row">
         <div>
             <label for="scale">Mittakaava 1:</label>
-            <input id="scale" type="number" value="20000" step="5000" min="500" max="1000000">
+            <select id="scale">
+                <option value="10000">10 000</option>
+                <option value="15000">15 000</option>
+                <option value="20000" selected>20 000</option>
+                <option value="25000">25 000</option>
+                <option value="30000">30 000</option>
+                <option value="50000">50 000</option>
+            </select>
         </div>
         <div>
             <label for="margin">Marginaali (mm)</label>
             <input id="margin" type="number" value="7" step="1" min="0" max="30">
+        </div>
+    </div>
+
+    <div class="row">
+        <div>
+            <label for="gridMode">Ruudukko</label>
+            <select id="gridMode">
+                <option value="off" selected>Ei</option>
+                <option value="vertical">Pystyviivat</option>
+                <option value="full">Täysi</option>
+            </select>
+        </div>
+        <div>
+            <label for="gridSpacing">Ruudukon väli</label>
+            <select id="gridSpacing" disabled>
+                <option value="500">500 m</option>
+                <option value="1000" selected>1 000 m</option>
+                <option value="2000">2 000 m</option>
+                <option value="5000">5 000 m</option>
+            </select>
         </div>
     </div>
 
@@ -210,10 +237,7 @@ import Point from 'ol/geom/Point.js';
     const PAPER_MM = { A4: [210, 297], A3: [297, 420] };
     const LAYERS = ['maastokartta', 'taustakartta', 'selkokartta', 'ortokuva'];
     const STORAGE_KEY = 'fastmap.maps.v1';
-    const PALETTE = [
-        '#245c85', '#1a7a3c', '#b8860b', '#7d3c98', '#c05f2a',
-        '#0e7490', '#9d174d', '#455a64',
-    ];
+    const PALETTE = ['#888888'];
     const ACTIVE_COLOR = '#d40000';
     const DEFAULTS = {
         paperSize: 'A4',
@@ -221,6 +245,8 @@ import Point from 'ol/geom/Point.js';
         scale: 20000,
         layer: 'maastokartta',
         margin: 7,
+        gridMode: 'off',
+        gridSpacing: 1000,
     };
 
     let maps = [];          // [{id, title, paperSize, orientation, scale, layer, margin, feature, labelFeature}]
@@ -355,6 +381,8 @@ import Point from 'ol/geom/Point.js';
             scale: cur.scale,
             layer: cur.layer,
             margin: cur.margin,
+            gridMode: cur.gridMode,
+            gridSpacing: cur.gridSpacing,
         } : {};
         setActive(createEntry(view.getCenter(), settings).id);
     }
@@ -379,6 +407,9 @@ import Point from 'ol/geom/Point.js';
         el('baseLayer').value = e.layer;
         baseLayer.setSource(makeBaseSource(e.layer));
         el('title').value = e.title;
+        el('gridMode').value = e.gridMode;
+        el('gridSpacing').value = e.gridSpacing;
+        el('gridSpacing').disabled = e.gridMode === 'off';
         updateInfo();
     }
 
@@ -394,6 +425,10 @@ import Point from 'ol/geom/Point.js';
         e.layer = LAYERS.includes(el('baseLayer').value)
             ? el('baseLayer').value : 'maastokartta';
         e.title = el('title').value.trim();
+        e.gridMode = ['off', 'vertical', 'full'].includes(el('gridMode').value)
+            ? el('gridMode').value : 'off';
+        e.gridSpacing = parseInt(el('gridSpacing').value, 10) || 1000;
+        el('gridSpacing').disabled = e.gridMode === 'off';
         resizeToSettings(e);
         renderList();
         persist();
@@ -487,6 +522,8 @@ import Point from 'ol/geom/Point.js';
                 layer: e.layer,
                 margin: e.margin,
                 colorIdx: e.colorIdx,
+                gridMode: e.gridMode,
+                gridSpacing: e.gridSpacing,
                 coords: e.feature.getGeometry().getExtent(),
             })),
         };
@@ -517,6 +554,8 @@ import Point from 'ol/geom/Point.js';
                     scale: m.scale,
                     layer: m.layer,
                     margin: Number.isFinite(m.margin) ? Math.min(Math.max(m.margin, 0), 30) : DEFAULTS.margin,
+                    gridMode: ['off', 'vertical', 'full'].includes(m.gridMode) ? m.gridMode : 'off',
+                    gridSpacing: [500, 1000, 2000, 5000].includes(m.gridSpacing) ? m.gridSpacing : 1000,
                     ...(Number.isInteger(m.colorIdx)
                         && m.colorIdx >= 0 && m.colorIdx < PALETTE.length
                         ? { colorIdx: m.colorIdx } : {}),
@@ -576,7 +615,7 @@ import Point from 'ol/geom/Point.js';
     if (!restore()) newMap(); else setActive(maps[maps.length - 1].id);
 
     // --- Wiring -------------------------------------------------------------
-    for (const id of ['paperSize', 'orientation', 'scale', 'margin']) {
+    for (const id of ['paperSize', 'orientation', 'scale', 'margin', 'gridMode', 'gridSpacing']) {
         el(id).addEventListener('change', panelChanged);
         el(id).addEventListener('input', panelChanged);
     }
@@ -611,6 +650,8 @@ import Point from 'ol/geom/Point.js';
             layer: e.layer,
             dpi: 300,
             margin_mm: e.margin,
+            grid_mode: e.gridMode,
+            grid_spacing_m: e.gridSpacing,
         };
         if (e.title) payload.title = e.title;
         return payload;
