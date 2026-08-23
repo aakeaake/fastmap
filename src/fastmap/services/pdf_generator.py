@@ -77,6 +77,9 @@ def _draw_grid_lines(
     """Draw thin grey grid lines over the map content area."""
     if mode == "off":
         return
+    show_coords = mode in ("vertical_coords", "full_coords")
+    show_horizontal = mode in ("full", "full_coords")
+
     c.saveState()
     c.setStrokeColor(Color(0.35, 0.35, 0.35))
     c.setLineWidth(0.3)
@@ -90,8 +93,8 @@ def _draw_grid_lines(
         c.line(px, y0, px, y0 + h)
 
     # horizontal lines (west-east) — full grid only
-    if mode == "full":
-        start_y = int(extent.miny // spacing_m) * spacing_m
+    start_y = int(extent.miny // spacing_m) * spacing_m
+    if show_horizontal:
         for gy in range(start_y, int(extent.maxy) + spacing_m, spacing_m):
             if gy < extent.miny or gy > extent.maxy:
                 continue
@@ -100,8 +103,8 @@ def _draw_grid_lines(
 
     c.restoreState()
 
-    # coordinate labels at edges — full grid only
-    if mode != "full":
+    # coordinate labels at edges
+    if not show_coords:
         return
     c.setFillColor(Color(0.35, 0.35, 0.35))
     c.setFont("Helvetica", 5.5)
@@ -114,12 +117,13 @@ def _draw_grid_lines(
         label = f"{gx // 1000}"
         c.drawString(px - c.stringWidth(label, "Helvetica", 5.5) / 2, y0 + label_pad * mm, label)
 
-    for gy in range(start_y, int(extent.maxy) + spacing_m, spacing_m):
-        if gy < extent.miny or gy > extent.maxy:
-            continue
-        py = (gy - extent.miny) / (extent.maxy - extent.miny) * h + y0
-        label = f"{gy // 1000}"
-        c.drawString(x0 + label_pad * mm, py - 2, label)
+    if show_horizontal:
+        for gy in range(start_y, int(extent.maxy) + spacing_m, spacing_m):
+            if gy < extent.miny or gy > extent.maxy:
+                continue
+            py = (gy - extent.miny) / (extent.maxy - extent.miny) * h + y0
+            label = f"{gy // 1000}"
+            c.drawString(x0 + label_pad * mm, py - 2, label)
 
 
 def _draw_page(

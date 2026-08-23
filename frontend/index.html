@@ -133,7 +133,9 @@
             <select id="gridMode">
                 <option value="off" selected>Ei</option>
                 <option value="vertical">Pystyviivat</option>
+                <option value="vertical_coords">Pystyviivat + koordinaatit</option>
                 <option value="full">Täysi</option>
+                <option value="full_coords">Täysi + koordinaatit</option>
             </select>
         </div>
         <div>
@@ -425,7 +427,7 @@ import Point from 'ol/geom/Point.js';
         e.layer = LAYERS.includes(el('baseLayer').value)
             ? el('baseLayer').value : 'maastokartta';
         e.title = el('title').value.trim();
-        e.gridMode = ['off', 'vertical', 'full'].includes(el('gridMode').value)
+        e.gridMode = ['off', 'vertical', 'vertical_coords', 'full', 'full_coords'].includes(el('gridMode').value)
             ? el('gridMode').value : 'off';
         e.gridSpacing = parseInt(el('gridSpacing').value, 10) || 1000;
         el('gridSpacing').disabled = e.gridMode === 'off';
@@ -554,7 +556,7 @@ import Point from 'ol/geom/Point.js';
                     scale: m.scale,
                     layer: m.layer,
                     margin: Number.isFinite(m.margin) ? Math.min(Math.max(m.margin, 0), 30) : DEFAULTS.margin,
-                    gridMode: ['off', 'vertical', 'full'].includes(m.gridMode) ? m.gridMode : 'off',
+                    gridMode: ['off', 'vertical', 'vertical_coords', 'full', 'full_coords'].includes(m.gridMode) ? m.gridMode : 'off',
                     gridSpacing: [500, 1000, 2000, 5000].includes(m.gridSpacing) ? m.gridSpacing : 1000,
                     ...(Number.isInteger(m.colorIdx)
                         && m.colorIdx >= 0 && m.colorIdx < PALETTE.length
