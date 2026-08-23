@@ -94,20 +94,7 @@ def generate_map(req: MapRequest):
 
 
 def _req_kwargs(req: MapRequest) -> dict:
-    return {
-        "paper_size": req.paper_size,
-        "orientation": req.orientation,
-        "layer": req.layer,
-        "dpi": req.dpi,
-        "margin_mm": req.margin_mm,
-        "title": req.title,
-        "grid_mode": req.grid_mode,
-        "grid_spacing_m": req.grid_spacing_m,
-        "gpx_routes": req.gpx_routes,
-        "gpx_color": req.gpx_color,
-        "gpx_width": req.gpx_width,
-        "gpx_opacity": req.gpx_opacity,
-    }
+    return req.model_dump(exclude={"bbox", "center_x", "center_y", "scale"})
 
 
 def _slug(text: str) -> str:

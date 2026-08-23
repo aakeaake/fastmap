@@ -153,3 +153,12 @@ def test_batch_over_limit_is_422():
         "/generate-maps-batch", json={"maps": [_batch_map(0)] * 26}
     )
     assert resp.status_code == 422
+
+
+def test_slug_normalises_filenames():
+    from fastmap.api.routes import _slug
+
+    assert _slug("Koli itä") == "Koli_it"
+    assert _slug("  My Map!  ") == "My_Map"
+    assert _slug("") == "kartta"
+    assert _slug("a" * 100) == "a" * 40
