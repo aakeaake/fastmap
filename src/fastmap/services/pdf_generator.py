@@ -55,7 +55,7 @@ def _draw_overlay_text(
     pad = 2
     tw = c.stringWidth(text, font, size)
     c.saveState()
-    c.setFillColor(Color(1, 1, 1, alpha=0.85))
+    c.setFillColor(Color(1, 1, 1, alpha=0.65))
     c.rect(x - pad, y - pad, tw + 2 * pad, size + 2 * pad, stroke=0, fill=1)
     c.restoreState()
     c.setFillColor(black)
