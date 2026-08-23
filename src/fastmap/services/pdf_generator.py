@@ -52,10 +52,10 @@ def _draw_overlay_text(
     """Black text on a semi-transparent white background for legibility."""
     if align_right:
         x -= c.stringWidth(text, font, size)
-    pad = 2
+    pad = 1
     tw = c.stringWidth(text, font, size)
     c.saveState()
-    c.setFillColor(Color(1, 1, 1, alpha=0.65))
+    c.setFillColor(Color(1, 1, 1, alpha=0.50))
     c.rect(x - pad, y - pad, tw + 2 * pad, size + 2 * pad, stroke=0, fill=1)
     c.restoreState()
     c.setFillColor(black)
