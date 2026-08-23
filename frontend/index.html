@@ -162,6 +162,13 @@
     <label for="title">Otsikko (valinnainen)</label>
     <input id="title" type="text" maxlength="120" placeholder="esim. Kilpisjärvi itä">
 
+    <label>GPX-reitti (valinnainen)</label>
+    <div class="row">
+        <button id="gpxBtn" class="btn" style="margin-top:0">Lataa GPX</button>
+        <input type="file" id="gpxInput" accept=".gpx" hidden>
+    </div>
+    <div id="gpxInfo" style="font-size:12px;color:#555;margin-top:4px;min-height:15px;"></div>
+
     <button id="downloadBtn" class="btn">Lataa aktiivinen PDF</button>
     <div class="dl-row">
         <select id="batchFormat">
@@ -207,6 +214,7 @@ import Point from 'ol/geom/Point.js';
     import Translate from 'ol/interaction/Translate.js';
     import { defaults } from 'ol/interaction/defaults.js';
     import Text from 'ol/style/Text.js';
+    import GPX from 'ol/format/GPX.js';
     import proj4 from 'proj4';
     import { register } from 'ol/proj/proj4.js';
 
@@ -302,6 +310,12 @@ import Point from 'ol/geom/Point.js';
 
     const activeLayer = new VectorLayer({ source: new VectorSource(), style: styleFor });
     const lockedLayer = new VectorLayer({ source: new VectorSource(), style: styleFor });
+
+    // --- GPX track layer ---------------------------------------------------
+    const gpxStyle = new Style({
+        stroke: new Stroke({ color: '#e67e22', width: 3, lineDash: [8, 4] }),
+    });
+    const gpxLayer = new VectorLayer({ source: new VectorSource(), style: gpxStyle });
 
     // Printable content size in metres for an entry's settings.
     function contentMeters(e) {
@@ -584,7 +598,7 @@ import Point from 'ol/geom/Point.js';
 
     const map = new Map({
         target: 'map',
-        layers: [baseLayer, lockedLayer, activeLayer],
+        layers: [baseLayer, gpxLayer, lockedLayer, activeLayer],
         view,
         interactions: defaults({ doubleClickZoom: false }),
     });
@@ -636,6 +650,44 @@ import Point from 'ol/geom/Point.js';
     });
     el('newBtn').addEventListener('click', newMap);
     el('clearAllBtn').addEventListener('click', clearAll);
+
+    // --- GPX upload ---------------------------------------------------------
+    const gpxInput = el('gpxInput');
+    const gpxBtn = el('gpxBtn');
+    const gpxInfo = el('gpxInfo');
+    let gpxName = '';
+
+    gpxBtn.addEventListener('click', () => {
+        if (gpxLayer.getSource().getFeatures().length) {
+            // clear track
+            gpxLayer.getSource().clear();
+            gpxName = '';
+            gpxBtn.textContent = 'Lataa GPX';
+            gpxInfo.textContent = '';
+        } else {
+            gpxInput.click();
+        }
+    });
+
+    gpxInput.addEventListener('change', () => {
+        const file = gpxInput.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = () => {
+            const features = new GPX().readFeatures(reader.result, {
+                dataProjection: 'EPSG:4326',
+                featureProjection: PROJ,
+            });
+            gpxLayer.getSource().clear();
+            gpxLayer.getSource().addFeatures(features);
+            gpxName = features[0]?.get('name') || file.name.replace(/\.gpx$/i, '');
+            gpxBtn.textContent = 'Poista reitti';
+            gpxInfo.textContent = gpxName;
+            view.fit(gpxLayer.getSource().getExtent(), { padding: [50, 50, 50, 50] });
+        };
+        reader.readAsText(file);
+        gpxInput.value = '';
+    });
 
     // --- PDF generation -----------------------------------------------------
     const statusEl = el('status');
