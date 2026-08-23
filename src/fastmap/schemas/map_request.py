@@ -52,6 +52,10 @@ class MapRequest(BaseModel):
     title: str | None = Field(default=None, max_length=120)
     grid_mode: GridMode = "off"
     grid_spacing_m: GridSpacing = 1000
+    gpx_routes: list[list[list[float]]] = Field(default_factory=list)
+    gpx_color: str = "#ff00ff"
+    gpx_width: int = Field(default=5, ge=1, le=20)
+    gpx_opacity: float = Field(default=0.6, ge=0.1, le=1.0)
 
     @model_validator(mode="after")
     def _check_location(self) -> "MapRequest":

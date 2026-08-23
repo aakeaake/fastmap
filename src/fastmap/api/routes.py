@@ -69,6 +69,10 @@ def generate_map(req: MapRequest):
             title=req.title,
             grid_mode=req.grid_mode,
             grid_spacing_m=req.grid_spacing_m,
+            gpx_routes=req.gpx_routes,
+            gpx_color=req.gpx_color,
+            gpx_width=req.gpx_width,
+            gpx_opacity=req.gpx_opacity,
         )
     except MMLError as exc:
         raise HTTPException(
@@ -99,6 +103,10 @@ def _req_kwargs(req: MapRequest) -> dict:
         "title": req.title,
         "grid_mode": req.grid_mode,
         "grid_spacing_m": req.grid_spacing_m,
+        "gpx_routes": req.gpx_routes,
+        "gpx_color": req.gpx_color,
+        "gpx_width": req.gpx_width,
+        "gpx_opacity": req.gpx_opacity,
     }
 
 

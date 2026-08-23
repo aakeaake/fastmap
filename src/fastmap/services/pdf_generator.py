@@ -137,6 +137,10 @@ def _draw_page(
     title: str | None,
     grid_mode: str = "off",
     grid_spacing_m: int = 1000,
+    gpx_routes: list[list[list[float]]] | None = None,
+    gpx_color: str = "#ff00ff",
+    gpx_width: int = 5,
+    gpx_opacity: float = 0.6,
 ) -> int:
     """Draw one full page (map plus inside-corner overlays). Returns true scale."""
     cont_w_mm, cont_h_mm = content_area_mm(paper_size, orientation, margin_mm)
@@ -152,6 +156,33 @@ def _draw_page(
 
     # optional grid lines
     _draw_grid_lines(c, extent, x0, y0, w, h, mode=grid_mode, spacing_m=grid_spacing_m)
+
+    # optional GPX routes
+    if gpx_routes:
+        ext_w = extent.maxx - extent.minx
+        ext_h = extent.maxy - extent.miny
+        if ext_w > 0 and ext_h > 0:
+            c.saveState()
+            clip = c.beginPath()
+            clip.rect(x0, y0, w, h)
+            c.clipPath(clip, stroke=0, fill=0)
+            # parse hex color and apply opacity
+            r = int(gpx_color[1:3], 16) / 255
+            g = int(gpx_color[3:5], 16) / 255
+            b = int(gpx_color[5:7], 16) / 255
+            c.setStrokeColor(Color(r, g, b, alpha=gpx_opacity))
+            c.setLineWidth(gpx_width)
+            for route in gpx_routes:
+                p = c.beginPath()
+                for i, (gx, gy) in enumerate(route):
+                    px = (gx - extent.minx) / ext_w * w + x0
+                    py = (gy - extent.miny) / ext_h * h + y0
+                    if i == 0:
+                        p.moveTo(px, py)
+                    else:
+                        p.lineTo(px, py)
+                c.drawPath(p, stroke=1, fill=0)
+            c.restoreState()
 
     pad = _TEXT_INSET_MM * mm
 
@@ -194,6 +225,10 @@ def generate_pdf(
     out_pdf_path: str = "map.pdf",
     grid_mode: str = "off",
     grid_spacing_m: int = 1000,
+    gpx_routes: list[list[list[float]]] | None = None,
+    gpx_color: str = "#ff00ff",
+    gpx_width: int = 5,
+    gpx_opacity: float = 0.6,
 ) -> PrintResult:
     """Render ``extent`` and write a scaled PDF page.
 
@@ -220,6 +255,10 @@ def generate_pdf(
         title=title,
         grid_mode=grid_mode,
         grid_spacing_m=grid_spacing_m,
+        gpx_routes=gpx_routes,
+        gpx_color=gpx_color,
+        gpx_width=gpx_width,
+        gpx_opacity=gpx_opacity,
     )
     c.showPage()
     c.save()
@@ -255,6 +294,10 @@ def generate_multi_pdf(
         margin_mm = kwargs.get("margin_mm", 7.0)
         grid_mode = kwargs.get("grid_mode", "off")
         grid_spacing_m = kwargs.get("grid_spacing_m", 1000)
+        gpx_routes = kwargs.get("gpx_routes", [])
+        gpx_color = kwargs.get("gpx_color", "#ff00ff")
+        gpx_width = kwargs.get("gpx_width", 5)
+        gpx_opacity = kwargs.get("gpx_opacity", 0.6)
 
         px_w, px_h = content_pixels(paper_size, orientation, dpi, margin_mm)
         img = render_extent_image(extent, px_w, px_h, layer=layer)
@@ -276,6 +319,10 @@ def generate_multi_pdf(
             title=kwargs.get("title"),
             grid_mode=grid_mode,
             grid_spacing_m=grid_spacing_m,
+            gpx_routes=gpx_routes,
+            gpx_color=gpx_color,
+            gpx_width=gpx_width,
+            gpx_opacity=gpx_opacity,
         )
         results.append(PrintResult(
             path=out_pdf_path,
