@@ -544,8 +544,8 @@ import Point from 'ol/geom/Point.js';
             if (!Array.isArray(data.maps)) return false;
             for (const m of data.maps) {
                 const c = m.coords;
-                if (!Array.isArray(c) || c.length !== 4 ||
-                    !c.every(Number.isFinite) || !(c[2] > c[0]) || !(c[3] > c[1])) continue;
+                if (!Array.isArray(c) || c.length !== 5 ||
+                    !c.every(p => Array.isArray(p) && p.length === 2 && Number.isFinite(p[0]) && Number.isFinite(p[1]))) continue;
                 if (!PAPER_MM[m.paperSize] || !['portrait', 'landscape'].includes(m.orientation)) continue;
                 if (!LAYERS.includes(m.layer)) continue;
                 if (!Number.isFinite(m.scale) || m.scale < 100 || m.scale > 2000000) continue;
