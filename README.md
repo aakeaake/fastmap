@@ -44,8 +44,8 @@ The browser never sees the MML API key: preview tiles are proxied through
   to edit, drag to move, double-click to re-centre.
 * **Scale presets** — 10 000 / 15 000 / 20 000 / 25 000 / 30 000 / 50 000.
 * **Optional grid lines** — south-north (vertical) or full (vertical +
-  horizontal) with coordinate labels. Spacing selectable: 500 / 1 000 / 2 000 /
-  5 000 m.
+  horizontal), each with optional coordinate labels. Spacing selectable: 500 /
+  1 000 / 2 000 / 5 000 m.
 * **Batch export** — download all rectangles as one multi-page PDF (mixed page
   sizes allowed) or a ZIP of individual files.
 * **Layer selection** — Maastokartta, Taustakartta, Selkokartta, Ortoilmakuva.
@@ -110,7 +110,7 @@ Each generated PDF contains:
 * **Scale label** (bottom-right inside corner) on a semi-transparent white box.
 * **Title** (top-right inside corner, optional) on a semi-transparent white box.
 * **Grid lines** (optional) — thin grey lines at the selected spacing, with
-  coordinate labels in full-grid mode.
+  optional coordinate labels at content-area edges.
 
 ### API
 
@@ -141,7 +141,8 @@ curl -X POST http://127.0.0.1:8000/generate-maps-batch \
 
 Either `bbox` (EPSG:3067 metres) or `center_x`, `center_y` + `scale` must be
 given per map. Optional fields: `dpi` (default 300), `margin_mm` (default 7),
-`title`, `grid_mode` (`"off"` / `"vertical"` / `"full"`, default `"off"`),
+`title`, `grid_mode` (`"off"` / `"vertical"` / `"vertical_coords"` / `"full"` /
+`"full_coords"`, default `"off"`),
 `grid_spacing_m` (500 / 1000 / 2000 / 5000, default 1000). See `/docs` for
 the interactive schema.
 
