@@ -51,18 +51,13 @@
         }
         #newBtn { margin-top: 12px; background: #e8e8e8; color: #222; }
         #newBtn:hover { background: #dcdcdc; }
-        #downloadBtn {
-            margin-top: 12px; background: #1a6b3c; color: #fff;
-        }
-        #downloadBtn:hover { background: #14572f; }
-        #downloadBtn:disabled { background: #9bbfa8; cursor: wait; }
         #downloadAllBtn {
             margin-top: 8px; background: #245c85; color: #fff;
         }
         #downloadAllBtn:hover { background: #1c4a6c; }
         #downloadAllBtn:disabled { background: #9db6c7; cursor: wait; }
 
-        .dl-row { display: flex; gap: 8px; align-items: flex-end; margin-top: 8px; }
+        .dl-row { display: flex; gap: 8px; align-items: flex-end; margin-top: 6px; }
         .dl-row select {
             flex: 0 0 46%; box-sizing: border-box; padding: 6px 4px;
             border: 1px solid #bbb; border-radius: 4px; font-size: 12px;
@@ -70,9 +65,25 @@
         }
         .dl-row button { flex: 1; margin: 0; padding: 8px; }
         #clearAllBtn {
-            margin-top: 8px; background: none; border: none; color: #888;
+            margin-top: 4px; background: none; border: none; color: #888;
             font-size: 11px; text-decoration: underline; cursor: pointer; padding: 0;
         }
+
+        #mapList .dl-btn {
+            border: 1px solid #999; background: none; border-radius: 50%;
+            width: 20px; height: 20px; padding: 0; font-size: 12px;
+            cursor: pointer; display: flex; align-items: center; justify-content: center;
+            flex: 0 0 auto; line-height: 1; color: #333;
+        }
+        #mapList .dl-btn:hover { background: #e0e0e0; }
+        #mapList .dl-btn.generating {
+            border-color: #245c85; color: #245c85; cursor: wait;
+            animation: spin 1s linear infinite;
+        }
+        #mapList .dl-btn.done {
+            border-color: #1a6b3c; color: #1a6b3c;
+        }
+        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 
         #info { font-size: 12px; color: #555; margin-top: 10px; line-height: 1.45; }
         #status { font-size: 12px; margin-top: 8px; min-height: 15px; }
@@ -95,6 +106,14 @@
     <h1>FastMap</h1>
 
     <div id="mapList"></div>
+    <div class="dl-row">
+        <select id="batchFormat">
+            <option value="pdf" selected>Yksi PDF (kaikki sivut)</option>
+            <option value="zip">ZIP (erilliset tiedostot)</option>
+        </select>
+        <button id="downloadAllBtn" class="btn">Lataa kaikki</button>
+    </div>
+    <button id="clearAllBtn">Tyhjennä kaikki kartat</button>
 
     <button id="newBtn" class="btn">+ Uusi kartta</button>
 
@@ -185,16 +204,6 @@
             <div style="font-size:11px;color:#888;text-align:right;"><span id="gpxOpacityVal">60</span>%</div>
         </div>
     </details>
-
-    <button id="downloadBtn" class="btn">Lataa aktiivinen PDF</button>
-    <div class="dl-row">
-        <select id="batchFormat">
-            <option value="pdf" selected>Yksi PDF (kaikki sivut)</option>
-            <option value="zip">ZIP (erilliset tiedostot)</option>
-        </select>
-        <button id="downloadAllBtn" class="btn">Lataa kaikki</button>
-    </div>
-    <button id="clearAllBtn">Tyhjennä kaikki kartat</button>
 
     <div id="status"></div>
 
@@ -531,6 +540,20 @@ import Point from 'ol/geom/Point.js';
             sum.className = 'm-sum';
             sum.textContent = `${e.paperSize} · 1:${e.scale.toLocaleString('fi-FI')}`;
 
+            const dlBtn = document.createElement('button');
+            dlBtn.className = 'dl-btn';
+            dlBtn.title = 'Lataa PDF';
+            if (generatingIds.has(e.id)) {
+                dlBtn.classList.add('generating');
+                dlBtn.textContent = '\u27F3';
+            } else {
+                dlBtn.textContent = '\u2193';
+            }
+            dlBtn.addEventListener('click', ev => {
+                ev.stopPropagation();
+                downloadSingle(e);
+            });
+
             const del = document.createElement('button');
             del.className = 'del';
             del.textContent = '✕';
@@ -540,7 +563,7 @@ import Point from 'ol/geom/Point.js';
                 deleteEntry(e.id);
             });
 
-            li.append(chip, name, sum, del);
+            li.append(chip, name, sum, dlBtn, del);
             li.addEventListener('click', () => setActive(e.id));
             ul.appendChild(li);
         });
@@ -715,6 +738,7 @@ import Point from 'ol/geom/Point.js';
 
     // --- PDF generation -----------------------------------------------------
     const statusEl = el('status');
+    const generatingIds = new Set();
     const now = new Date();
     el('attribution').textContent =
         `© Maanmittauslaitos, CC BY 4.0 — Maastotietokanta ${String(now.getMonth()+1).padStart(2,'0')}/${now.getFullYear()}`;
@@ -797,18 +821,65 @@ import Point from 'ol/geom/Point.js';
         }
     }
 
-    el('downloadBtn').addEventListener('click', () => {
-        const e = active();
-        if (!e) return;
-        download('/generate-map', requestPayload(e), [el('downloadBtn'), el('downloadAllBtn')]);
-    });
+    async function downloadSingle(entry) {
+        if (generatingIds.has(entry.id)) return;
+        generatingIds.add(entry.id);
+        renderList();
+        setStatus('Luodaan PDF\u2026');
+        try {
+            const resp = await fetch('/generate-map', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(requestPayload(entry)),
+            });
+            if (!resp.ok) {
+                let detail = `HTTP ${resp.status}`;
+                try {
+                    const err = await resp.json();
+                    if (err.detail) detail = typeof err.detail === 'string'
+                        ? err.detail : JSON.stringify(err.detail);
+                } catch { /* ignore */ }
+                throw new Error(detail);
+            }
+
+            const blob = await resp.blob();
+            let filename = 'fastmap.pdf';
+            const disposition = resp.headers.get('content-disposition');
+            if (disposition) {
+                const m = disposition.match(/filename="?([^";]+)"?/i);
+                if (m) filename = decodeURIComponent(m[1]);
+            }
+            const urlObj = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = urlObj;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            URL.revokeObjectURL(urlObj);
+
+            generatingIds.delete(entry.id);
+            renderList();
+            const li = el('mapList').querySelector(`[data-id="${entry.id}"] .dl-btn`);
+            if (li) { li.classList.add('done'); li.textContent = '\u2713'; }
+            setStatus(`Valmis! Ladataan ${filename}`);
+            setTimeout(() => { if (li) { li.classList.remove('done'); li.textContent = '\u2193'; } }, 1500);
+        } catch (err) {
+            generatingIds.delete(entry.id);
+            renderList();
+            setStatus(`Virhe: ${err.message}`, true);
+        }
+    }
 
     el('downloadAllBtn').addEventListener('click', () => {
         if (!maps.length) return;
+        const btn = el('downloadAllBtn');
+        const origText = btn.textContent;
+        btn.textContent = '\u27F3 Luodaan\u2026';
         download('/generate-maps-batch', {
             output: el('batchFormat').value,
             maps: maps.map(requestPayload),
-        }, [el('downloadBtn'), el('downloadAllBtn')]);
+        }, [btn]).finally(() => { btn.textContent = origText; });
     });
 </script>
 </body>
