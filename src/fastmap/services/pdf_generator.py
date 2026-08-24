@@ -16,13 +16,12 @@ from reportlab.lib.units import mm
 from reportlab.lib.utils import ImageReader
 from reportlab.pdfgen import canvas
 
-from fastmap.core.config import DEFAULT_DPI
+from fastmap.core.config import DEFAULT_ZOOM
 from fastmap.services.mml_source import MML_LAYERS, render_extent_image
 from fastmap.services.print_layout import (
     Extent,
     actual_scale,
     content_area_mm,
-    content_pixels,
     format_scale_label,
     oriented_page_mm,
 )
@@ -220,7 +219,7 @@ def generate_pdf(
     paper_size: str,
     orientation: str,
     layer: str = "maastokartta",
-    dpi: int = DEFAULT_DPI,
+    zoom_level: int = DEFAULT_ZOOM,
     margin_mm: float = 7.0,
     title: str | None = None,
     out_pdf_path: str = "map.pdf",
@@ -239,7 +238,9 @@ def generate_pdf(
         raise ValueError(f"Unknown layer '{layer}'")
 
     page_w_mm, page_h_mm = oriented_page_mm(paper_size, orientation)
-    px_w, px_h = content_pixels(paper_size, orientation, dpi, margin_mm)
+    res = 8192.0 / 2 ** zoom_level
+    px_w = round(extent.width_m / res)
+    px_h = round(extent.height_m / res)
 
     img = render_extent_image(extent, px_w, px_h, layer=layer)
 
@@ -291,7 +292,7 @@ def generate_multi_pdf(
             raise ValueError(f"Unknown layer '{layer}'")
         paper_size = kwargs["paper_size"]
         orientation = kwargs["orientation"]
-        dpi = kwargs.get("dpi", DEFAULT_DPI)
+        zoom_level = kwargs.get("zoom_level", DEFAULT_ZOOM)
         margin_mm = kwargs.get("margin_mm", 7.0)
         grid_mode = kwargs.get("grid_mode", "off")
         grid_spacing_m = kwargs.get("grid_spacing_m", 1000)
@@ -300,7 +301,9 @@ def generate_multi_pdf(
         gpx_width = kwargs.get("gpx_width", 5)
         gpx_opacity = kwargs.get("gpx_opacity", 0.6)
 
-        px_w, px_h = content_pixels(paper_size, orientation, dpi, margin_mm)
+        res = 8192.0 / 2 ** zoom_level
+        px_w = round(extent.width_m / res)
+        px_h = round(extent.height_m / res)
         img = render_extent_image(extent, px_w, px_h, layer=layer)
 
         page_w_pt, page_h_pt = (

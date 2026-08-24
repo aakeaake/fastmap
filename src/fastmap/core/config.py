@@ -27,5 +27,5 @@ MML_WMTS_URL = os.environ.get(
 
 USER_AGENT = "fastmap/0.1 (print-ready maps of Finland)"
 
-DEFAULT_DPI = 200
+DEFAULT_ZOOM = 11
 MAX_RENDER_PIXELS = 60_000_000  # safety cap for WMS image size

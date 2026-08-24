@@ -22,7 +22,7 @@ def test_generate_pdf_a4_exact_geometry(tmp_path, monkeypatch):
         ext,
         paper_size="A4",
         orientation="portrait",
-        dpi=300,
+        zoom_level=12,
         margin_mm=10,
         out_pdf_path=str(out),
     )

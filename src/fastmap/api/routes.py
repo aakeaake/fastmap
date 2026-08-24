@@ -65,8 +65,8 @@ def generate_map(req: MapRequest):
 
     t0 = time.monotonic()
     log.info(
-        "generate-map  %s %s 1:%s  layer=%s",
-        req.paper_size, req.orientation, req.scale, req.layer,
+        "generate-map  %s %s 1:%s  layer=%s  zoom=%d",
+        req.paper_size, req.orientation, req.scale, req.layer, req.zoom_level,
     )
 
     try:
@@ -75,7 +75,7 @@ def generate_map(req: MapRequest):
             paper_size=req.paper_size,
             orientation=req.orientation,
             layer=req.layer,
-            dpi=req.dpi,
+            zoom_level=req.zoom_level,
             margin_mm=req.margin_mm,
             title=req.title,
             grid_mode=req.grid_mode,
