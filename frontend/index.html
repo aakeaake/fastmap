@@ -661,10 +661,12 @@ import Point from 'ol/geom/Point.js';
             if (e && !f.get('label')) syncLabel(e);
         }
     });
-    translate.on('translateend', () => {
-        const e = active();
-        if (e) downloadedIds.delete(e.id);
-        persist(); updateInfo();
+    translate.on('translateend', ev => {
+        for (const f of ev.features.getArray()) {
+            const e = getEntry(f.get('mapId'));
+            if (e) downloadedIds.delete(e.id);
+        }
+        persist(); updateInfo(); renderList();
     });
     map.addInteraction(translate);
 
