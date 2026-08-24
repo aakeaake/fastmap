@@ -7,8 +7,7 @@ load_dotenv()
 
 logging.basicConfig(
     level=logging.INFO,
-    format="%(asctime)s %(levelname)-7s %(name)s  %(message)s",
-    datefmt="%Y-%m-%d %H:%M:%S",
+    format="%(levelname)s  %(message)s",
 )
 # Quiet the tile-proxy access logs (hundreds per request)
 logging.getLogger("uvicorn.access").setLevel(logging.WARNING)
