@@ -20,8 +20,9 @@ app.add_middleware(
 )
 app.include_router(router)
 
-_FRONTEND_DIR = os.path.normpath(
-    os.path.join(os.path.dirname(__file__), "..", "..", "frontend")
+_FRONTEND_DIR = os.environ.get(
+    "FRONTEND_DIR",
+    os.path.normpath(os.path.join(os.path.dirname(__file__), "..", "..", "frontend")),
 )
 if os.path.isdir(_FRONTEND_DIR):
     app.mount("/", StaticFiles(directory=_FRONTEND_DIR, html=True), name="frontend")
