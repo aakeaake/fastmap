@@ -197,8 +197,6 @@
     </details>
 
     <div id="status"></div>
-
-    <div id="info"></div>
 </div>
 
 <div class="hint">Siirrä aluetta raahaamalla · keskitä kaksoisnapauttamalla · muokkaa edellisiä valitsemalla listasta</div>
@@ -446,7 +444,6 @@ import Point from 'ol/geom/Point.js';
         el('gridMode').value = e.gridMode;
         el('gridSpacing').value = e.gridSpacing;
         el('gridSpacing').disabled = e.gridMode === 'off';
-        updateInfo();
     }
 
     function panelChanged() {
@@ -468,11 +465,6 @@ import Point from 'ol/geom/Point.js';
         resizeToSettings(e);
         renderList();
         persist();
-        updateInfo();
-    }
-
-    function fmtKm(v) {
-        return v >= 1000 ? `${(v / 1000).toLocaleString('fi-FI')} km` : `${Math.round(v)} m`;
     }
 
     function displayName(e) {
@@ -497,16 +489,6 @@ import Point from 'ol/geom/Point.js';
         }
         lockedLayer.changed();
         activeLayer.changed();
-    }
-
-    function updateInfo() {
-        const e = active();
-        if (!e) { el('info').innerHTML = ''; return; }
-        const [w, h] = contentMeters(e);
-        el('info').innerHTML =
-            `${displayName(e)}: ${fmtKm(w)} × ${fmtKm(h)}<br>` +
-            `Paperi: ${e.paperSize} ${e.orientation === 'portrait' ? 'pysty' : 'vaaka'}, ` +
-            `1:${e.scale.toLocaleString('fi-FI')}, marginaali ${Math.round(e.margin)} mm`;
     }
 
     const generatingIds = new Set();
@@ -656,7 +638,7 @@ import Point from 'ol/geom/Point.js';
             const e = getEntry(f.get('mapId'));
             if (e) downloadedIds.delete(e.id);
         }
-        persist(); updateInfo(); renderList();
+        persist(); renderList();
     });
     map.addInteraction(translate);
 
@@ -671,7 +653,6 @@ import Point from 'ol/geom/Point.js';
         ]);
         syncLabel(cur);
         persist();
-        updateInfo();
     });
 
     if (!restore()) newMap(); else setActive(maps[maps.length - 1].id);
