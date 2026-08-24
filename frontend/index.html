@@ -780,7 +780,6 @@ import Point from 'ol/geom/Point.js';
 
     async function download(url, payload, busyButtons) {
         busyButtons.forEach(b => b.disabled = true);
-        setStatus('Laaditaan karttaa… tämä voi kestää hetken.');
         try {
             const resp = await fetch(url, {
                 method: 'POST',
@@ -825,7 +824,6 @@ import Point from 'ol/geom/Point.js';
         if (generatingIds.has(entry.id)) return;
         generatingIds.add(entry.id);
         renderList();
-        setStatus('Luodaan PDF\u2026');
         try {
             const resp = await fetch('/generate-map', {
                 method: 'POST',
