@@ -173,14 +173,6 @@
         </div>
     </div>
 
-    <label for="baseLayer">Taustakartta</label>
-    <select id="baseLayer">
-        <option value="maastokartta" selected>Maastokartta</option>
-        <option value="taustakartta">Taustakartta</option>
-        <option value="selkokartta">Selkokartta</option>
-        <option value="ortokuva">Ortoilmakuva</option>
-    </select>
-
     <label for="title">Otsikko (valinnainen)</label>
     <input id="title" type="text" maxlength="120" placeholder="esim. Kilpisjärvi itä">
 
@@ -449,7 +441,6 @@ import Point from 'ol/geom/Point.js';
         el('orientation').value = e.orientation;
         el('scale').value = e.scale;
         el('margin').value = e.margin;
-        el('baseLayer').value = e.layer;
         baseLayer.setSource(makeBaseSource(e.layer));
         el('title').value = e.title;
         el('gridMode').value = e.gridMode;
@@ -468,8 +459,7 @@ import Point from 'ol/geom/Point.js';
         e.margin = parseFloat(el('margin').value);
         if (!Number.isFinite(e.margin)) e.margin = DEFAULTS.margin;
         e.margin = Math.min(Math.max(e.margin, 0), 30);
-        e.layer = LAYERS.includes(el('baseLayer').value)
-            ? el('baseLayer').value : 'maastokartta';
+        e.layer = 'maastokartta';
         e.title = el('title').value.trim();
         e.gridMode = ['off', 'vertical', 'vertical_coords', 'full', 'full_coords'].includes(el('gridMode').value)
             ? el('gridMode').value : 'off';
@@ -697,10 +687,6 @@ import Point from 'ol/geom/Point.js';
         e.title = el('title').value.trim();
         renderList();
         persist();
-    });
-    el('baseLayer').addEventListener('change', e => {
-        baseLayer.setSource(makeBaseSource(e.target.value));
-        panelChanged();
     });
     el('newBtn').addEventListener('click', newMap);
     el('clearAllBtn').addEventListener('click', clearAll);
