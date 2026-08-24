@@ -8,6 +8,7 @@ image files are needed - the PIL image is embedded directly.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime
 
 from PIL import Image
 from reportlab.lib.colors import black, Color
@@ -26,7 +27,7 @@ from fastmap.services.print_layout import (
     oriented_page_mm,
 )
 
-ATTRIBUTION = "© Maanmittauslaitos, CC BY 4.0"
+ATTRIBUTION = f"© Maanmittauslaitos, CC BY 4.0 — Maastotietokanta {datetime.now().strftime('%m/%Y')}"
 _TEXT_INSET_MM = 2.0  # overlay text distance from the content-area corner
 
 
