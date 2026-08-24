@@ -1,3 +1,4 @@
+import logging
 import os
 import re
 import tempfile
@@ -14,6 +15,8 @@ from fastmap.core.config import (
     MML_WMTS_URL,
     USER_AGENT,
 )
+
+log = logging.getLogger(__name__)
 from fastmap.schemas.map_request import BatchMapRequest, MapRequest
 from fastmap.services.mml_source import (
     MMLError,
@@ -47,6 +50,8 @@ def _timestamp() -> str:
 @router.post("/generate-map")
 def generate_map(req: MapRequest):
     """Render a print-ready PDF of the requested EPSG:3067 extent."""
+    import time
+
     if not MML_API_KEY:
         raise HTTPException(
             status_code=503,
@@ -57,6 +62,12 @@ def generate_map(req: MapRequest):
         extent = _resolve_extent(req)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    t0 = time.monotonic()
+    log.info(
+        "generate-map  %s %s 1:%s  layer=%s",
+        req.paper_size, req.orientation, req.scale, req.layer,
+    )
 
     try:
         result = generate_pdf_to_temp(
@@ -75,14 +86,20 @@ def generate_map(req: MapRequest):
             gpx_opacity=req.gpx_opacity,
         )
     except MMLError as exc:
+        log.warning("generate-map failed: %s", exc)
         raise HTTPException(
             status_code=502,
             detail=f"Map data source failed: {exc}",
         ) from exc
 
+    elapsed = time.monotonic() - t0
     display_name = (
         f"fastmap_{req.paper_size}_{req.orientation}_"
         f"1-{result.actual_scale}_{_timestamp()}.pdf"
+    )
+    log.info(
+        "generate-map done in %.1fs  -> %s  (%dx%d px)",
+        elapsed, display_name, result.width_px, result.height_px,
     )
 
     return FileResponse(
@@ -114,6 +131,8 @@ def _remove_quietly(paths: list[str]) -> None:
 @router.post("/generate-maps-batch")
 def generate_maps_batch(batch: BatchMapRequest):
     """Render several maps as one multi-page PDF or a ZIP of PDFs."""
+    import time
+
     if not MML_API_KEY:
         raise HTTPException(
             status_code=503,
@@ -124,6 +143,12 @@ def generate_maps_batch(batch: BatchMapRequest):
         pairs = [(_resolve_extent(m), m) for m in batch.maps]
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    t0 = time.monotonic()
+    log.info(
+        "generate-maps-batch  %d maps  output=%s",
+        len(pairs), batch.output,
+    )
 
     if batch.output == "pdf":
         tmp = tempfile.NamedTemporaryFile(
@@ -136,10 +161,13 @@ def generate_maps_batch(batch: BatchMapRequest):
             )
         except MMLError as exc:
             _remove_quietly([tmp.name])
+            log.warning("generate-maps-batch failed: %s", exc)
             raise HTTPException(
                 status_code=502, detail=f"Map data source failed: {exc}"
             ) from exc
 
+        elapsed = time.monotonic() - t0
+        log.info("generate-maps-batch done in %.1fs  -> %d pages", elapsed, len(pairs))
         return FileResponse(
             tmp.name,
             media_type="application/pdf",
@@ -150,11 +178,13 @@ def generate_maps_batch(batch: BatchMapRequest):
     # ZIP of individual PDFs
     pdf_paths: list[str] = []
     try:
-        for extent, req in pairs:
+        for i, (extent, req) in enumerate(pairs, start=1):
+            log.info("generate-maps-batch  map %d/%d", i, len(pairs))
             result = generate_pdf_to_temp(extent, **_req_kwargs(req))
             pdf_paths.append(result.path)
     except MMLError as exc:
         _remove_quietly(pdf_paths)
+        log.warning("generate-maps-batch failed at map %d: %s", len(pdf_paths) + 1, exc)
         raise HTTPException(
             status_code=502, detail=f"Map data source failed: {exc}"
         ) from exc
@@ -168,6 +198,8 @@ def generate_maps_batch(batch: BatchMapRequest):
             name_title = req.title or f"Kartta {i}"
             zf.write(path, arcname=f"{i:02d}_{_slug(name_title)}.pdf")
 
+    elapsed = time.monotonic() - t0
+    log.info("generate-maps-batch done in %.1fs  -> ZIP %d files", elapsed, len(pairs))
     return FileResponse(
         zip_tmp.name,
         media_type="application/zip",
@@ -210,6 +242,7 @@ def nls_tile(level: int, col: int, row: int, layer: str = "taustakartta"):
         timeout=30,
     )
     if resp.status_code != 200:
+        log.warning("tile fetch failed  %s %d", url, resp.status_code)
         raise HTTPException(
             status_code=502, detail=f"MML tile fetch failed ({resp.status_code})"
         )
