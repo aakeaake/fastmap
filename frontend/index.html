@@ -82,6 +82,10 @@
             z-index: 1000; background: rgba(255,255,255,.85); border-radius: 4px;
             padding: 4px 12px; font-size: 12px; color: #444;
         }
+        #attribution {
+            position: absolute; bottom: 36px; left: 50%; transform: translateX(-50%);
+            z-index: 1000; font-size: 11px; color: #666; white-space: nowrap;
+        }
     </style>
 </head>
 <body>
@@ -198,6 +202,8 @@
 </div>
 
 <div class="hint">Siirrä aluetta raahaamalla · keskitä kaksoisnapauttamalla · muokkaa edellisiä valitsemalla listasta</div>
+
+<div id="attribution"></div>
 
 <script type="importmap">
 {
@@ -709,6 +715,9 @@ import Point from 'ol/geom/Point.js';
 
     // --- PDF generation -----------------------------------------------------
     const statusEl = el('status');
+    const now = new Date();
+    el('attribution').textContent =
+        `© Maanmittauslaitos, CC BY 4.0 — Maastotietokanta ${String(now.getMonth()+1).padStart(2,'0')}/${now.getFullYear()}`;
 
     function setStatus(msg, isError = false) {
         statusEl.textContent = msg;
