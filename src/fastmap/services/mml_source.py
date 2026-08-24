@@ -169,7 +169,7 @@ def fetch_wmts_mosaic(
     col_min, row_min, col_max, row_max = tile_range(extent, level)
     n_cols = col_max - col_min + 1
     n_rows = row_max - row_min + 1
-    if n_cols * n_rows > 400:
+    if n_cols * n_rows > 600:
         raise MMLError("Requested area needs too many tiles at chosen level")
 
     mosaic_w = n_cols * WMTS_TILE_SIZE
