@@ -519,6 +519,8 @@ import Point from 'ol/geom/Point.js';
             `1:${e.scale.toLocaleString('fi-FI')}, marginaali ${Math.round(e.margin)} mm`;
     }
 
+    const generatingIds = new Set();
+
     function renderList() {
         const ul = el('mapList');
         ul.innerHTML = '';
@@ -738,7 +740,6 @@ import Point from 'ol/geom/Point.js';
 
     // --- PDF generation -----------------------------------------------------
     const statusEl = el('status');
-    const generatingIds = new Set();
     const now = new Date();
     el('attribution').textContent =
         `© Maanmittauslaitos, CC BY 4.0 — Maastotietokanta ${String(now.getMonth()+1).padStart(2,'0')}/${now.getFullYear()}`;
