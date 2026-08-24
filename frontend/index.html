@@ -89,12 +89,12 @@
         #status { font-size: 12px; margin-top: 8px; min-height: 15px; }
         #status.error { color: #b00020; font-weight: 600; }
         .hint {
-            position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%);
+            position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%);
             z-index: 1000; background: rgba(255,255,255,.85); border-radius: 4px;
             padding: 4px 12px; font-size: 12px; color: #444;
         }
         #attribution {
-            position: absolute; bottom: 36px; left: 50%; transform: translateX(-50%);
+            position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%);
             z-index: 1000; font-size: 11px; color: #666; white-space: nowrap;
         }
     </style>
@@ -106,6 +106,7 @@
     <h1>FastMap</h1>
 
     <div id="mapList"></div>
+    <button id="newBtn" class="btn">+ Uusi kartta</button>
     <div class="dl-row">
         <select id="batchFormat">
             <option value="pdf" selected>Yksi PDF (kaikki sivut)</option>
@@ -114,8 +115,6 @@
         <button id="downloadAllBtn" class="btn">Lataa kaikki</button>
     </div>
     <button id="clearAllBtn">Tyhjennä kaikki kartat</button>
-
-    <button id="newBtn" class="btn">+ Uusi kartta</button>
 
     <div class="row">
         <div>
