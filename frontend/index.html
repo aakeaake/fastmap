@@ -823,7 +823,6 @@ import Point from 'ol/geom/Point.js';
             a.remove();
             URL.revokeObjectURL(urlObj);
 
-            setStatus(`Valmis! Ladataan ${filename}`);
         } catch (err) {
             setStatus(`Virhe: ${err.message}`, true);
         } finally {
@@ -870,7 +869,6 @@ import Point from 'ol/geom/Point.js';
             generatingIds.delete(entry.id);
             downloadedIds.add(entry.id);
             renderList();
-            setStatus(`Valmis! Ladataan ${filename}`);
         } catch (err) {
             generatingIds.delete(entry.id);
             renderList();
