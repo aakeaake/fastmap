@@ -51,18 +51,13 @@
         }
         #newBtn { margin-top: 12px; background: #e8e8e8; color: #222; }
         #newBtn:hover { background: #dcdcdc; }
-        #downloadBtn {
-            margin-top: 12px; background: #1a6b3c; color: #fff;
-        }
-        #downloadBtn:hover { background: #14572f; }
-        #downloadBtn:disabled { background: #9bbfa8; cursor: wait; }
         #downloadAllBtn {
             margin-top: 8px; background: #245c85; color: #fff;
         }
         #downloadAllBtn:hover { background: #1c4a6c; }
         #downloadAllBtn:disabled { background: #9db6c7; cursor: wait; }
 
-        .dl-row { display: flex; gap: 8px; align-items: flex-end; margin-top: 8px; }
+        .dl-row { display: flex; gap: 8px; align-items: flex-end; margin-top: 6px; }
         .dl-row select {
             flex: 0 0 46%; box-sizing: border-box; padding: 6px 4px;
             border: 1px solid #bbb; border-radius: 4px; font-size: 12px;
@@ -70,20 +65,36 @@
         }
         .dl-row button { flex: 1; margin: 0; padding: 8px; }
         #clearAllBtn {
-            margin-top: 8px; background: none; border: none; color: #888;
+            margin-top: 4px; background: none; border: none; color: #888;
             font-size: 11px; text-decoration: underline; cursor: pointer; padding: 0;
         }
+
+        #mapList .dl-btn {
+            border: 1px solid #999; background: none; border-radius: 50%;
+            width: 20px; height: 20px; padding: 0; font-size: 12px;
+            cursor: pointer; display: flex; align-items: center; justify-content: center;
+            flex: 0 0 auto; line-height: 1; color: #333;
+        }
+        #mapList .dl-btn:hover { background: #e0e0e0; }
+        #mapList .dl-btn.generating {
+            border-color: #245c85; color: #245c85; cursor: wait;
+            animation: spin 1s linear infinite;
+        }
+        #mapList .dl-btn.done {
+            border-color: #1a6b3c; color: #1a6b3c;
+        }
+        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 
         #info { font-size: 12px; color: #555; margin-top: 10px; line-height: 1.45; }
         #status { font-size: 12px; margin-top: 8px; min-height: 15px; }
         #status.error { color: #b00020; font-weight: 600; }
         .hint {
-            position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%);
+            position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%);
             z-index: 1000; background: rgba(255,255,255,.85); border-radius: 4px;
             padding: 4px 12px; font-size: 12px; color: #444;
         }
         #attribution {
-            position: absolute; bottom: 36px; left: 50%; transform: translateX(-50%);
+            position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%);
             z-index: 1000; font-size: 11px; color: #666; white-space: nowrap;
         }
     </style>
@@ -95,8 +106,15 @@
     <h1>FastMap</h1>
 
     <div id="mapList"></div>
-
     <button id="newBtn" class="btn">+ Uusi kartta</button>
+    <div class="dl-row">
+        <select id="batchFormat">
+            <option value="pdf" selected>Yksi PDF (kaikki sivut)</option>
+            <option value="zip">ZIP (erilliset tiedostot)</option>
+        </select>
+        <button id="downloadAllBtn" class="btn">Lataa kaikki</button>
+    </div>
+    <button id="clearAllBtn">Tyhjennä kaikki kartat</button>
 
     <div class="row">
         <div>
@@ -155,14 +173,6 @@
         </div>
     </div>
 
-    <label for="baseLayer">Taustakartta</label>
-    <select id="baseLayer">
-        <option value="maastokartta" selected>Maastokartta</option>
-        <option value="taustakartta">Taustakartta</option>
-        <option value="selkokartta">Selkokartta</option>
-        <option value="ortokuva">Ortoilmakuva</option>
-    </select>
-
     <label for="title">Otsikko (valinnainen)</label>
     <input id="title" type="text" maxlength="120" placeholder="esim. Kilpisjärvi itä">
 
@@ -186,19 +196,7 @@
         </div>
     </details>
 
-    <button id="downloadBtn" class="btn">Lataa aktiivinen PDF</button>
-    <div class="dl-row">
-        <select id="batchFormat">
-            <option value="pdf" selected>Yksi PDF (kaikki sivut)</option>
-            <option value="zip">ZIP (erilliset tiedostot)</option>
-        </select>
-        <button id="downloadAllBtn" class="btn">Lataa kaikki</button>
-    </div>
-    <button id="clearAllBtn">Tyhjennä kaikki kartat</button>
-
     <div id="status"></div>
-
-    <div id="info"></div>
 </div>
 
 <div class="hint">Siirrä aluetta raahaamalla · keskitä kaksoisnapauttamalla · muokkaa edellisiä valitsemalla listasta</div>
@@ -441,26 +439,24 @@ import Point from 'ol/geom/Point.js';
         el('orientation').value = e.orientation;
         el('scale').value = e.scale;
         el('margin').value = e.margin;
-        el('baseLayer').value = e.layer;
         baseLayer.setSource(makeBaseSource(e.layer));
         el('title').value = e.title;
         el('gridMode').value = e.gridMode;
         el('gridSpacing').value = e.gridSpacing;
         el('gridSpacing').disabled = e.gridMode === 'off';
-        updateInfo();
     }
 
     function panelChanged() {
         const e = active();
         if (!e) return;
+        downloadedIds.delete(e.id);
         e.paperSize = PAPER_MM[el('paperSize').value] ? el('paperSize').value : 'A4';
         e.orientation = el('orientation').value === 'landscape' ? 'landscape' : 'portrait';
         e.scale = parseInt(el('scale').value, 10) || 20000;
         e.margin = parseFloat(el('margin').value);
         if (!Number.isFinite(e.margin)) e.margin = DEFAULTS.margin;
         e.margin = Math.min(Math.max(e.margin, 0), 30);
-        e.layer = LAYERS.includes(el('baseLayer').value)
-            ? el('baseLayer').value : 'maastokartta';
+        e.layer = 'maastokartta';
         e.title = el('title').value.trim();
         e.gridMode = ['off', 'vertical', 'vertical_coords', 'full', 'full_coords'].includes(el('gridMode').value)
             ? el('gridMode').value : 'off';
@@ -469,11 +465,6 @@ import Point from 'ol/geom/Point.js';
         resizeToSettings(e);
         renderList();
         persist();
-        updateInfo();
-    }
-
-    function fmtKm(v) {
-        return v >= 1000 ? `${(v / 1000).toLocaleString('fi-FI')} km` : `${Math.round(v)} m`;
     }
 
     function displayName(e) {
@@ -500,15 +491,8 @@ import Point from 'ol/geom/Point.js';
         activeLayer.changed();
     }
 
-    function updateInfo() {
-        const e = active();
-        if (!e) { el('info').innerHTML = ''; return; }
-        const [w, h] = contentMeters(e);
-        el('info').innerHTML =
-            `${displayName(e)}: ${fmtKm(w)} × ${fmtKm(h)}<br>` +
-            `Paperi: ${e.paperSize} ${e.orientation === 'portrait' ? 'pysty' : 'vaaka'}, ` +
-            `1:${e.scale.toLocaleString('fi-FI')}, marginaali ${Math.round(e.margin)} mm`;
-    }
+    const generatingIds = new Set();
+    const downloadedIds = new Set();
 
     function renderList() {
         const ul = el('mapList');
@@ -531,6 +515,23 @@ import Point from 'ol/geom/Point.js';
             sum.className = 'm-sum';
             sum.textContent = `${e.paperSize} · 1:${e.scale.toLocaleString('fi-FI')}`;
 
+            const dlBtn = document.createElement('button');
+            dlBtn.className = 'dl-btn';
+            dlBtn.title = 'Lataa PDF';
+            if (generatingIds.has(e.id)) {
+                dlBtn.classList.add('generating');
+                dlBtn.textContent = '\u27F3';
+            } else if (downloadedIds.has(e.id)) {
+                dlBtn.classList.add('done');
+                dlBtn.textContent = '\u2713';
+            } else {
+                dlBtn.textContent = '\u2193';
+            }
+            dlBtn.addEventListener('click', ev => {
+                ev.stopPropagation();
+                downloadSingle(e);
+            });
+
             const del = document.createElement('button');
             del.className = 'del';
             del.textContent = '✕';
@@ -540,7 +541,7 @@ import Point from 'ol/geom/Point.js';
                 deleteEntry(e.id);
             });
 
-            li.append(chip, name, sum, del);
+            li.append(chip, name, sum, dlBtn, del);
             li.addEventListener('click', () => setActive(e.id));
             ul.appendChild(li);
         });
@@ -632,7 +633,13 @@ import Point from 'ol/geom/Point.js';
             if (e && !f.get('label')) syncLabel(e);
         }
     });
-    translate.on('translateend', () => { persist(); updateInfo(); });
+    translate.on('translateend', ev => {
+        for (const f of ev.features.getArray()) {
+            const e = getEntry(f.get('mapId'));
+            if (e) downloadedIds.delete(e.id);
+        }
+        persist(); renderList();
+    });
     map.addInteraction(translate);
 
     // Double-click centres the ACTIVE rectangle there (no zoom)
@@ -646,7 +653,6 @@ import Point from 'ol/geom/Point.js';
         ]);
         syncLabel(cur);
         persist();
-        updateInfo();
     });
 
     if (!restore()) newMap(); else setActive(maps[maps.length - 1].id);
@@ -662,10 +668,6 @@ import Point from 'ol/geom/Point.js';
         e.title = el('title').value.trim();
         renderList();
         persist();
-    });
-    el('baseLayer').addEventListener('change', e => {
-        baseLayer.setSource(makeBaseSource(e.target.value));
-        panelChanged();
     });
     el('newBtn').addEventListener('click', newMap);
     el('clearAllBtn').addEventListener('click', clearAll);
@@ -756,7 +758,6 @@ import Point from 'ol/geom/Point.js';
 
     async function download(url, payload, busyButtons) {
         busyButtons.forEach(b => b.disabled = true);
-        setStatus('Laaditaan karttaa… tämä voi kestää hetken.');
         try {
             const resp = await fetch(url, {
                 method: 'POST',
@@ -789,7 +790,6 @@ import Point from 'ol/geom/Point.js';
             a.remove();
             URL.revokeObjectURL(urlObj);
 
-            setStatus(`Valmis! Ladataan ${filename}`);
         } catch (err) {
             setStatus(`Virhe: ${err.message}`, true);
         } finally {
@@ -797,18 +797,61 @@ import Point from 'ol/geom/Point.js';
         }
     }
 
-    el('downloadBtn').addEventListener('click', () => {
-        const e = active();
-        if (!e) return;
-        download('/generate-map', requestPayload(e), [el('downloadBtn'), el('downloadAllBtn')]);
-    });
+    async function downloadSingle(entry) {
+        if (generatingIds.has(entry.id)) return;
+        generatingIds.add(entry.id);
+        renderList();
+        try {
+            const resp = await fetch('/generate-map', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(requestPayload(entry)),
+            });
+            if (!resp.ok) {
+                let detail = `HTTP ${resp.status}`;
+                try {
+                    const err = await resp.json();
+                    if (err.detail) detail = typeof err.detail === 'string'
+                        ? err.detail : JSON.stringify(err.detail);
+                } catch { /* ignore */ }
+                throw new Error(detail);
+            }
+
+            const blob = await resp.blob();
+            let filename = 'fastmap.pdf';
+            const disposition = resp.headers.get('content-disposition');
+            if (disposition) {
+                const m = disposition.match(/filename="?([^";]+)"?/i);
+                if (m) filename = decodeURIComponent(m[1]);
+            }
+            const urlObj = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = urlObj;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            URL.revokeObjectURL(urlObj);
+
+            generatingIds.delete(entry.id);
+            downloadedIds.add(entry.id);
+            renderList();
+        } catch (err) {
+            generatingIds.delete(entry.id);
+            renderList();
+            setStatus(`Virhe: ${err.message}`, true);
+        }
+    }
 
     el('downloadAllBtn').addEventListener('click', () => {
         if (!maps.length) return;
+        const btn = el('downloadAllBtn');
+        const origText = btn.textContent;
+        btn.textContent = '\u27F3 Luodaan\u2026';
         download('/generate-maps-batch', {
             output: el('batchFormat').value,
             maps: maps.map(requestPayload),
-        }, [el('downloadBtn'), el('downloadAllBtn')]);
+        }, [btn]).finally(() => { btn.textContent = origText; });
     });
 </script>
 </body>
