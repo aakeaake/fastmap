@@ -461,6 +461,7 @@ import Point from 'ol/geom/Point.js';
     function panelChanged() {
         const e = active();
         if (!e) return;
+        downloadedIds.delete(e.id);
         e.paperSize = PAPER_MM[el('paperSize').value] ? el('paperSize').value : 'A4';
         e.orientation = el('orientation').value === 'landscape' ? 'landscape' : 'portrait';
         e.scale = parseInt(el('scale').value, 10) || 20000;
@@ -519,6 +520,7 @@ import Point from 'ol/geom/Point.js';
     }
 
     const generatingIds = new Set();
+    const downloadedIds = new Set();
 
     function renderList() {
         const ul = el('mapList');
@@ -547,6 +549,9 @@ import Point from 'ol/geom/Point.js';
             if (generatingIds.has(e.id)) {
                 dlBtn.classList.add('generating');
                 dlBtn.textContent = '\u27F3';
+            } else if (downloadedIds.has(e.id)) {
+                dlBtn.classList.add('done');
+                dlBtn.textContent = '\u2713';
             } else {
                 dlBtn.textContent = '\u2193';
             }
@@ -656,7 +661,11 @@ import Point from 'ol/geom/Point.js';
             if (e && !f.get('label')) syncLabel(e);
         }
     });
-    translate.on('translateend', () => { persist(); updateInfo(); });
+    translate.on('translateend', () => {
+        const e = active();
+        if (e) downloadedIds.delete(e.id);
+        persist(); updateInfo();
+    });
     map.addInteraction(translate);
 
     // Double-click centres the ACTIVE rectangle there (no zoom)
@@ -857,11 +866,9 @@ import Point from 'ol/geom/Point.js';
             URL.revokeObjectURL(urlObj);
 
             generatingIds.delete(entry.id);
+            downloadedIds.add(entry.id);
             renderList();
-            const li = el('mapList').querySelector(`[data-id="${entry.id}"] .dl-btn`);
-            if (li) { li.classList.add('done'); li.textContent = '\u2713'; }
             setStatus(`Valmis! Ladataan ${filename}`);
-            setTimeout(() => { if (li) { li.classList.remove('done'); li.textContent = '\u2193'; } }, 1500);
         } catch (err) {
             generatingIds.delete(entry.id);
             renderList();
