@@ -47,7 +47,8 @@ class MapRequest(BaseModel):
     paper_size: PaperSize = "A4"
     orientation: Orientation = "portrait"
     layer: MMLLayer = "maastokartta"
-    zoom_level: int = Field(default=11, ge=8, le=13)
+    dpi: int | None = Field(default=None, ge=72, le=600)
+    zoom_level: int | None = Field(default=None, ge=8, le=13)
     margin_mm: float = Field(default=7.0, ge=0.0, le=30.0)
     title: str | None = Field(default=None, max_length=120)
     grid_mode: GridMode = "off"

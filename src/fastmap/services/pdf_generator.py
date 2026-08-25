@@ -17,7 +17,7 @@ from reportlab.lib.utils import ImageReader
 from reportlab.pdfgen import canvas
 
 from fastmap.core.config import DEFAULT_ZOOM
-from fastmap.services.mml_source import MML_LAYERS, render_extent_image
+from fastmap.services.mml_source import MML_LAYERS, pick_wmts_level, render_extent_image
 from fastmap.services.print_layout import (
     Extent,
     actual_scale,
@@ -219,7 +219,8 @@ def generate_pdf(
     paper_size: str,
     orientation: str,
     layer: str = "maastokartta",
-    zoom_level: int = DEFAULT_ZOOM,
+    dpi: int | None = None,
+    zoom_level: int | None = None,
     margin_mm: float = 7.0,
     title: str | None = None,
     out_pdf_path: str = "map.pdf",
@@ -237,7 +238,16 @@ def generate_pdf(
     if layer not in MML_LAYERS:
         raise ValueError(f"Unknown layer '{layer}'")
 
+    dpi_val = dpi or 300
     page_w_mm, page_h_mm = oriented_page_mm(paper_size, orientation)
+    content_w_mm = page_w_mm - 2 * margin_mm
+    content_w_m = content_w_mm / 1000.0 * (extent.width_m / (content_w_mm / 1000.0))
+    px_w_est = round(content_w_mm / 25.4 * dpi_val)
+
+    if zoom_level is None:
+        target_res = extent.width_m / px_w_est
+        zoom_level = pick_wmts_level(target_res)
+
     res = 8192.0 / 2 ** zoom_level
     px_w = round(extent.width_m / res)
     px_h = round(extent.height_m / res)
@@ -292,7 +302,8 @@ def generate_multi_pdf(
             raise ValueError(f"Unknown layer '{layer}'")
         paper_size = kwargs["paper_size"]
         orientation = kwargs["orientation"]
-        zoom_level = kwargs.get("zoom_level", DEFAULT_ZOOM)
+        dpi = kwargs.get("dpi")
+        zoom_level = kwargs.get("zoom_level")
         margin_mm = kwargs.get("margin_mm", 7.0)
         grid_mode = kwargs.get("grid_mode", "off")
         grid_spacing_m = kwargs.get("grid_spacing_m", 1000)
@@ -300,6 +311,15 @@ def generate_multi_pdf(
         gpx_color = kwargs.get("gpx_color", "#ff00ff")
         gpx_width = kwargs.get("gpx_width", 5)
         gpx_opacity = kwargs.get("gpx_opacity", 0.6)
+
+        dpi_val = dpi or 300
+        page_w_mm, _ = oriented_page_mm(paper_size, orientation)
+        content_w_mm = page_w_mm - 2 * margin_mm
+        px_w_est = round(content_w_mm / 25.4 * dpi_val)
+
+        if zoom_level is None:
+            target_res = extent.width_m / px_w_est
+            zoom_level = pick_wmts_level(target_res)
 
         res = 8192.0 / 2 ** zoom_level
         px_w = round(extent.width_m / res)

@@ -75,6 +75,7 @@ def generate_map(req: MapRequest):
             paper_size=req.paper_size,
             orientation=req.orientation,
             layer=req.layer,
+            dpi=req.dpi,
             zoom_level=req.zoom_level,
             margin_mm=req.margin_mm,
             title=req.title,
