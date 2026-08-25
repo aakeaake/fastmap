@@ -53,9 +53,24 @@
         #newBtn:hover { background: #dcdcdc; }
         #downloadAllBtn {
             margin-top: 8px; background: #245c85; color: #fff;
+            position: relative;
         }
         #downloadAllBtn:hover { background: #1c4a6c; }
         #downloadAllBtn:disabled { background: #9db6c7; cursor: wait; }
+        #downloadAllBtn.loading {
+            color: transparent; pointer-events: none;
+        }
+        #downloadAllBtn.loading::after {
+            content: '';
+            position: absolute;
+            width: 14px; height: 14px;
+            border: 2px solid rgba(255,255,255,.3);
+            border-top-color: #fff;
+            border-radius: 50%;
+            animation: spin .6s linear infinite;
+            top: 50%; left: 50%;
+            margin-top: -7px; margin-left: -7px;
+        }
 
         .dl-row { display: flex; gap: 8px; align-items: flex-end; margin-top: 6px; }
         .dl-row select {
@@ -868,12 +883,12 @@ import Point from 'ol/geom/Point.js';
     el('downloadAllBtn').addEventListener('click', () => {
         if (!maps.length) return;
         const btn = el('downloadAllBtn');
-        const origText = btn.textContent;
-        btn.textContent = '\u27F3 Luodaan\u2026';
+        btn.classList.add('loading');
+        btn.disabled = true;
         download('/generate-maps-batch', {
             output: el('batchFormat').value,
             maps: maps.map(requestPayload),
-        }, [btn]).finally(() => { btn.textContent = origText; });
+        }, [btn]).finally(() => { btn.classList.remove('loading'); btn.disabled = false; });
     });
 </script>
 </body>
