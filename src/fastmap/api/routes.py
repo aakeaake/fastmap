@@ -2,6 +2,8 @@ import logging
 import os
 import re
 import tempfile
+import threading
+import uuid
 import zipfile
 from datetime import datetime
 
@@ -33,6 +35,14 @@ from fastmap.services.print_layout import (
 )
 
 router = APIRouter()
+
+
+# ---------------------------------------------------------------------------
+# Async job store (in-memory, single-worker safe)
+# ---------------------------------------------------------------------------
+
+_jobs: dict[str, dict] = {}
+_jobs_lock = threading.Lock()
 
 
 def _resolve_extent(req: MapRequest):
@@ -108,6 +118,107 @@ def generate_map(req: MapRequest):
         media_type="application/pdf",
         filename=display_name,
         background=BackgroundTask(os.remove, result.path),
+    )
+
+
+# ---------------------------------------------------------------------------
+# Async generation (avoids 50s idle-timeout wind-down)
+# ---------------------------------------------------------------------------
+
+def _run_job(job_id: str, req: MapRequest) -> None:
+    """Background thread: generate PDF and update job status."""
+    try:
+        extent = _resolve_extent(req)
+        log.info("async job %s started", job_id)
+        result = generate_pdf_to_temp(
+            extent,
+            paper_size=req.paper_size,
+            orientation=req.orientation,
+            layer=req.layer,
+            dpi=req.dpi,
+            zoom_level=req.zoom_level,
+            margin_mm=req.margin_mm,
+            title=req.title,
+            grid_mode=req.grid_mode,
+            grid_spacing_m=req.grid_spacing_m,
+            gpx_routes=req.gpx_routes,
+            gpx_color=req.gpx_color,
+            gpx_width=req.gpx_width,
+            gpx_opacity=req.gpx_opacity,
+        )
+        display_name = (
+            f"fastmap_{req.paper_size}_{req.orientation}_"
+            f"1-{result.actual_scale}_{_timestamp()}.pdf"
+        )
+        with _jobs_lock:
+            _jobs[job_id]["status"] = "done"
+            _jobs[job_id]["path"] = result.path
+            _jobs[job_id]["filename"] = display_name
+            _jobs[job_id]["actual_scale"] = result.actual_scale
+        log.info("async job %s done  -> %s", job_id, display_name)
+    except Exception as exc:
+        log.warning("async job %s failed: %s", job_id, exc)
+        with _jobs_lock:
+            _jobs[job_id]["status"] = "error"
+            _jobs[job_id]["error"] = str(exc)
+
+
+@router.post("/generate-map-async")
+def generate_map_async(req: MapRequest):
+    """Start PDF generation in background, return job ID for polling."""
+    if not MML_API_KEY:
+        raise HTTPException(
+            status_code=503,
+            detail="Server is missing MML_API_KEY configuration.",
+        )
+    job_id = uuid.uuid4().hex[:12]
+    with _jobs_lock:
+        _jobs[job_id] = {"status": "pending"}
+
+    t = threading.Thread(target=_run_job, args=(job_id, req), daemon=True)
+    t.start()
+    return {"job_id": job_id}
+
+
+@router.get("/map-status/{job_id}")
+def map_status(job_id: str):
+    """Poll this to check job progress. Returns status + download_url when done."""
+    with _jobs_lock:
+        job = _jobs.get(job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail="Unknown job_id")
+
+    if job["status"] == "done":
+        return {
+            "status": "done",
+            "download_url": f"/map-download/{job_id}",
+            "filename": job["filename"],
+            "actual_scale": job["actual_scale"],
+        }
+    if job["status"] == "error":
+        return {"status": "error", "error": job["error"]}
+    return {"status": "pending"}
+
+
+@router.get("/map-download/{job_id}")
+def map_download(job_id: str):
+    """Download the completed PDF. Cleans up the temp file after serving."""
+    with _jobs_lock:
+        job = _jobs.get(job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail="Unknown job_id")
+    if job["status"] != "done":
+        raise HTTPException(status_code=409, detail="Job not ready yet")
+
+    path = job["path"]
+    filename = job["filename"]
+    with _jobs_lock:
+        _jobs.pop(job_id, None)
+    return FileResponse(
+        path,
+        media_type="application/pdf",
+        filename=filename,
+        background=BackgroundTask(os.remove, path),
     )
 
 
