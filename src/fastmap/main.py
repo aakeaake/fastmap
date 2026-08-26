@@ -31,9 +31,9 @@ async def log_requests(request: Request, call_next):
         return resp
     client = request.client.host if request.client else "?"
     log.info(
-        "%s %s %s  %d  %s",
+        "%s %s %s  %d",
         request.method, request.url.path, client,
-        resp.status_code, request.headers.get("user-agent", ""),
+        resp.status_code,
     )
     return resp
 app.include_router(router)

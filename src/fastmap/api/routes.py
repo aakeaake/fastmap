@@ -3,6 +3,7 @@ import os
 import re
 import tempfile
 import threading
+import time
 import uuid
 import zipfile
 from datetime import datetime
@@ -54,7 +55,7 @@ def _resolve_extent(req: MapRequest):
 
 
 def _timestamp() -> str:
-    return datetime.now().strftime("%Y%m%d-%H%M")
+    return datetime.now().strftime("%y%m%d%H%M%S")
 
 
 @router.post("/generate-map")
@@ -104,10 +105,8 @@ def generate_map(req: MapRequest):
         ) from exc
 
     elapsed = time.monotonic() - t0
-    display_name = (
-        f"fastmap_{req.paper_size}_{req.orientation}_"
-        f"1-{result.actual_scale}_{_timestamp()}.pdf"
-    )
+    name = req.title or f"{req.paper_size}{req.orientation}_{result.actual_scale}"
+    display_name = f"fastmap_{name}_{_timestamp()}.pdf"
     log.info(
         "generate-map done in %.1fs  -> %s  (%dx%d px)",
         elapsed, display_name, result.width_px, result.height_px,
@@ -128,6 +127,7 @@ def generate_map(req: MapRequest):
 def _run_job(job_id: str, req: MapRequest) -> None:
     """Background thread: generate PDF and update job status."""
     try:
+        t0 = time.monotonic()
         extent = _resolve_extent(req)
         log.info("async job %s started", job_id)
         result = generate_pdf_to_temp(
@@ -146,16 +146,14 @@ def _run_job(job_id: str, req: MapRequest) -> None:
             gpx_width=req.gpx_width,
             gpx_opacity=req.gpx_opacity,
         )
-        display_name = (
-            f"fastmap_{req.paper_size}_{req.orientation}_"
-            f"1-{result.actual_scale}_{_timestamp()}.pdf"
-        )
+        name = req.title or f"{req.paper_size}{req.orientation}_{result.actual_scale}"
+        display_name = f"fastmap_{name}_{_timestamp()}.pdf"
         with _jobs_lock:
             _jobs[job_id]["status"] = "done"
             _jobs[job_id]["path"] = result.path
             _jobs[job_id]["filename"] = display_name
             _jobs[job_id]["actual_scale"] = result.actual_scale
-        log.info("async job %s done  -> %s", job_id, display_name)
+        log.info("async job %s done in %.1fs  -> %s", job_id, time.monotonic() - t0, display_name)
     except Exception as exc:
         log.warning("async job %s failed: %s", job_id, exc)
         with _jobs_lock:
@@ -189,12 +187,14 @@ def map_status(job_id: str):
         raise HTTPException(status_code=404, detail="Unknown job_id")
 
     if job["status"] == "done":
-        return {
+        result = {
             "status": "done",
             "download_url": f"/map-download/{job_id}",
             "filename": job["filename"],
-            "actual_scale": job["actual_scale"],
         }
+        if "actual_scale" in job:
+            result["actual_scale"] = job["actual_scale"]
+        return result
     if job["status"] == "error":
         return {"status": "error", "error": job["error"]}
     return {"status": "pending"}
@@ -212,11 +212,12 @@ def map_download(job_id: str):
 
     path = job["path"]
     filename = job["filename"]
+    media_type = job.get("media_type", "application/pdf")
     with _jobs_lock:
         _jobs.pop(job_id, None)
     return FileResponse(
         path,
-        media_type="application/pdf",
+        media_type=media_type,
         filename=filename,
         background=BackgroundTask(os.remove, path),
     )
@@ -283,7 +284,7 @@ def generate_maps_batch(batch: BatchMapRequest):
         return FileResponse(
             tmp.name,
             media_type="application/pdf",
-            filename=f"fastmap_batch_{len(pairs)}pages_{_timestamp()}.pdf",
+            filename=f"fastmap_{len(pairs)}pages_{_timestamp()}.pdf",
             background=BackgroundTask(_remove_quietly, [tmp.name]),
         )
 
@@ -315,9 +316,95 @@ def generate_maps_batch(batch: BatchMapRequest):
     return FileResponse(
         zip_tmp.name,
         media_type="application/zip",
-        filename=f"fastmap_maps_{_timestamp()}.zip",
+        filename=f"fastmap_{len(pairs)}maps_{_timestamp()}.zip",
         background=BackgroundTask(_remove_quietly, [*pdf_paths, zip_tmp.name]),
     )
+
+
+# ---------------------------------------------------------------------------
+# Async batch generation (avoids 50s idle-timeout wind-down)
+# ---------------------------------------------------------------------------
+
+def _run_batch_job(job_id: str, batch: BatchMapRequest) -> None:
+    """Background thread: generate batch PDF/ZIP and update job status."""
+    try:
+        t0 = time.monotonic()
+        pairs = [(_resolve_extent(m), m) for m in batch.maps]
+        log.info("async batch job %s started  %d maps", job_id, len(pairs))
+
+        if batch.output == "pdf":
+            tmp = tempfile.NamedTemporaryFile(
+                prefix="fastmap_batch_", suffix=".pdf", delete=False
+            )
+            tmp.close()
+            try:
+                generate_multi_pdf(
+                    [(extent, _req_kwargs(m)) for extent, m in pairs], tmp.name
+                )
+            except Exception:
+                _remove_quietly([tmp.name])
+                raise
+            filename = f"fastmap_{len(pairs)}pages_{_timestamp()}.pdf"
+            with _jobs_lock:
+                _jobs[job_id]["status"] = "done"
+                _jobs[job_id]["path"] = tmp.name
+                _jobs[job_id]["filename"] = filename
+                _jobs[job_id]["media_type"] = "application/pdf"
+        else:
+            # ZIP of individual PDFs
+            pdf_paths: list[str] = []
+            for i, (extent, req) in enumerate(pairs, start=1):
+                log.info("async batch job %s  map %d/%d", job_id, i, len(pairs))
+                result = generate_pdf_to_temp(extent, **_req_kwargs(req))
+                pdf_paths.append(result.path)
+
+            zip_tmp = tempfile.NamedTemporaryFile(
+                prefix="fastmap_maps_", suffix=".zip", delete=False
+            )
+            zip_tmp.close()
+            with zipfile.ZipFile(zip_tmp.name, "w", zipfile.ZIP_DEFLATED) as zf:
+                for i, (path, (_, req)) in enumerate(zip(pdf_paths, pairs), start=1):
+                    name_title = req.title or f"Kartta {i}"
+                    zf.write(path, arcname=f"{i:02d}_{_slug(name_title)}.pdf")
+            _remove_quietly(pdf_paths)
+
+            filename = f"fastmap_{len(pairs)}maps_{_timestamp()}.zip"
+            with _jobs_lock:
+                _jobs[job_id]["status"] = "done"
+                _jobs[job_id]["path"] = zip_tmp.name
+                _jobs[job_id]["filename"] = filename
+                _jobs[job_id]["media_type"] = "application/zip"
+
+        log.info("async batch job %s done in %.1fs  -> %s", job_id, time.monotonic() - t0, filename)
+    except Exception as exc:
+        log.warning("async batch job %s failed: %s", job_id, exc)
+        with _jobs_lock:
+            _jobs[job_id]["status"] = "error"
+            _jobs[job_id]["error"] = str(exc)
+
+
+@router.post("/generate-maps-batch-async")
+def generate_maps_batch_async(batch: BatchMapRequest):
+    """Start batch generation in background, return job ID for polling."""
+    if not MML_API_KEY:
+        raise HTTPException(
+            status_code=503,
+            detail="Server is missing MML_API_KEY configuration.",
+        )
+    try:
+        # Validate extents eagerly so bad input fails fast
+        for m in batch.maps:
+            _resolve_extent(m)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    job_id = uuid.uuid4().hex[:12]
+    with _jobs_lock:
+        _jobs[job_id] = {"status": "pending"}
+
+    t = threading.Thread(target=_run_batch_job, args=(job_id, batch), daemon=True)
+    t.start()
+    return {"job_id": job_id}
 
 
 @router.get("/health")
