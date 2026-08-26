@@ -65,7 +65,7 @@ def generate_map(req: MapRequest):
 
     t0 = time.monotonic()
     log.info(
-        "generate-map  %s %s 1:%s  layer=%s  zoom=%d",
+        "generate-map  %s %s 1:%s  layer=%s  zoom=%s",
         req.paper_size, req.orientation, req.scale, req.layer, req.zoom_level,
     )
 
