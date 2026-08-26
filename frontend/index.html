@@ -839,7 +839,7 @@ import Point from 'ol/geom/Point.js';
         generatingIds.add(entry.id);
         renderList();
         try {
-            const resp = await fetch('/generate-map', {
+            const resp = await fetch('/generate-map-async', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(requestPayload(entry)),
@@ -854,13 +854,24 @@ import Point from 'ol/geom/Point.js';
                 throw new Error(detail);
             }
 
-            const blob = await resp.blob();
-            let filename = 'fastmap.pdf';
-            const disposition = resp.headers.get('content-disposition');
-            if (disposition) {
-                const m = disposition.match(/filename="?([^";]+)"?/i);
-                if (m) filename = decodeURIComponent(m[1]);
+            const { job_id } = await resp.json();
+
+            // Poll until done
+            let result;
+            while (true) {
+                await new Promise(r => setTimeout(r, 10000));
+                const sr = await fetch(`/map-status/${job_id}`);
+                if (!sr.ok) throw new Error(`Poll failed: HTTP ${sr.status}`);
+                result = await sr.json();
+                if (result.status === 'done') break;
+                if (result.status === 'error') throw new Error(result.error || 'Generation failed');
             }
+
+            // Download the file
+            const dr = await fetch(result.download_url);
+            if (!dr.ok) throw new Error(`Download failed: HTTP ${dr.status}`);
+            const blob = await dr.blob();
+            const filename = result.filename || 'fastmap.pdf';
             const urlObj = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = urlObj;
