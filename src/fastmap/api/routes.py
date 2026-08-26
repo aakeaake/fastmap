@@ -55,7 +55,7 @@ def _resolve_extent(req: MapRequest):
 
 
 def _timestamp() -> str:
-    return datetime.now().strftime("%Y%m%d-%H%M")
+    return datetime.now().strftime("%y%m%d%H%M%S")
 
 
 @router.post("/generate-map")
@@ -105,10 +105,8 @@ def generate_map(req: MapRequest):
         ) from exc
 
     elapsed = time.monotonic() - t0
-    display_name = (
-        f"fastmap_{req.paper_size}_{req.orientation}_"
-        f"1-{result.actual_scale}_{_timestamp()}.pdf"
-    )
+    name = req.title or f"{req.paper_size}{req.orientation}_{result.actual_scale}"
+    display_name = f"fastmap_{name}_{_timestamp()}.pdf"
     log.info(
         "generate-map done in %.1fs  -> %s  (%dx%d px)",
         elapsed, display_name, result.width_px, result.height_px,
@@ -148,10 +146,8 @@ def _run_job(job_id: str, req: MapRequest) -> None:
             gpx_width=req.gpx_width,
             gpx_opacity=req.gpx_opacity,
         )
-        display_name = (
-            f"fastmap_{req.paper_size}_{req.orientation}_"
-            f"1-{result.actual_scale}_{_timestamp()}.pdf"
-        )
+        name = req.title or f"{req.paper_size}{req.orientation}_{result.actual_scale}"
+        display_name = f"fastmap_{name}_{_timestamp()}.pdf"
         with _jobs_lock:
             _jobs[job_id]["status"] = "done"
             _jobs[job_id]["path"] = result.path
@@ -288,7 +284,7 @@ def generate_maps_batch(batch: BatchMapRequest):
         return FileResponse(
             tmp.name,
             media_type="application/pdf",
-            filename=f"fastmap_batch_{len(pairs)}pages_{_timestamp()}.pdf",
+            filename=f"fastmap_{len(pairs)}pages_{_timestamp()}.pdf",
             background=BackgroundTask(_remove_quietly, [tmp.name]),
         )
 
@@ -320,7 +316,7 @@ def generate_maps_batch(batch: BatchMapRequest):
     return FileResponse(
         zip_tmp.name,
         media_type="application/zip",
-        filename=f"fastmap_maps_{_timestamp()}.zip",
+        filename=f"fastmap_{len(pairs)}maps_{_timestamp()}.zip",
         background=BackgroundTask(_remove_quietly, [*pdf_paths, zip_tmp.name]),
     )
 
@@ -348,7 +344,7 @@ def _run_batch_job(job_id: str, batch: BatchMapRequest) -> None:
             except Exception:
                 _remove_quietly([tmp.name])
                 raise
-            filename = f"fastmap_batch_{len(pairs)}pages_{_timestamp()}.pdf"
+            filename = f"fastmap_{len(pairs)}pages_{_timestamp()}.pdf"
             with _jobs_lock:
                 _jobs[job_id]["status"] = "done"
                 _jobs[job_id]["path"] = tmp.name
@@ -372,7 +368,7 @@ def _run_batch_job(job_id: str, batch: BatchMapRequest) -> None:
                     zf.write(path, arcname=f"{i:02d}_{_slug(name_title)}.pdf")
             _remove_quietly(pdf_paths)
 
-            filename = f"fastmap_maps_{_timestamp()}.zip"
+            filename = f"fastmap_{len(pairs)}maps_{_timestamp()}.zip"
             with _jobs_lock:
                 _jobs[job_id]["status"] = "done"
                 _jobs[job_id]["path"] = zip_tmp.name

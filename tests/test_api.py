@@ -38,7 +38,7 @@ def test_generate_map_bbox_ok():
     resp = client.post("/generate-map", json=payload)
     assert resp.status_code == 200
     assert resp.headers["content-type"] == "application/pdf"
-    assert "fastmap_A4_portrait_1-20000" in resp.headers["content-disposition"]
+    assert "fastmap_A4portrait_20000" in resp.headers["content-disposition"]
     assert resp.content[:5] == b"%PDF-"
 
 
@@ -53,7 +53,7 @@ def test_generate_map_center_scale_ok():
     resp = client.post("/generate-map", json=payload)
     assert resp.status_code == 200
     assert resp.content[:5] == b"%PDF-"
-    assert "1-25000" in resp.headers["content-disposition"]
+    assert "25000" in resp.headers["content-disposition"]
 
 
 def test_missing_location_is_422():
@@ -117,7 +117,7 @@ def test_generate_batch_pdf_mixed_pages():
     assert resp.status_code == 200
     assert resp.headers["content-type"] == "application/pdf"
     assert re.fullmatch(
-        r'attachment; filename="fastmap_batch_2pages_\d{8}-\d{4}\.pdf"',
+        r'attachment; filename="fastmap_2pages_\d{12}\.pdf"',
         resp.headers["content-disposition"],
     )
     assert resp.content[:5] == b"%PDF-"
@@ -132,7 +132,7 @@ def test_generate_batch_zip_members_are_pdfs():
     assert resp.status_code == 200
     assert resp.headers["content-type"] == "application/zip"
     assert re.fullmatch(
-        r'attachment; filename="fastmap_maps_\d{8}-\d{4}\.zip"',
+        r'attachment; filename="fastmap_2maps_\d{12}\.zip"',
         resp.headers["content-disposition"],
     )
 
