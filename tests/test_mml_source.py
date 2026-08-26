@@ -90,6 +90,9 @@ class _FakeResp:
     def __init__(self, content: bytes):
         self.content = content
 
+    def close(self):
+        pass
+
 
 def _png_bytes(img: Image.Image) -> bytes:
     buf = io.BytesIO()
@@ -110,7 +113,7 @@ def test_fetch_wmts_tile_url_is_z_row_col(monkeypatch):
         return _FakeResp(_png_bytes(Image.new("RGB", (256, 256))))
 
     monkeypatch.setattr(mml_source, "MML_API_KEY", "k")
-    monkeypatch.setattr(mml_source.requests, "get", fake_get)
+    monkeypatch.setattr(mml_source._session, "get", fake_get)
     fetch_wmts_tile(x=1243, y=802, level=11, layer="maastokartta")
     assert "maastokartta/default/ETRS-TM35FIN/11/802/1243.png" in seen["url"]
 
@@ -123,7 +126,7 @@ def test_transparent_tiles_composite_to_white(monkeypatch):
         return _FakeResp(_png_bytes(transparent))
 
     monkeypatch.setattr(mml_source, "MML_API_KEY", "k")
-    monkeypatch.setattr(mml_source.requests, "get", fake_get)
+    monkeypatch.setattr(mml_source._session, "get", fake_get)
     img = fetch_wmts_tile(0, 0, 8, "maastokartta")
     assert img.getpixel((128, 128)) == (255, 255, 255)
 
@@ -137,7 +140,7 @@ def test_render_skips_wms_when_unconfigured(monkeypatch):
         hits.append(url)
         raise AssertionError("no HTTP expected")
 
-    monkeypatch.setattr(mml_source.requests, "get", fake_get)
+    monkeypatch.setattr(mml_source._session, "get", fake_get)
     monkeypatch.setattr(
         mml_source, "fetch_wmts_mosaic", lambda *a, **k: "MOSAIC"
     )

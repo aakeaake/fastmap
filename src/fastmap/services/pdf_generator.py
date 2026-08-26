@@ -274,6 +274,7 @@ def generate_pdf(
     )
     c.showPage()
     c.save()
+    img.close()
 
     return PrintResult(
         path=out_pdf_path,
@@ -355,6 +356,7 @@ def generate_multi_pdf(
             width_px=img.size[0],
             height_px=img.size[1],
         ))
+        img.close()
         c.showPage()
 
     if c is not None:
