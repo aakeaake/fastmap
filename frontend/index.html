@@ -793,47 +793,6 @@ import Point from 'ol/geom/Point.js';
         return { minx, miny, maxx, maxy };
     }
 
-    async function download(url, payload, busyButtons) {
-        busyButtons.forEach(b => b.disabled = true);
-        try {
-            const resp = await fetch(url, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload),
-            });
-            if (!resp.ok) {
-                let detail = `HTTP ${resp.status}`;
-                try {
-                    const err = await resp.json();
-                    if (err.detail) detail = typeof err.detail === 'string'
-                        ? err.detail : JSON.stringify(err.detail);
-                } catch { /* ignore */ }
-                throw new Error(detail);
-            }
-
-            const blob = await resp.blob();
-            let filename = 'fastmap.pdf';
-            const disposition = resp.headers.get('content-disposition');
-            if (disposition) {
-                const m = disposition.match(/filename="?([^";]+)"?/i);
-                if (m) filename = decodeURIComponent(m[1]);
-            }
-            const urlObj = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = urlObj;
-            a.download = filename;
-            document.body.appendChild(a);
-            a.click();
-            a.remove();
-            URL.revokeObjectURL(urlObj);
-
-        } catch (err) {
-            setStatus(`Virhe: ${err.message}`, true);
-        } finally {
-            busyButtons.forEach(b => b.disabled = false);
-        }
-    }
-
     async function downloadSingle(entry) {
         if (generatingIds.has(entry.id)) return;
         generatingIds.add(entry.id);
