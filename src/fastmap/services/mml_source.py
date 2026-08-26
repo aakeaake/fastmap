@@ -158,7 +158,7 @@ def fetch_wmts_mosaic(
     height_px: int,
     layer: str = "maastokartta",
 ) -> Image.Image:
-    """Stitch WMTS tiles covering extent, crop and resize to exact pixels."""
+    """Stitch WMTS tiles covering extent, crop to extent at native resolution."""
     if width_px * height_px > MAX_RENDER_PIXELS:
         raise MMLError("Requested render is too large")
 
@@ -191,7 +191,7 @@ def fetch_wmts_mosaic(
         (round(left), round(top), round(right), round(bottom))
     )
 
-    return cropped.resize((width_px, height_px), Image.LANCZOS)
+    return cropped.quantize(colors=128)
 
 
 def render_extent_image(

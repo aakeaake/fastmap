@@ -78,7 +78,9 @@ def test_fetch_wmts_mosaic_offline(monkeypatch):
 
     monkeypatch.setattr(mml_source, "fetch_wmts_tile", fake_tile)
     img = fetch_wmts_mosaic(OTANIEMI, 950, 1385)
-    assert img.size == (950, 1385)
+    assert img.mode == "P"
+    assert abs(img.size[0] - 950) <= 1
+    assert abs(img.size[1] - 1385) <= 1
     assert len(calls) > 0
 
 

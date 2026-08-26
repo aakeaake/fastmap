@@ -279,8 +279,8 @@ def generate_pdf(
         path=out_pdf_path,
         actual_scale=scale_value,
         extent=extent,
-        width_px=px_w,
-        height_px=px_h,
+        width_px=img.size[0],
+        height_px=img.size[1],
     )
 
 
@@ -352,8 +352,8 @@ def generate_multi_pdf(
             path=out_pdf_path,
             actual_scale=scale_value,
             extent=extent,
-            width_px=px_w,
-            height_px=px_h,
+            width_px=img.size[0],
+            height_px=img.size[1],
         ))
         c.showPage()
 
