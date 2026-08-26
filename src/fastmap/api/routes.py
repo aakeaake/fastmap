@@ -3,6 +3,7 @@ import os
 import re
 import tempfile
 import threading
+import time
 import uuid
 import zipfile
 from datetime import datetime
@@ -128,6 +129,7 @@ def generate_map(req: MapRequest):
 def _run_job(job_id: str, req: MapRequest) -> None:
     """Background thread: generate PDF and update job status."""
     try:
+        t0 = time.monotonic()
         extent = _resolve_extent(req)
         log.info("async job %s started", job_id)
         result = generate_pdf_to_temp(
@@ -155,7 +157,7 @@ def _run_job(job_id: str, req: MapRequest) -> None:
             _jobs[job_id]["path"] = result.path
             _jobs[job_id]["filename"] = display_name
             _jobs[job_id]["actual_scale"] = result.actual_scale
-        log.info("async job %s done  -> %s", job_id, display_name)
+        log.info("async job %s done in %.1fs  -> %s", job_id, time.monotonic() - t0, display_name)
     except Exception as exc:
         log.warning("async job %s failed: %s", job_id, exc)
         with _jobs_lock:
@@ -330,6 +332,7 @@ def generate_maps_batch(batch: BatchMapRequest):
 def _run_batch_job(job_id: str, batch: BatchMapRequest) -> None:
     """Background thread: generate batch PDF/ZIP and update job status."""
     try:
+        t0 = time.monotonic()
         pairs = [(_resolve_extent(m), m) for m in batch.maps]
         log.info("async batch job %s started  %d maps", job_id, len(pairs))
 
@@ -376,7 +379,7 @@ def _run_batch_job(job_id: str, batch: BatchMapRequest) -> None:
                 _jobs[job_id]["filename"] = filename
                 _jobs[job_id]["media_type"] = "application/zip"
 
-        log.info("async batch job %s done  -> %s", job_id, filename)
+        log.info("async batch job %s done in %.1fs  -> %s", job_id, time.monotonic() - t0, filename)
     except Exception as exc:
         log.warning("async batch job %s failed: %s", job_id, exc)
         with _jobs_lock:
