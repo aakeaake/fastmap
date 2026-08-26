@@ -1,10 +1,14 @@
+import logging
 import os
+import time
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from fastmap.api.routes import router
+
+log = logging.getLogger(__name__)
 
 app = FastAPI(title="FastMap API", version="0.2.0")
 
@@ -18,6 +22,20 @@ app.add_middleware(
     allow_headers=["*"],
     expose_headers=["Content-Disposition"],
 )
+
+
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    resp = await call_next(request)
+    if request.url.path.startswith("/api/nls-tiles"):
+        return resp
+    client = request.client.host if request.client else "?"
+    log.info(
+        "%s %s %s  %d  %s",
+        request.method, request.url.path, client,
+        resp.status_code, request.headers.get("user-agent", ""),
+    )
+    return resp
 app.include_router(router)
 
 _FRONTEND_DIR = os.environ.get(

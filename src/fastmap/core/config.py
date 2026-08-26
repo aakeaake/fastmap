@@ -1,8 +1,16 @@
+import logging
 import os
 
 from dotenv import load_dotenv
 
 load_dotenv()
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(levelname)s  %(message)s",
+)
+# Quiet the tile-proxy access logs (hundreds per request)
+logging.getLogger("uvicorn.access").setLevel(logging.WARNING)
 
 MML_API_KEY = os.environ.get("MML_API_KEY", "")
 
@@ -19,5 +27,5 @@ MML_WMTS_URL = os.environ.get(
 
 USER_AGENT = "fastmap/0.1 (print-ready maps of Finland)"
 
-DEFAULT_DPI = 300
+DEFAULT_ZOOM = 11
 MAX_RENDER_PIXELS = 60_000_000  # safety cap for WMS image size

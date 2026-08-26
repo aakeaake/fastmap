@@ -53,9 +53,24 @@
         #newBtn:hover { background: #dcdcdc; }
         #downloadAllBtn {
             margin-top: 8px; background: #245c85; color: #fff;
+            position: relative;
         }
         #downloadAllBtn:hover { background: #1c4a6c; }
         #downloadAllBtn:disabled { background: #9db6c7; cursor: wait; }
+        #downloadAllBtn.loading {
+            color: transparent; pointer-events: none;
+        }
+        #downloadAllBtn.loading::after {
+            content: '';
+            position: absolute;
+            width: 14px; height: 14px;
+            border: 2px solid rgba(255,255,255,.3);
+            border-top-color: #fff;
+            border-radius: 50%;
+            animation: spin .6s linear infinite;
+            top: 50%; left: 50%;
+            margin-top: -7px; margin-left: -7px;
+        }
 
         .dl-row { display: flex; gap: 8px; align-items: flex-end; margin-top: 6px; }
         .dl-row select {
@@ -184,8 +199,27 @@
     <div id="gpxInfo" style="font-size:12px;color:#555;margin-top:4px;min-height:15px;"></div>
 
     <details id="advSection" style="margin-top:8px;">
-        <summary style="font-size:12px;color:#555;cursor:pointer;">GPX-lisäasetukset</summary>
+        <summary style="font-size:12px;color:#555;cursor:pointer;">Lisäasetukset</summary>
         <div style="margin-top:6px;">
+            <div style="font-size:11px;font-weight:600;color:#333;margin:8px 0 4px;text-transform:uppercase;">Tarkkuus</div>
+            <label for="dpi">Tulostus-DPI</label>
+            <select id="dpi">
+                <option value="" selected>Automaattinen (300)</option>
+                <option value="150">150</option>
+                <option value="200">200</option>
+                <option value="250">250</option>
+                <option value="300">300</option>
+            </select>
+            <label for="zoomLevel">Karttataso</label>
+            <select id="zoomLevel">
+                <option value="" selected>Automaattinen</option>
+                <option value="10">Nopea (8 m/px)</option>
+                <option value="11">Normaali (4 m/px)</option>
+                <option value="12">Tarkka (2 m/px)</option>
+                <option value="13">Tarkin (1 m/px)</option>
+            </select>
+
+            <div style="font-size:11px;font-weight:600;color:#333;margin:12px 0 4px;text-transform:uppercase;">GPX-reitin ulkoasu</div>
             <label for="gpxColor">Reitin väri</label>
             <input id="gpxColor" type="color" value="#ff00ff" style="width:100%;height:30px;border:1px solid #bbb;border-radius:4px;">
             <label for="gpxWidth">Reitin leveys (pt)</label>
@@ -733,11 +767,14 @@ import Point from 'ol/geom/Point.js';
             paper_size: e.paperSize,
             orientation: e.orientation,
             layer: e.layer,
-            dpi: 300,
             margin_mm: e.margin,
             grid_mode: e.gridMode,
             grid_spacing_m: e.gridSpacing,
         };
+        const dpiVal = el('dpi').value;
+        if (dpiVal) payload.dpi = parseInt(dpiVal, 10);
+        const zoomVal = el('zoomLevel').value;
+        if (zoomVal) payload.zoom_level = parseInt(zoomVal, 10);
         if (e.title) payload.title = e.title;
         const gpxFeatures = gpxLayer.getSource().getFeatures();
         if (gpxFeatures.length) {
@@ -846,12 +883,12 @@ import Point from 'ol/geom/Point.js';
     el('downloadAllBtn').addEventListener('click', () => {
         if (!maps.length) return;
         const btn = el('downloadAllBtn');
-        const origText = btn.textContent;
-        btn.textContent = '\u27F3 Luodaan\u2026';
+        btn.classList.add('loading');
+        btn.disabled = true;
         download('/generate-maps-batch', {
             output: el('batchFormat').value,
             maps: maps.map(requestPayload),
-        }, [btn]).finally(() => { btn.textContent = origText; });
+        }, [btn]).finally(() => { btn.classList.remove('loading'); btn.disabled = false; });
     });
 </script>
 </body>
