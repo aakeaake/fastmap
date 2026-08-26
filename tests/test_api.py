@@ -162,3 +162,118 @@ def test_slug_normalises_filenames():
     assert _slug("  My Map!  ") == "My_Map"
     assert _slug("") == "kartta"
     assert _slug("a" * 100) == "a" * 40
+
+
+# ---------------------------------------------------------------------------
+# Async generation
+# ---------------------------------------------------------------------------
+
+import time
+
+
+def _poll_until(job_id: str, max_polls: int = 50, delay: float = 0.1) -> dict:
+    """Poll /map-status until done or error. Returns the final status dict."""
+    for _ in range(max_polls):
+        resp = client.get(f"/map-status/{job_id}")
+        assert resp.status_code == 200
+        data = resp.json()
+        if data["status"] in ("done", "error"):
+            return data
+        time.sleep(delay)
+    raise AssertionError(f"Job {job_id} did not finish in {max_polls * delay:.1f}s")
+
+
+def _single_payload(**overrides) -> dict:
+    base = {
+        "bbox": {"minx": 428100, "miny": 6665230, "maxx": 431900, "maxy": 6670770},
+        "paper_size": "A4",
+        "orientation": "portrait",
+    }
+    base.update(overrides)
+    return base
+
+
+def test_async_single_returns_job_id():
+    resp = client.post("/generate-map-async", json=_single_payload())
+    assert resp.status_code == 200
+    assert "job_id" in resp.json()
+
+
+def test_async_single_poll_and_download():
+    resp = client.post("/generate-map-async", json=_single_payload())
+    job_id = resp.json()["job_id"]
+
+    result = _poll_until(job_id)
+    assert result["status"] == "done"
+    assert "download_url" in result
+    assert "filename" in result
+
+    dr = client.get(result["download_url"])
+    assert dr.status_code == 200
+    assert dr.content[:5] == b"%PDF-"
+    assert result["filename"].endswith(".pdf")
+
+
+def test_async_single_422_bad_input():
+    resp = client.post("/generate-map-async", json={"scale": 20000})
+    assert resp.status_code == 422
+
+
+def test_async_single_status_404_unknown_job():
+    resp = client.get("/map-status/nonexistent123")
+    assert resp.status_code == 404
+
+
+def test_async_single_download_404_unknown_job():
+    resp = client.get("/map-download/nonexistent123")
+    assert resp.status_code == 404
+
+
+def test_async_batch_returns_job_id():
+    resp = client.post(
+        "/generate-maps-batch-async",
+        json={"output": "zip", "maps": [_single_payload(), _single_payload()]},
+    )
+    assert resp.status_code == 200
+    assert "job_id" in resp.json()
+
+
+def test_async_batch_zip_poll_and_download():
+    resp = client.post(
+        "/generate-maps-batch-async",
+        json={"output": "zip", "maps": [_batch_map(0), _batch_map(1)]},
+    )
+    job_id = resp.json()["job_id"]
+    result = _poll_until(job_id)
+    assert result["status"] == "done"
+
+    dr = client.get(result["download_url"])
+    assert dr.status_code == 200
+    assert result["filename"].endswith(".zip")
+
+    zf = zipfile.ZipFile(io.BytesIO(dr.content))
+    names = zf.namelist()
+    assert len(names) == 2
+    for name in names:
+        assert zf.read(name)[:5] == b"%PDF-"
+
+
+def test_async_batch_pdf_poll_and_download():
+    resp = client.post(
+        "/generate-maps-batch-async",
+        json={"output": "pdf", "maps": [_batch_map(0), _batch_map(1)]},
+    )
+    job_id = resp.json()["job_id"]
+    result = _poll_until(job_id)
+    assert result["status"] == "done"
+
+    dr = client.get(result["download_url"])
+    assert dr.status_code == 200
+    assert dr.content[:5] == b"%PDF-"
+    pages = re.findall(rb"/Type\s*/Page(?![A-Za-z])", dr.content)
+    assert len(pages) == 2
+
+
+def test_async_batch_empty_maps_422():
+    resp = client.post("/generate-maps-batch-async", json={"maps": []})
+    assert resp.status_code == 422
