@@ -169,7 +169,29 @@ uv run pytest
 
 Unit tests cover the scale/pixel maths, WMTS tile-index geometry, WMS URL
 building and offline PDF generation; no network access is needed for the test
-suite.
+suite. The GPX test uses `pdftoppm` (`poppler-utils`).
+
+## Development workflow
+
+FastMap uses [GitHub Flow](https://docs.github.com/en/get-started/using-github/github-flow):
+`main` is always deployable and is what Render deploys.
+
+1. Branch off `main`: `feat/…`, `fix/…`, `chore/…` or `docs/…`.
+2. Before pushing, run the same checks as CI:
+   ```bash
+   uv run ruff check . && uv run ruff format --check . && uv run pytest
+   ```
+3. Open a pull request to `main`. CI runs tests (Python 3.10 and 3.12), ruff
+   and a Docker build; all must pass before merging.
+4. **Squash merge.** Render deploys `main` automatically once checks pass.
+
+**Releases:** bump `version` in `pyproject.toml` (the only place it lives) in a
+PR, merge it, then tag the merge commit:
+
+```bash
+git switch main && git pull
+git tag -a vX.Y.Z -m vX.Y.Z && git push origin vX.Y.Z
+```
 
 ## License notes
 
