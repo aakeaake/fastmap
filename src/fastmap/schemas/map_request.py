@@ -63,9 +63,7 @@ class MapRequest(BaseModel):
         if self.bbox is None and not (
             self.center_x is not None and self.center_y is not None and self.scale is not None
         ):
-            raise ValueError(
-                "Provide either 'bbox' or all of 'center_x', 'center_y' and 'scale'"
-            )
+            raise ValueError("Provide either 'bbox' or all of 'center_x', 'center_y' and 'scale'")
         return self
 
     def resolve_extent(self, content_aspect_wh: float) -> Extent:
@@ -75,9 +73,7 @@ class MapRequest(BaseModel):
         height/width ratio, used when only a free-form bbox is supplied.
         """
         if self.bbox is not None:
-            raw = Extent(
-                self.bbox.minx, self.bbox.miny, self.bbox.maxx, self.bbox.maxy
-            )
+            raw = Extent(self.bbox.minx, self.bbox.miny, self.bbox.maxx, self.bbox.maxy)
             if raw.width_m <= 0 or raw.height_m <= 0:
                 raise ValueError("bbox must have positive width and height")
             if raw.width_m > 500_000 or raw.height_m > 500_000:

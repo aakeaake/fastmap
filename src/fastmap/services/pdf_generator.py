@@ -26,7 +26,9 @@ from fastmap.services.print_layout import (
     oriented_page_mm,
 )
 
-ATTRIBUTION = f"© Maanmittauslaitos, CC BY 4.0 — Maastotietokanta {datetime.now().strftime('%m/%Y')}"
+ATTRIBUTION = (
+    f"© Maanmittauslaitos, CC BY 4.0 — Maastotietokanta {datetime.now().strftime('%m/%Y')}"
+)
 _TEXT_INSET_MM = 2.0  # overlay text distance from the content-area corner
 
 
@@ -248,7 +250,7 @@ def generate_pdf(
         target_res = extent.width_m / px_w_est
         zoom_level = pick_wmts_level(target_res)
 
-    res = 8192.0 / 2 ** zoom_level
+    res = 8192.0 / 2**zoom_level
     px_w = round(extent.width_m / res)
     px_h = round(extent.height_m / res)
 
@@ -260,7 +262,9 @@ def generate_pdf(
     c = canvas.Canvas(out_pdf_path, pagesize=(page_w_mm * mm, page_h_mm * mm))
     c.setTitle(title or f"FastMap {nominal_title}")
     scale_value = _draw_page(
-        c, img, extent,
+        c,
+        img,
+        extent,
         paper_size=paper_size,
         orientation=orientation,
         margin_mm=margin_mm,
@@ -322,14 +326,12 @@ def generate_multi_pdf(
             target_res = extent.width_m / px_w_est
             zoom_level = pick_wmts_level(target_res)
 
-        res = 8192.0 / 2 ** zoom_level
+        res = 8192.0 / 2**zoom_level
         px_w = round(extent.width_m / res)
         px_h = round(extent.height_m / res)
         img = render_extent_image(extent, px_w, px_h, layer=layer)
 
-        page_w_pt, page_h_pt = (
-            v * mm for v in oriented_page_mm(paper_size, orientation)
-        )
+        page_w_pt, page_h_pt = (v * mm for v in oriented_page_mm(paper_size, orientation))
         if c is None:
             c = canvas.Canvas(out_pdf_path, pagesize=(page_w_pt, page_h_pt))
             c.setTitle(doc_title or kwargs.get("title") or "FastMap")
@@ -337,7 +339,9 @@ def generate_multi_pdf(
             c.setPageSize((page_w_pt, page_h_pt))
 
         scale_value = _draw_page(
-            c, img, extent,
+            c,
+            img,
+            extent,
             paper_size=paper_size,
             orientation=orientation,
             margin_mm=margin_mm,
@@ -349,13 +353,15 @@ def generate_multi_pdf(
             gpx_width=gpx_width,
             gpx_opacity=gpx_opacity,
         )
-        results.append(PrintResult(
-            path=out_pdf_path,
-            actual_scale=scale_value,
-            extent=extent,
-            width_px=img.size[0],
-            height_px=img.size[1],
-        ))
+        results.append(
+            PrintResult(
+                path=out_pdf_path,
+                actual_scale=scale_value,
+                extent=extent,
+                width_px=img.size[0],
+                height_px=img.size[1],
+            )
+        )
         img.close()
         c.showPage()
 

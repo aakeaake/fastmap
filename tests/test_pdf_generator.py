@@ -12,9 +12,7 @@ def _fake_render(extent, width_px, height_px, layer="maastokartta"):
 
 
 def test_generate_pdf_a4_exact_geometry(tmp_path, monkeypatch):
-    monkeypatch.setattr(
-        pdf_generator, "render_extent_image", _fake_render
-    )
+    monkeypatch.setattr(pdf_generator, "render_extent_image", _fake_render)
     ext = Extent(428100, 6665230, 431900, 6670770)  # 3800 x 5540 m
     out = tmp_path / "a4.pdf"
 
@@ -98,14 +96,24 @@ def test_generate_multi_pdf_mixed_sizes(tmp_path, monkeypatch):
     out = tmp_path / "multi.pdf"
 
     items = [
-        (ext_a4, {
-            "paper_size": "A4", "orientation": "portrait",
-            "layer": "maastokartta", "margin_mm": 10,
-        }),
-        (ext_a3, {
-            "paper_size": "A3", "orientation": "landscape",
-            "layer": "maastokartta", "margin_mm": 10,
-        }),
+        (
+            ext_a4,
+            {
+                "paper_size": "A4",
+                "orientation": "portrait",
+                "layer": "maastokartta",
+                "margin_mm": 10,
+            },
+        ),
+        (
+            ext_a3,
+            {
+                "paper_size": "A3",
+                "orientation": "landscape",
+                "layer": "maastokartta",
+                "margin_mm": 10,
+            },
+        ),
     ]
     results = pdf_generator.generate_multi_pdf(items, str(out))
     assert len(results) == 2
@@ -126,6 +134,7 @@ def test_generate_pdf_to_temp(tmp_path, monkeypatch):
     assert result.path.endswith(".pdf")
     assert result.actual_scale == 20000
     import os
+
     assert os.path.exists(result.path)
     os.remove(result.path)
 
@@ -149,16 +158,20 @@ def test_generate_pdf_with_gpx_route(tmp_path, monkeypatch):
     assert result.actual_scale == 20000
     # Render to PNG and check for magenta pixels
     import subprocess
+
     subprocess.run(["pdftoppm", "-png", "-r", "100", str(out), str(tmp_path / "gpx")], check=True)
     from glob import glob
     from PIL import Image
+
     imgs = sorted(glob(str(tmp_path / "gpx-*.png")))
     assert len(imgs) == 1
     img = Image.open(imgs[0]).convert("RGB")
     px = img.load()
     w, h = img.size
     magenta = sum(
-        1 for x in range(w) for y in range(h)
+        1
+        for x in range(w)
+        for y in range(h)
         if px[x, y][0] > 180 and px[x, y][1] < 100 and px[x, y][2] > 180
     )
     assert magenta > 100  # route should be visible

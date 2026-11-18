@@ -47,9 +47,7 @@ _jobs_lock = threading.Lock()
 
 
 def _resolve_extent(req: MapRequest):
-    cont_w_mm, cont_h_mm = content_area_mm(
-        req.paper_size, req.orientation, req.margin_mm
-    )
+    cont_w_mm, cont_h_mm = content_area_mm(req.paper_size, req.orientation, req.margin_mm)
     extent = req.resolve_extent(content_aspect_wh=cont_h_mm / cont_w_mm)
     return clamp_extent_to_finland(extent)
 
@@ -77,7 +75,11 @@ def generate_map(req: MapRequest):
     t0 = time.monotonic()
     log.info(
         "generate-map  %s %s 1:%s  layer=%s  zoom=%s",
-        req.paper_size, req.orientation, req.scale, req.layer, req.zoom_level,
+        req.paper_size,
+        req.orientation,
+        req.scale,
+        req.layer,
+        req.zoom_level,
     )
 
     try:
@@ -109,7 +111,10 @@ def generate_map(req: MapRequest):
     display_name = f"fastmap_{name}_{_timestamp()}.pdf"
     log.info(
         "generate-map done in %.1fs  -> %s  (%dx%d px)",
-        elapsed, display_name, result.width_px, result.height_px,
+        elapsed,
+        display_name,
+        result.width_px,
+        result.height_px,
     )
 
     return FileResponse(
@@ -123,6 +128,7 @@ def generate_map(req: MapRequest):
 # ---------------------------------------------------------------------------
 # Async generation (avoids 50s idle-timeout wind-down)
 # ---------------------------------------------------------------------------
+
 
 def _run_job(job_id: str, req: MapRequest) -> None:
     """Background thread: generate PDF and update job status."""
@@ -260,24 +266,19 @@ def generate_maps_batch(batch: BatchMapRequest):
     t0 = time.monotonic()
     log.info(
         "generate-maps-batch  %d maps  output=%s",
-        len(pairs), batch.output,
+        len(pairs),
+        batch.output,
     )
 
     if batch.output == "pdf":
-        tmp = tempfile.NamedTemporaryFile(
-            prefix="fastmap_batch_", suffix=".pdf", delete=False
-        )
+        tmp = tempfile.NamedTemporaryFile(prefix="fastmap_batch_", suffix=".pdf", delete=False)
         tmp.close()
         try:
-            generate_multi_pdf(
-                [(extent, _req_kwargs(m)) for extent, m in pairs], tmp.name
-            )
+            generate_multi_pdf([(extent, _req_kwargs(m)) for extent, m in pairs], tmp.name)
         except MMLError as exc:
             _remove_quietly([tmp.name])
             log.warning("generate-maps-batch failed: %s", exc)
-            raise HTTPException(
-                status_code=502, detail=f"Map data source failed: {exc}"
-            ) from exc
+            raise HTTPException(status_code=502, detail=f"Map data source failed: {exc}") from exc
 
         elapsed = time.monotonic() - t0
         log.info("generate-maps-batch done in %.1fs  -> %d pages", elapsed, len(pairs))
@@ -298,13 +299,9 @@ def generate_maps_batch(batch: BatchMapRequest):
     except MMLError as exc:
         _remove_quietly(pdf_paths)
         log.warning("generate-maps-batch failed at map %d: %s", len(pdf_paths) + 1, exc)
-        raise HTTPException(
-            status_code=502, detail=f"Map data source failed: {exc}"
-        ) from exc
+        raise HTTPException(status_code=502, detail=f"Map data source failed: {exc}") from exc
 
-    zip_tmp = tempfile.NamedTemporaryFile(
-        prefix="fastmap_maps_", suffix=".zip", delete=False
-    )
+    zip_tmp = tempfile.NamedTemporaryFile(prefix="fastmap_maps_", suffix=".zip", delete=False)
     zip_tmp.close()
     with zipfile.ZipFile(zip_tmp.name, "w", zipfile.ZIP_DEFLATED) as zf:
         for i, (path, (_, req)) in enumerate(zip(pdf_paths, pairs), start=1):
@@ -325,6 +322,7 @@ def generate_maps_batch(batch: BatchMapRequest):
 # Async batch generation (avoids 50s idle-timeout wind-down)
 # ---------------------------------------------------------------------------
 
+
 def _run_batch_job(job_id: str, batch: BatchMapRequest) -> None:
     """Background thread: generate batch PDF/ZIP and update job status."""
     try:
@@ -333,14 +331,10 @@ def _run_batch_job(job_id: str, batch: BatchMapRequest) -> None:
         log.info("async batch job %s started  %d maps", job_id, len(pairs))
 
         if batch.output == "pdf":
-            tmp = tempfile.NamedTemporaryFile(
-                prefix="fastmap_batch_", suffix=".pdf", delete=False
-            )
+            tmp = tempfile.NamedTemporaryFile(prefix="fastmap_batch_", suffix=".pdf", delete=False)
             tmp.close()
             try:
-                generate_multi_pdf(
-                    [(extent, _req_kwargs(m)) for extent, m in pairs], tmp.name
-                )
+                generate_multi_pdf([(extent, _req_kwargs(m)) for extent, m in pairs], tmp.name)
             except Exception:
                 _remove_quietly([tmp.name])
                 raise
@@ -424,11 +418,7 @@ _TILE_MAX = 1 << 15
 def nls_tile(level: int, col: int, row: int, layer: str = "taustakartta"):
     if not MML_API_KEY:
         raise HTTPException(status_code=503, detail="Missing MML_API_KEY.")
-    if not (
-        0 <= level <= WMTS_MAX_LEVEL
-        and 0 <= col < _TILE_MAX
-        and 0 <= row < _TILE_MAX
-    ):
+    if not (0 <= level <= WMTS_MAX_LEVEL and 0 <= col < _TILE_MAX and 0 <= row < _TILE_MAX):
         raise HTTPException(status_code=404, detail="Tile out of range")
     if layer not in MML_LAYERS:
         raise HTTPException(status_code=400, detail=f"Unknown layer '{layer}'")
@@ -442,9 +432,7 @@ def nls_tile(level: int, col: int, row: int, layer: str = "taustakartta"):
     )
     if resp.status_code != 200:
         log.warning("tile fetch failed  %s %d", url, resp.status_code)
-        raise HTTPException(
-            status_code=502, detail=f"MML tile fetch failed ({resp.status_code})"
-        )
+        raise HTTPException(status_code=502, detail=f"MML tile fetch failed ({resp.status_code})")
 
     return Response(
         content=resp.content,

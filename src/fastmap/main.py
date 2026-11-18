@@ -33,10 +33,14 @@ async def log_requests(request: Request, call_next):
     client = request.client.host if request.client else "?"
     log.info(
         "%s %s %s  %d",
-        request.method, request.url.path, client,
+        request.method,
+        request.url.path,
+        client,
         resp.status_code,
     )
     return resp
+
+
 app.include_router(router)
 
 _FRONTEND_DIR = os.environ.get(

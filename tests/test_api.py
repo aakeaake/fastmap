@@ -18,9 +18,7 @@ def _fake_render(extent, width_px, height_px, layer="maastokartta"):
 @pytest.fixture(autouse=True)
 def no_network(monkeypatch):
     """Patch the raster source; everything downstream runs for real."""
-    monkeypatch.setattr(
-        "fastmap.services.pdf_generator.render_extent_image", _fake_render
-    )
+    monkeypatch.setattr("fastmap.services.pdf_generator.render_extent_image", _fake_render)
 
 
 def test_health():
@@ -95,6 +93,7 @@ def test_tile_proxy_validates_layer(monkeypatch):
 # Batch generation
 # ---------------------------------------------------------------------------
 
+
 def _batch_map(i: int) -> dict:
     return {
         "bbox": {
@@ -149,9 +148,7 @@ def test_batch_empty_map_list_is_422():
 
 
 def test_batch_over_limit_is_422():
-    resp = client.post(
-        "/generate-maps-batch", json={"maps": [_batch_map(0)] * 26}
-    )
+    resp = client.post("/generate-maps-batch", json={"maps": [_batch_map(0)] * 26})
     assert resp.status_code == 422
 
 
