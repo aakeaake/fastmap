@@ -66,14 +66,19 @@ The browser never sees the MML API key: preview tiles are proxied through
 
 ## Setup
 
-Requires Python ≥ 3.10.
+Requires Python ≥ 3.10 and [uv](https://docs.astral.sh/uv/).
+
+```bash
+uv sync --extra dev        # creates .venv from the committed uv.lock
+cp .env.example .env       # then paste your own MML API key into it
+```
+
+Without uv:
 
 ```bash
 python -m venv .venv
 source .venv/bin/activate
 pip install -e ".[dev]"
-
-cp .env.example .env       # then paste your own MML API key into it
 ```
 
 Get a free API key for the Karttakuva service at
@@ -82,7 +87,7 @@ Get a free API key for the Karttakuva service at
 ## Run
 
 ```bash
-uvicorn fastmap.main:app --reload      # or: python run_server.py
+uv run uvicorn fastmap.main:app --reload      # or: uv run python run_server.py
 ```
 
 Open <http://127.0.0.1:8000/> — the UI is served by the same server.
@@ -159,7 +164,7 @@ given per map. Optional fields: `dpi` (default 300), `margin_mm` (default 7),
 ## Tests
 
 ```bash
-pytest
+uv run pytest
 ```
 
 Unit tests cover the scale/pixel maths, WMTS tile-index geometry, WMS URL
