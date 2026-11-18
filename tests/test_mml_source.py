@@ -188,3 +188,164 @@ def test_wms_network_error_does_not_leak_api_key(monkeypatch):
     with pytest.raises(mml_source.MMLError) as info:
         mml_source.fetch_wms_image(OTANIEMI, 100, 100)
     assert SECRET not in str(info.value)
+
+
+# --- Retries, tested through urllib3 against a real local HTTP server ------
+
+
+class _ScriptedServer:
+    """Local HTTP server answering each request from a script of
+    ``(status, headers, delay_s)``; the last entry repeats. ``status=None``
+    closes the connection without a response."""
+
+    def __init__(self, script):
+        import http.server
+        import threading
+
+        self.script = list(script)
+        self.hits = 0
+        outer = self
+        body = _png_bytes(Image.new("RGB", (256, 256)))
+
+        class Handler(http.server.BaseHTTPRequestHandler):
+            def do_GET(self):
+                outer.hits += 1
+                status, headers, delay = outer.script[min(outer.hits, len(outer.script)) - 1]
+                threading.Event().wait(delay)  # not time.sleep: tests patch it
+                if status is None:  # drop the connection without answering
+                    self.close_connection = True
+                    return
+                payload = body if status == 200 else b"error"
+                self.send_response(status)
+                for k, v in headers.items():
+                    self.send_header(k, v)
+                self.send_header("Content-Length", str(len(payload)))
+                self.end_headers()
+                try:
+                    self.wfile.write(payload)
+                except OSError:
+                    pass  # client gave up (timeout tests)
+
+            def log_message(self, *a):
+                pass
+
+        self.httpd = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+        self.httpd.daemon_threads = True  # don't join a handler still "hanging"
+        self.url = f"http://127.0.0.1:{self.httpd.server_port}"
+        threading.Thread(
+            target=self.httpd.serve_forever, kwargs={"poll_interval": 0.01}, daemon=True
+        ).start()
+
+    def close(self):
+        self.httpd.shutdown()
+        self.httpd.server_close()
+
+
+@pytest.fixture
+def mml_server(monkeypatch):
+    """Point the WMTS/WMS URLs at a scripted server; record backoff sleeps."""
+    import urllib3.util.retry
+
+    servers = []
+    sleeps = []
+    monkeypatch.setattr(mml_source, "MML_API_KEY", SECRET)
+    monkeypatch.setattr(urllib3.util.retry.time, "sleep", sleeps.append)
+
+    def start(*script):
+        server = _ScriptedServer(script)
+        servers.append(server)
+        monkeypatch.setattr(mml_source, "MML_WMTS_URL", server.url + "/{layer}/{z}/{y}/{x}.png")
+        monkeypatch.setattr(mml_source, "MML_WMS_URL", server.url + "/wms")
+        server.sleeps = sleeps
+        return server
+
+    yield start
+    for server in servers:
+        server.close()
+
+
+def _ok():
+    return (200, {"Content-Type": "image/png"}, 0)
+
+
+def _err(code, **headers):
+    return (code, headers, 0)
+
+
+def _tile():
+    return fetch_wmts_tile(x=1, y=2, level=11, layer="maastokartta")
+
+
+def test_tile_retries_server_errors_then_succeeds(mml_server):
+    server = mml_server(_err(503), _err(500), _ok())
+    assert _tile().size == (256, 256)
+    assert server.hits == 3
+    assert server.sleeps == [1.0]  # urllib3: no wait before the 1st retry, 1 s before the 2nd
+
+
+def test_tile_gives_up_after_three_attempts_naming_the_status(mml_server):
+    server = mml_server(_err(502))
+    with pytest.raises(mml_source.MMLError, match="502") as info:
+        _tile()
+    assert server.hits == 3
+    assert "maastokartta 11/2/1" in str(info.value)
+    assert SECRET not in str(info.value)
+
+
+@pytest.mark.parametrize("code", [400, 401, 403, 404])
+def test_tile_client_errors_are_not_retried(mml_server, code):
+    server = mml_server(_err(code))
+    with pytest.raises(mml_source.MMLError, match=str(code)):
+        _tile()
+    assert server.hits == 1
+
+
+def test_rate_limit_honours_retry_after(mml_server):
+    server = mml_server(_err(429, **{"Retry-After": "3"}), _ok())
+    _tile()
+    assert server.hits == 2
+    assert server.sleeps == [3.0]
+
+
+def test_rate_limit_retry_after_is_capped(mml_server):
+    """A huge Retry-After must not park a render worker for minutes."""
+    server = mml_server(_err(429, **{"Retry-After": "3600"}), _ok())
+    _tile()
+    assert server.sleeps == [mml_source.MAX_RETRY_AFTER_S]
+
+
+def test_wms_is_retried_too(mml_server):
+    server = mml_server(_err(503), _ok())
+    img = mml_source.fetch_wms_image(OTANIEMI, 256, 256)
+    assert img.size == (256, 256)
+    assert server.hits == 2
+
+
+def test_dropped_connection_is_retried(mml_server):
+    """A reset / RemoteDisconnected mid-request is transient: retry it."""
+    server = mml_server((None, {}, 0), _ok())
+    assert _tile().size == (256, 256)
+    assert server.hits == 2
+
+
+def test_dropped_connections_give_up_naming_the_tile(mml_server):
+    server = mml_server((None, {}, 0))
+    with pytest.raises(mml_source.MMLError, match="maastokartta 11/2/1") as info:
+        _tile()
+    assert server.hits == 3
+    assert SECRET not in str(info.value)
+
+
+def test_read_timeout_is_not_retried(mml_server, monkeypatch):
+    """When MML stops answering, fail after one read timeout, not three."""
+    monkeypatch.setattr(mml_source, "TILE_TIMEOUT", (2, 0.2))
+    server = mml_server((200, {}, 1.0))
+    with pytest.raises(mml_source.MMLError, match="ReadTimeout") as info:
+        _tile()
+    assert server.hits == 1
+    assert SECRET not in str(info.value)
+
+
+def test_session_uses_a_short_connect_timeout():
+    connect, read = mml_source.TILE_TIMEOUT
+    assert connect <= 5 < read
