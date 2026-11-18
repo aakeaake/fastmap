@@ -1,6 +1,6 @@
 from typing import Literal
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from fastmap.services.print_layout import (
     TM35FIN_BOUNDS,
@@ -57,6 +57,16 @@ class MapRequest(BaseModel):
     gpx_color: str = "#ff00ff"
     gpx_width: int = Field(default=5, ge=1, le=20)
     gpx_opacity: float = Field(default=0.6, ge=0.1, le=1.0)
+
+    @field_validator("gpx_routes")
+    @classmethod
+    def _xy_only(cls, routes: list[list[list[float]]]) -> list[list[list[float]]]:
+        """Keep x, y of each point; GPS tracks also carry elevation and time."""
+        for route in routes:
+            for point in route:
+                if len(point) < 2:
+                    raise ValueError("each GPX point needs at least x and y")
+        return [[point[:2] for point in route] for route in routes]
 
     @model_validator(mode="after")
     def _check_location(self) -> "MapRequest":

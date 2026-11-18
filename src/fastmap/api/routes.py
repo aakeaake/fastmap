@@ -423,12 +423,17 @@ def nls_tile(level: int, col: int, row: int, layer: str = "taustakartta"):
         raise HTTPException(status_code=400, detail=f"Unknown layer '{layer}'")
 
     url = MML_WMTS_URL.format(layer=layer, z=level, y=row, x=col)
-    resp = requests.get(
-        url,
-        params={"api-key": MML_API_KEY},
-        headers={"User-Agent": USER_AGENT},
-        timeout=30,
-    )
+    try:
+        resp = requests.get(
+            url,
+            params={"api-key": MML_API_KEY},
+            headers={"User-Agent": USER_AGENT},
+            timeout=30,
+        )
+    except requests.RequestException as exc:
+        # requests' message contains the full URL incl. the api-key query param
+        log.warning("tile fetch failed  %s %s", url, type(exc).__name__)
+        raise HTTPException(status_code=502, detail="MML tile fetch failed") from None
     if resp.status_code != 200:
         log.warning("tile fetch failed  %s %d", url, resp.status_code)
         raise HTTPException(status_code=502, detail=f"MML tile fetch failed ({resp.status_code})")

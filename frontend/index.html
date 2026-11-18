@@ -777,16 +777,31 @@ import Point from 'ol/geom/Point.js';
         const zoomVal = el('zoomLevel').value;
         if (zoomVal) payload.zoom_level = parseInt(zoomVal, 10);
         if (e.title) payload.title = e.title;
-        const gpxFeatures = gpxLayer.getSource().getFeatures();
-        if (gpxFeatures.length) {
-            payload.gpx_routes = gpxFeatures.map(f =>
-                f.getGeometry().getCoordinates().map(c => [c[0], c[1]])
-            );
+        const routes = gpxRoutes(gpxLayer.getSource().getFeatures());
+        if (routes.length) {
+            payload.gpx_routes = routes;
             payload.gpx_color = el('gpxColor').value;
             payload.gpx_width = parseInt(el('gpxWidth').value, 10) || 5;
             payload.gpx_opacity = parseInt(el('gpxOpacity').value, 10) / 100;
         }
         return payload;
+    }
+
+    // GPX tracks (<trk>) read as MultiLineString (one line per <trkseg>),
+    // routes (<rte>) as LineString; waypoints are Points and are skipped.
+    // Points carry [x, y, elevation, time] - send x, y only.
+    function gpxRoutes(features) {
+        const lines = [];
+        for (const f of features) {
+            const g = f.getGeometry();
+            if (!g) continue;
+            const type = g.getType();
+            if (type === 'LineString') lines.push(g.getCoordinates());
+            else if (type === 'MultiLineString') lines.push(...g.getCoordinates());
+        }
+        return lines
+            .map(line => line.map(p => [p[0], p[1]]))
+            .filter(line => line.length >= 2);
     }
 
     function bboxOf(e) {

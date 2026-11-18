@@ -295,3 +295,76 @@ def test_version_fallback_when_not_installed(monkeypatch):
     assert fastmap.__version__ == "0.0.0+unknown"
     monkeypatch.undo()
     importlib.reload(fastmap)
+
+
+def test_tile_proxy_network_error_is_502_without_key(monkeypatch):
+    import requests
+
+    from fastmap.api import routes
+
+    def boom(url, **kw):
+        raise requests.ConnectionError(f"Max retries exceeded with url: {url}?api-key=test-key")
+
+    monkeypatch.setattr(routes.requests, "get", boom)
+    resp = client.get("/api/nls-tiles/8/119/210.png", params={"layer": "maastokartta"})
+    assert resp.status_code == 502
+    assert "test-key" not in resp.text
+
+
+def test_async_job_error_does_not_leak_key(monkeypatch):
+    import requests
+
+    from fastmap.services import mml_source
+
+    def boom(url, **kw):
+        raise requests.ConnectionError(f"Max retries exceeded with url: {url}")
+
+    # Undo the autouse raster fake so the real tile fetcher runs
+    monkeypatch.setattr(
+        "fastmap.services.pdf_generator.render_extent_image", mml_source.render_extent_image
+    )
+    monkeypatch.setattr(mml_source, "MML_API_KEY", "test-key")
+    monkeypatch.setattr(mml_source._session, "get", boom)
+    job = client.post(
+        "/generate-map-async",
+        json={"center_x": 385000, "center_y": 6672000, "scale": 50000},
+    ).json()
+    status = _poll_until(job["job_id"])
+    assert status["status"] == "error"
+    assert "test-key" not in status["error"]
+
+
+def test_gpx_points_with_elevation_are_accepted():
+    """GPS tracks carry [x, y, elevation(, time)]; only x and y are used."""
+    from fastmap.schemas.map_request import MapRequest
+
+    req = MapRequest(
+        center_x=385000,
+        center_y=6672000,
+        scale=50000,
+        gpx_routes=[[[385000, 6672000, 12.5], [386000, 6673000, 13.0, 1700000000]]],
+    )
+    assert req.gpx_routes == [[[385000, 6672000], [386000, 6673000]]]
+
+
+def test_gpx_point_needs_two_coordinates():
+    from pydantic import ValidationError
+
+    from fastmap.schemas.map_request import MapRequest
+
+    with pytest.raises(ValidationError):
+        MapRequest(center_x=385000, center_y=6672000, scale=50000, gpx_routes=[[[385000]]])
+
+
+def test_generate_map_with_elevation_gpx_ok():
+    resp = client.post(
+        "/generate-map",
+        json={
+            "center_x": 385000,
+            "center_y": 6672000,
+            "scale": 50000,
+            "gpx_routes": [[[384000, 6671000, 10], [386000, 6673000, 11]]],
+        },
+    )
+    assert resp.status_code == 200
+    assert resp.content[:5] == b"%PDF-"

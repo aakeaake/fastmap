@@ -108,7 +108,11 @@ def fetch_wms_image(
     layer: str = "maastokartta",
 ) -> Image.Image:
     url = build_wms_url(extent, width_px, height_px, layer)
-    resp = _session.get(url, timeout=60)
+    try:
+        resp = _session.get(url, timeout=60)
+    except requests.RequestException as exc:
+        # never echo the URL: it carries the API key
+        raise MMLError(f"WMS GetMap failed ({type(exc).__name__})") from None
     if resp.status_code != 200:
         raise MMLError(f"WMS GetMap failed ({resp.status_code}): {resp.text[:200]}")
     try:
@@ -153,9 +157,15 @@ def fetch_wmts_tile(x: int, y: int, level: int, layer: str) -> Image.Image:
     """Fetch one tile. REST path order is {z}/{TileRow}/{TileCol}."""
     key = _require_api_key()
     url = MML_WMTS_URL.format(layer=layer, z=level, y=y, x=x) + f"?api-key={key}"
-    resp = _session.get(url, timeout=30)
+    # Error messages reach clients and logs: name the tile, never the URL
+    # (it carries the API key, and requests' own messages include it).
+    tile = f"{layer} {level}/{y}/{x}"
+    try:
+        resp = _session.get(url, timeout=30)
+    except requests.RequestException as exc:
+        raise MMLError(f"WMTS tile fetch failed ({type(exc).__name__}) for {tile}") from None
     if resp.status_code != 200:
-        raise MMLError(f"WMTS tile fetch failed ({resp.status_code}) for {url}")
+        raise MMLError(f"WMTS tile fetch failed ({resp.status_code}) for {tile}")
     img = _on_white(Image.open(io.BytesIO(resp.content)))
     resp.close()
     return img
