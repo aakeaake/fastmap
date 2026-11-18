@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import io
 import math
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import requests
 from PIL import Image
@@ -46,6 +47,9 @@ MML_LAYERS = ("maastokartta", "taustakartta", "selkokartta", "ortokuva")
 # out after 5 s, so an unresponsive MML fails a tile in ~30 s instead of
 # ~90 s and doesn't keep the render workers busy.
 TILE_TIMEOUT = (5, 30)  # (connect, read) seconds
+# Tiles downloaded at once per render. With RENDER_WORKERS renders that is
+# up to RENDER_WORKERS x this many requests to MML; 429s are retried.
+TILE_FETCH_WORKERS = 8
 WMS_TIMEOUT = (5, 60)
 MAX_RETRY_AFTER_S = 10.0
 
@@ -75,8 +79,11 @@ _RETRY = _Retry(
 _HEADERS = {"User-Agent": USER_AGENT}
 _session = requests.Session()
 _session.headers.update(_HEADERS)
-_session.mount("https://", HTTPAdapter(max_retries=_RETRY))
-_session.mount("http://", HTTPAdapter(max_retries=_RETRY))
+# Keep enough pooled connections for parallel downloads in a few renders
+# (urllib3's default of 10 would discard and reopen connections).
+_POOL_MAXSIZE = 32
+_session.mount("https://", HTTPAdapter(max_retries=_RETRY, pool_maxsize=_POOL_MAXSIZE))
+_session.mount("http://", HTTPAdapter(max_retries=_RETRY, pool_maxsize=_POOL_MAXSIZE))
 
 
 class MMLError(RuntimeError):
@@ -245,31 +252,35 @@ def fetch_wmts_mosaic(
     out_h = crop_bottom_px - crop_top_px
     output = Image.new("RGB", (out_w, out_h))
 
-    for r in range(n_rows):
-        for c in range(n_cols):
-            tile = fetch_wmts_tile(col_min + c, row_min + r, level, layer)
-
-            # Tile bounds in mosaic pixel space
-            tx = c * WMTS_TILE_SIZE
-            ty = r * WMTS_TILE_SIZE
-
-            # Intersection of tile with crop region
-            src_left = max(0, crop_left_px - tx)
-            src_top = max(0, crop_top_px - ty)
-            src_right = min(WMTS_TILE_SIZE, crop_right_px - tx)
-            src_bottom = min(WMTS_TILE_SIZE, crop_bottom_px - ty)
-
-            if src_left >= src_right or src_top >= src_bottom:
-                tile.close()
-                continue
-
-            dst_x = tx + src_left - crop_left_px
-            dst_y = ty + src_top - crop_top_px
-
+    def paste(r: int, c: int, tile: Image.Image) -> None:
+        # Tile bounds in mosaic pixel space, intersected with the crop region
+        tx = c * WMTS_TILE_SIZE
+        ty = r * WMTS_TILE_SIZE
+        src_left = max(0, crop_left_px - tx)
+        src_top = max(0, crop_top_px - ty)
+        src_right = min(WMTS_TILE_SIZE, crop_right_px - tx)
+        src_bottom = min(WMTS_TILE_SIZE, crop_bottom_px - ty)
+        if src_left < src_right and src_top < src_bottom:
             tile_crop = tile.crop((src_left, src_top, src_right, src_bottom))
-            tile.close()
-            output.paste(tile_crop, (dst_x, dst_y))
+            output.paste(tile_crop, (tx + src_left - crop_left_px, ty + src_top - crop_top_px))
             tile_crop.close()
+        tile.close()
+
+    def fetch(r: int, c: int):
+        return r, c, fetch_wmts_tile(col_min + c, row_min + r, level, layer)
+
+    # Download tiles in parallel (network-bound); paste on this thread as
+    # they arrive. On the first failure, cancel the tiles still queued.
+    pool = ThreadPoolExecutor(max_workers=TILE_FETCH_WORKERS, thread_name_prefix="tiles")
+    try:
+        futures = [pool.submit(fetch, r, c) for r in range(n_rows) for c in range(n_cols)]
+        for future in as_completed(futures):
+            paste(*future.result())
+    except BaseException:
+        pool.shutdown(wait=False, cancel_futures=True)
+        output.close()
+        raise
+    pool.shutdown()
 
     return output.quantize(colors=128)
 

@@ -349,3 +349,76 @@ def test_read_timeout_is_not_retried(mml_server, monkeypatch):
 def test_session_uses_a_short_connect_timeout():
     connect, read = mml_source.TILE_TIMEOUT
     assert connect <= 5 < read
+
+
+# --- Parallel tile downloads ------------------------------------------------
+
+
+def _colour_tile(x, y, level, layer):
+    """A tile whose colour encodes its position, so misplacement shows."""
+    return Image.new("RGB", (256, 256), (x % 251, y % 241, (x * 7 + y) % 239))
+
+
+def test_parallel_mosaic_matches_sequential(monkeypatch):
+    monkeypatch.setattr(mml_source, "fetch_wmts_tile", _colour_tile)
+    monkeypatch.setattr(mml_source, "TILE_FETCH_WORKERS", 1)
+    sequential = fetch_wmts_mosaic(OTANIEMI, 950, 1385)
+    monkeypatch.setattr(mml_source, "TILE_FETCH_WORKERS", 8)
+    parallel = fetch_wmts_mosaic(OTANIEMI, 950, 1385)
+    assert parallel.tobytes() == sequential.tobytes()
+
+
+def test_mosaic_downloads_tiles_concurrently(monkeypatch):
+    import threading
+    import time
+
+    lock = threading.Lock()
+    state = {"now": 0, "peak": 0}
+
+    def slow_tile(x, y, level, layer):
+        with lock:
+            state["now"] += 1
+            state["peak"] = max(state["peak"], state["now"])
+        time.sleep(0.02)
+        with lock:
+            state["now"] -= 1
+        return _colour_tile(x, y, level, layer)
+
+    monkeypatch.setattr(mml_source, "fetch_wmts_tile", slow_tile)
+    monkeypatch.setattr(mml_source, "TILE_FETCH_WORKERS", 4)
+    fetch_wmts_mosaic(OTANIEMI, 950, 1385)
+    assert state["peak"] == 4
+
+
+def test_mosaic_fails_fast_on_a_tile_error(monkeypatch):
+    import threading
+
+    started = []
+    lock = threading.Lock()
+
+    def flaky(x, y, level, layer):
+        with lock:
+            started.append((x, y))
+            first = len(started) == 1
+        if first:
+            raise mml_source.MMLError("WMTS tile fetch failed (404) for maastokartta 12/1/1")
+        threading.Event().wait(0.05)
+        return _colour_tile(x, y, level, layer)
+
+    monkeypatch.setattr(mml_source, "fetch_wmts_tile", flaky)
+    monkeypatch.setattr(mml_source, "TILE_FETCH_WORKERS", 2)
+    with pytest.raises(mml_source.MMLError, match="404"):
+        fetch_wmts_mosaic(OTANIEMI, 950, 1385)
+    total = len(list(_tiles_for(OTANIEMI, 950)))
+    assert len(started) < total  # queued tiles were cancelled, not all fetched
+
+
+def _tiles_for(extent, width_px):
+    level = mml_source.pick_wmts_level(extent.width_m / width_px)
+    c0, r0, c1, r1 = mml_source.tile_range(extent, level)
+    return [(c, r) for r in range(r0, r1 + 1) for c in range(c0, c1 + 1)]
+
+
+def test_connection_pool_fits_parallel_downloads():
+    adapter = mml_source._session.get_adapter("https://avoin-karttakuva.maanmittauslaitos.fi/")
+    assert adapter._pool_maxsize >= mml_source.TILE_FETCH_WORKERS * 2
