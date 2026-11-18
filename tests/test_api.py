@@ -399,3 +399,28 @@ def test_attribution_endpoint_matches_pdf_text():
     resp = client.get("/api/attribution")
     assert resp.status_code == 200
     assert resp.json() == {"text": attribution()}
+
+
+@pytest.fixture
+def full_queue(monkeypatch):
+    """A job store with no free slots, as when the server is saturated."""
+    from fastmap.api import routes
+    from fastmap.services.jobs import JobStore
+
+    monkeypatch.setattr(routes, "jobs", JobStore(workers=1, max_pending=0, ttl_s=60))
+
+
+@pytest.mark.parametrize(
+    ("path", "body"),
+    [
+        ("/generate-map", _single_payload()),
+        ("/generate-map-async", _single_payload()),
+        ("/generate-maps-batch", {"maps": [_single_payload()]}),
+        ("/generate-maps-batch-async", {"maps": [_single_payload()]}),
+    ],
+)
+def test_busy_server_answers_503_with_retry_after(full_queue, path, body):
+    resp = client.post(path, json=body)
+    assert resp.status_code == 503
+    assert resp.headers["retry-after"] == "30"
+    assert "uudelleen" in resp.json()["detail"]

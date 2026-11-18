@@ -29,3 +29,9 @@ USER_AGENT = "fastmap/0.1 (print-ready maps of Finland)"
 
 DEFAULT_ZOOM = 11
 MAX_RENDER_PIXELS = 60_000_000  # safety cap for WMS image size
+
+# Rendering limits (see fastmap.services.jobs). One A4 render holds tens of
+# MB of raster, so keep RENDER_WORKERS small on small instances.
+RENDER_WORKERS = int(os.environ.get("RENDER_WORKERS", "2"))
+MAX_PENDING_JOBS = int(os.environ.get("MAX_PENDING_JOBS", "10"))
+JOB_TTL_S = float(os.environ.get("JOB_TTL_S", "1800"))  # undownloaded results
