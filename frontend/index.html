@@ -44,9 +44,10 @@
 
         /* --- Panel ---------------------------------------------------------- */
         .panel {
-            position: absolute; top: 12px; right: 12px; z-index: 1000;
+            position: absolute; z-index: 1000;
+            top: max(12px, env(safe-area-inset-top)); right: max(12px, env(safe-area-inset-right));
             width: 288px; box-sizing: border-box;
-            max-height: calc(100vh - 24px);
+            max-height: calc(100vh - 2 * max(12px, env(safe-area-inset-top)));
             display: flex; flex-direction: column; overflow: hidden;
             background: var(--surface); border-radius: 8px;
             box-shadow: var(--shadow);
@@ -179,7 +180,8 @@
 
         /* --- Bottom-left stack: toast, hint, attribution ------------------- */
         .stack {
-            position: absolute; left: 12px; bottom: 8px; z-index: 1000;
+            position: absolute; z-index: 1000;
+            left: max(12px, env(safe-area-inset-left)); bottom: max(8px, env(safe-area-inset-bottom));
             max-width: calc(100% - 336px);
             display: flex; flex-direction: column; align-items: flex-start; gap: 6px;
         }
@@ -202,6 +204,7 @@
             box-shadow: 0 1px 3px rgba(16, 24, 32, .18);
         }
         .hint[hidden] { display: none; }
+        @media (pointer: coarse) { .hint-dblclick { display: none; } }
         #attribution {
             font-size: 12px; color: var(--ink-2);
             background: rgba(255,255,255,.8); border-radius: var(--radius-sm); padding: 1px 6px;
@@ -209,13 +212,14 @@
 
         /* --- Map tool: move the selected map to the view centre ------------ */
         .map-tool {
-            position: absolute; top: 76px; left: .5em; z-index: 900;
+            position: absolute; top: 76px; left: max(.5em, env(safe-area-inset-left)); z-index: 900;
             display: inline-flex; align-items: center; gap: 6px;
             min-height: 32px; padding: 0 10px 0 8px; border: none; border-radius: var(--radius);
             background: var(--surface); color: var(--ink); font-size: 13px; font-weight: 600;
             box-shadow: 0 1px 3px rgba(16, 24, 32, .25); cursor: pointer;
         }
         .map-tool:hover { background: var(--surface-2); }
+        .ol-zoom { left: max(.5em, env(safe-area-inset-left)); top: max(.5em, env(safe-area-inset-top)); }
 
         /* --- Touch: 44px targets, 16px form text (no iOS focus zoom) ------- */
         @media (pointer: coarse) {
@@ -226,11 +230,15 @@
             .icon-btn { width: 44px; height: 44px; }
             #mapList .m-select { min-height: 44px; font-size: 14px; }
             .panel label, summary { font-size: 14px; }
+            /* +/- stay: a one-finger alternative to pinch (WCAG 2.5.1) */
+            .ol-zoom { top: max(12px, env(safe-area-inset-top)); left: max(12px, env(safe-area-inset-left)); }
+            .ol-zoom .ol-zoom-in, .ol-zoom .ol-zoom-out { width: 44px; height: 44px; font-size: 22px; }
             .map-tool {
-                top: max(12px, env(safe-area-inset-top)); left: 12px;
+                /* below the two 44px zoom buttons */
+                top: calc(max(12px, env(safe-area-inset-top)) + 104px);
+                left: max(12px, env(safe-area-inset-left));
                 min-height: 44px; padding: 0 14px 0 12px; font-size: 14px;
             }
-            .ol-zoom { display: none; }   /* pinch replaces +/- on touch */
         }
 
         /* --- Phone: the panel becomes a bottom sheet ----------------------- */
@@ -260,15 +268,17 @@
             .panel[data-sheet="peek"] .sheet-body { visibility: hidden; }
             .download { padding-bottom: max(14px, env(safe-area-inset-bottom)); }
             .stack {
-                left: 12px; right: 12px; max-width: none;
+                left: max(12px, env(safe-area-inset-left)); right: max(12px, env(safe-area-inset-right)); max-width: none;
                 bottom: calc(var(--sheet-h, 45vh) + 8px);
                 transition: bottom .28s cubic-bezier(.22, 1, .36, 1);
             }
             .stack.dragging { transition: none; }
             .panel:not([data-sheet="peek"]) ~ .stack .hint { display: none; }
-            /* Fully open: the map strip is too small for overlays */
+            /* Fully open: the map strip is too small for the map controls.
+               The attribution stays: tiles are still on screen (CC BY 4.0). */
             .panel[data-sheet="full"] ~ .map-tool,
-            .panel[data-sheet="full"] ~ .stack #attribution { display: none; }
+            body:has(.panel[data-sheet="full"]) .ol-zoom { display: none; }
+            .panel[data-sheet="full"] ~ .stack #attribution { padding: 0 4px; }
         }
         @media (max-width: 640px) and (prefers-reduced-motion: reduce) {
             .panel, .stack { transition: none; }
@@ -430,7 +440,7 @@
         <button id="undoBtn" type="button">Kumoa</button>
     </div>
     <div id="hint" class="hint">
-        <span>Siirrä aluetta raahaamalla · keskitä kaksoisnapauttamalla · muokkaa edellisiä valitsemalla listasta</span>
+        <span>Siirrä aluetta raahaamalla tai ”Siirrä kartta tähän” -painikkeella<span class="hint-dblclick"> (myös kaksoisklikkaus)</span> · muokkaa edellisiä valitsemalla listasta</span>
         <button id="hintClose" class="icon-btn" type="button" aria-label="Piilota ohje" data-icon="x"></button>
     </div>
     <div id="attribution">© Maanmittauslaitos, CC BY 4.0</div>
@@ -1032,10 +1042,20 @@
         return phone.matches ? panel.getBoundingClientRect().height : 0;
     }
 
+    // Pixel width of map hidden behind the floating side panel (0 on phones)
+    function coveredRight() {
+        if (phone.matches) return 0;
+        const [w] = map.getSize() ?? [window.innerWidth];
+        return Math.max(0, w - panel.getBoundingClientRect().left);
+    }
+
     sheetHead.addEventListener('pointerdown', ev => {
         if (!phone.matches || ev.button > 0) return;
         suppressClick = false;
-        drag = { id: ev.pointerId, y: ev.clientY, h: panel.offsetHeight,
+        // Measure once per gesture: reading layout on every move would force
+        // a reflow right after the previous move changed --sheet-h
+        const { peek, full } = sheetHeights();
+        drag = { id: ev.pointerId, y: ev.clientY, h: panel.offsetHeight, peek, full,
                  lastY: ev.clientY, lastT: ev.timeStamp, v: 0, moved: false };
         try { sheetHead.setPointerCapture(ev.pointerId); } catch { /* pointer already gone */ }
     });
@@ -1053,8 +1073,7 @@
         if (dt > 0) drag.v = (ev.clientY - drag.lastY) / dt;
         drag.lastY = ev.clientY;
         drag.lastT = ev.timeStamp;
-        const { peek, full } = sheetHeights();
-        applySheetHeight(Math.min(full, Math.max(peek, drag.h - dy)));
+        applySheetHeight(Math.min(drag.full, Math.max(drag.peek, drag.h - dy)));
     });
     function endDrag(ev) {
         if (!drag || ev.pointerId !== drag.id) return;
@@ -1084,10 +1103,8 @@
         if (suppressClick) { suppressClick = false; return; }
         if (phone.matches) setSheet(SHEET_NEXT[sheetState]);
     });
-    // Keyboard users tabbing into a collapsed sheet get it opened
-    el('sheetBody').addEventListener('focusin', () => {
-        if (phone.matches && sheetState === 'peek') setSheet('half');
-    });
+    // Keyboard path: in peek the body is visibility:hidden (not focusable),
+    // so Tab reaches the grabber button, whose click opens the sheet.
     phone.addEventListener('change', () => setSheet(phone.matches ? 'peek' : sheetState));
     window.addEventListener('resize', () => { if (!drag) setSheet(sheetState); });
     // Status / progress lines change the footer height, so peek follows it
@@ -1099,21 +1116,23 @@
     // (from the view, so it works before the first frame has rendered)
     function visibleCenter() {
         const [cx, cy] = view.getCenter();
-        return [cx, cy + (coveredBottom() / 2) * view.getResolution()];
+        const res = view.getResolution();
+        return [cx - (coveredRight() / 2) * res, cy + (coveredBottom() / 2) * res];
     }
 
     // Pan so the entry sits in the visible area, if it is not there already
     function revealEntry(e) {
         const [w, h] = map.getSize() ?? [0, 0];
-        const visibleH = h - coveredBottom();
-        if (visibleH < 120) return;
+        const bottom = coveredBottom();
+        const right = coveredRight();
+        if (h - bottom < 120 || w - right < 120) return;
         const res = view.getResolution();
         const [vx, vy] = view.getCenter();
-        const visible = [vx - (w / 2) * res, vy + (h / 2 - visibleH) * res,
-                         vx + (w / 2) * res, vy + (h / 2) * res];
+        const visible = [vx - (w / 2) * res, vy - (h / 2 - bottom) * res,
+                         vx + (w / 2 - right) * res, vy + (h / 2) * res];
         if (containsExtent(visible, e.feature.getGeometry().getExtent())) return;
         const [cx, cy] = entryCenter(e);
-        view.animate({ center: [cx, cy - (coveredBottom() / 2) * res], duration: 300 });
+        view.animate({ center: [cx + (right / 2) * res, cy - (bottom / 2) * res], duration: 300 });
     }
 
     // "Siirrä tähän": move the selected map to the centre of the visible map
@@ -1131,6 +1150,8 @@
         persist();
     });
 
+    // Size the sheet first: newMap() places the first map in the visible area
+    setSheet(sheetState);
     if (!restore()) newMap();
     else {
         const saved = (() => { try { return JSON.parse(localStorage.getItem(STORAGE_KEY)).activeId; } catch { return null; } })();
@@ -1153,7 +1174,6 @@
     el('newBtn').addEventListener('click', newMap);
     el('clearAllBtn').addEventListener('click', clearAll);
     el('undoBtn').addEventListener('click', undo);
-    setSheet(sheetState);
 
     // Usage hint: dismissible, remembered per browser
     try { if (localStorage.getItem(HINT_KEY)) el('hint').hidden = true; } catch { /* ignore */ }
