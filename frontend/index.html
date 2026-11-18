@@ -736,7 +736,9 @@ import Point from 'ol/geom/Point.js';
             });
             gpxLayer.getSource().clear();
             gpxLayer.getSource().addFeatures(features);
-            gpxName = features[0]?.get('name') || file.name.replace(/\.gpx$/i, '');
+            // Prefer the track/route name; waypoints (Points) also carry names
+            const line = features.find(f => f.getGeometry()?.getType() !== 'Point');
+            gpxName = line?.get('name') || file.name.replace(/\.gpx$/i, '');
             gpxBtn.textContent = 'Poista reitti';
             gpxInfo.textContent = gpxName;
             view.fit(gpxLayer.getSource().getExtent(), { padding: [50, 50, 50, 50] });
