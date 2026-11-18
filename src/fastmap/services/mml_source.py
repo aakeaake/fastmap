@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import io
 import math
+import time
 
 import requests
 from PIL import Image
@@ -34,6 +35,13 @@ WMTS_MAX_LEVEL = 13
 WMTS_ORIGIN = (-548576.0, 8388608.0)  # top-left corner of level-0 mosaic
 
 MML_LAYERS = ("maastokartta", "taustakartta", "selkokartta", "ortokuva")
+
+# Transient failures (network, rate limit, server errors) are retried with
+# exponential backoff: 0.5 s, 1 s. Client errors (bad key, 404) are not.
+TILE_ATTEMPTS = 3
+_BACKOFF_S = 0.5
+_RETRY_STATUS = frozenset({429, 500, 502, 503, 504})
+_sleep = time.sleep  # patched in tests
 
 _HEADERS = {"User-Agent": USER_AGENT}
 _session = requests.Session()
@@ -160,12 +168,21 @@ def fetch_wmts_tile(x: int, y: int, level: int, layer: str) -> Image.Image:
     # Error messages reach clients and logs: name the tile, never the URL
     # (it carries the API key, and requests' own messages include it).
     tile = f"{layer} {level}/{y}/{x}"
-    try:
-        resp = _session.get(url, timeout=30)
-    except requests.RequestException as exc:
-        raise MMLError(f"WMTS tile fetch failed ({type(exc).__name__}) for {tile}") from None
-    if resp.status_code != 200:
-        raise MMLError(f"WMTS tile fetch failed ({resp.status_code}) for {tile}")
+    for attempt in range(TILE_ATTEMPTS):
+        last = attempt == TILE_ATTEMPTS - 1
+        try:
+            resp = _session.get(url, timeout=30)
+        except requests.RequestException as exc:
+            if last:
+                raise MMLError(
+                    f"WMTS tile fetch failed ({type(exc).__name__}) for {tile}"
+                ) from None
+        else:
+            if resp.status_code == 200:
+                break
+            if last or resp.status_code not in _RETRY_STATUS:
+                raise MMLError(f"WMTS tile fetch failed ({resp.status_code}) for {tile}")
+        _sleep(_BACKOFF_S * 2**attempt)
     img = _on_white(Image.open(io.BytesIO(resp.content)))
     resp.close()
     return img

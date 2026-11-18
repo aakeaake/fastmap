@@ -188,3 +188,58 @@ def test_wms_network_error_does_not_leak_api_key(monkeypatch):
     with pytest.raises(mml_source.MMLError) as info:
         mml_source.fetch_wms_image(OTANIEMI, 100, 100)
     assert SECRET not in str(info.value)
+
+
+def _status_resp(code: int):
+    resp = _FakeResp(_png_bytes(Image.new("RGB", (256, 256))))
+    resp.status_code = code
+    return resp
+
+
+def _flaky_get(monkeypatch, outcomes):
+    """Patch the session to return/raise ``outcomes`` in order; record calls."""
+    calls = []
+    sleeps = []
+
+    def fake_get(url, **kw):
+        calls.append(url)
+        out = outcomes[min(len(calls), len(outcomes)) - 1]
+        if isinstance(out, Exception):
+            raise out
+        return _status_resp(out)
+
+    monkeypatch.setattr(mml_source, "MML_API_KEY", "k")
+    monkeypatch.setattr(mml_source._session, "get", fake_get)
+    monkeypatch.setattr(mml_source, "_sleep", sleeps.append)
+    return calls, sleeps
+
+
+def test_tile_retries_transient_errors_then_succeeds(monkeypatch):
+    import requests
+
+    calls, sleeps = _flaky_get(monkeypatch, [requests.ConnectionError("x"), 503, 200])
+    img = fetch_wmts_tile(x=1, y=2, level=11, layer="maastokartta")
+    assert img.size == (256, 256)
+    assert len(calls) == 3
+    assert len(sleeps) == 2 and sleeps[0] < sleeps[1]  # growing backoff
+
+
+def test_tile_gives_up_after_three_attempts(monkeypatch):
+    calls, _ = _flaky_get(monkeypatch, [502])
+    with pytest.raises(mml_source.MMLError, match="502"):
+        fetch_wmts_tile(x=1, y=2, level=11, layer="maastokartta")
+    assert len(calls) == 3
+
+
+@pytest.mark.parametrize("code", [400, 401, 403, 404])
+def test_tile_client_errors_are_not_retried(monkeypatch, code):
+    calls, _ = _flaky_get(monkeypatch, [code])
+    with pytest.raises(mml_source.MMLError, match=str(code)):
+        fetch_wmts_tile(x=1, y=2, level=11, layer="maastokartta")
+    assert len(calls) == 1
+
+
+def test_tile_rate_limit_is_retried(monkeypatch):
+    calls, _ = _flaky_get(monkeypatch, [429, 200])
+    fetch_wmts_tile(x=1, y=2, level=11, layer="maastokartta")
+    assert len(calls) == 2
