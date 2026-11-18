@@ -344,11 +344,17 @@ def generate_multi_pdf(
     """
     results: list[PrintResult] = []
     c: canvas.Canvas | None = None
-    attribution_text = attribution()  # one date for every page of the document
-    for extent, kwargs in items:
+    items = list(items)
+    # Check every page before any slow tile download starts
+    for _, kwargs in items:
         layer = kwargs.get("layer", "maastokartta")
         if layer not in MML_LAYERS:
             raise ValueError(f"Unknown layer '{layer}'")
+        _parse_hex_color(kwargs.get("gpx_color", "#ff00ff"))
+
+    attribution_text = attribution()  # one date for every page of the document
+    for extent, kwargs in items:
+        layer = kwargs.get("layer", "maastokartta")
         paper_size = kwargs["paper_size"]
         orientation = kwargs["orientation"]
         dpi = kwargs.get("dpi")
@@ -360,7 +366,6 @@ def generate_multi_pdf(
         gpx_color = kwargs.get("gpx_color", "#ff00ff")
         gpx_width = kwargs.get("gpx_width", 5)
         gpx_opacity = kwargs.get("gpx_opacity", 0.6)
-        _parse_hex_color(gpx_color)  # fail before the slow tile download
 
         dpi_val = dpi or 300
         page_w_mm, _ = oriented_page_mm(paper_size, orientation)

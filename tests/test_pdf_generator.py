@@ -179,6 +179,7 @@ def test_generate_pdf_with_gpx_route(tmp_path, monkeypatch):
 
 
 _STREAM = re.compile(rb"<<((?:[^<>]|<<[^<>]*>>)*)>>\s*stream\r?\n")
+_LENGTH = re.compile(rb"/Length (\d+)(?!\d| \d+ R)")
 
 
 def _page_content(data: bytes) -> bytes:
@@ -199,7 +200,7 @@ def _page_content(data: bytes) -> bytes:
         head = m.group(1)
         if b"/Subtype /Image" in head:
             continue
-        length = re.search(rb"/Length (\d+)(?! \d+ R)", head)
+        length = _LENGTH.search(head)
         assert length, f"stream without a direct /Length: {head!r}"
         raw = data[m.end() : m.end() + int(length.group(1))]
         for name in re.findall(rb"/(\w+Decode)", head):
@@ -340,3 +341,26 @@ def test_dense_half_km_grid_labels_only_whole_km(tmp_path, monkeypatch):
     data = _page_content(out.read_bytes())
     assert b"(430)" in data
     assert b"(430.5)" not in data
+
+
+def test_stream_length_regex_is_direct_only():
+    """An indirect '/Length 12 0 R' must not be read as a length of 1."""
+    assert _LENGTH.search(b"/Length 594 /Filter").group(1) == b"594"
+    assert _LENGTH.search(b"/Length 12 0 R") is None
+
+
+def test_multi_pdf_checks_every_page_before_fetching_tiles(tmp_path, monkeypatch):
+    def no_render(*args, **kwargs):
+        raise AssertionError("tiles fetched before all pages were checked")
+
+    monkeypatch.setattr(pdf_generator, "render_extent_image", no_render)
+    ext = Extent(428100, 6665230, 431900, 6670770)
+    good = {"paper_size": "A4", "orientation": "portrait"}
+    with pytest.raises(ValueError, match="colour"):
+        pdf_generator.generate_multi_pdf(
+            [(ext, good), (ext, {**good, "gpx_color": "red"})], str(tmp_path / "m.pdf")
+        )
+    with pytest.raises(ValueError, match="layer"):
+        pdf_generator.generate_multi_pdf(
+            [(ext, good), (ext, {**good, "layer": "nope"})], str(tmp_path / "m.pdf")
+        )
