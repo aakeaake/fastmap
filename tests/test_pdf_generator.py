@@ -176,3 +176,191 @@ def test_generate_pdf_with_gpx_route(tmp_path, monkeypatch):
         if px[x, y][0] > 180 and px[x, y][1] < 100 and px[x, y][2] > 180
     )
     assert magenta > 100  # route should be visible
+
+
+_STREAM = re.compile(rb"<<((?:[^<>]|<<[^<>]*>>)*)>>\s*stream\r?\n")
+_LENGTH = re.compile(rb"/Length (\d+)(?!\d| \d+ R)")
+
+
+def _page_content(data: bytes) -> bytes:
+    """Decode the PDF's non-image streams so drawn text can be searched.
+
+    Reads exactly ``/Length`` bytes and applies the declared filters; a stream
+    that fails to decode raises instead of being skipped.
+    """
+    import base64
+    import zlib
+
+    decoders = {
+        b"ASCII85Decode": lambda raw: base64.a85decode(raw.strip().removesuffix(b"~>")),
+        b"FlateDecode": zlib.decompress,
+    }
+    out = []
+    for m in _STREAM.finditer(data):
+        head = m.group(1)
+        if b"/Subtype /Image" in head:
+            continue
+        length = _LENGTH.search(head)
+        assert length, f"stream without a direct /Length: {head!r}"
+        raw = data[m.end() : m.end() + int(length.group(1))]
+        for name in re.findall(rb"/(\w+Decode)", head):
+            raw = decoders[name](raw)
+        out.append(raw)
+    return b"\n".join(out)
+
+
+def _grid_pdf(tmp_path, monkeypatch, spacing):
+    monkeypatch.setattr(pdf_generator, "render_extent_image", _fake_render)
+    out = tmp_path / f"grid_{spacing}.pdf"
+    pdf_generator.generate_pdf(
+        Extent(428100, 6665230, 431900, 6670770),
+        paper_size="A4",
+        orientation="portrait",
+        margin_mm=10,
+        grid_mode="full_coords",
+        grid_spacing_m=spacing,
+        out_pdf_path=str(out),
+    )
+    return _page_content(out.read_bytes())
+
+
+def test_grid_labels_distinct_at_500m(tmp_path, monkeypatch):
+    """Half-km lines need a decimal, or 428 000 and 428 500 both read '428'."""
+    data = _grid_pdf(tmp_path, monkeypatch, 500)
+    assert b"(428.5)" in data
+    assert b"(6665.5)" in data
+
+
+def test_grid_labels_whole_km_have_no_decimal(tmp_path, monkeypatch):
+    data = _grid_pdf(tmp_path, monkeypatch, 1000)
+    assert b"(429)" in data
+    assert b"(429.0)" not in data
+
+
+def test_attribution_uses_render_date(tmp_path, monkeypatch):
+    """The month must be the PDF's, not the server start's."""
+    from datetime import datetime as real_datetime
+
+    class FakeDatetime(real_datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return real_datetime(2031, 3, 15)
+
+    monkeypatch.setattr(pdf_generator, "render_extent_image", _fake_render)
+    monkeypatch.setattr(pdf_generator, "datetime", FakeDatetime)
+    out = tmp_path / "attr.pdf"
+    pdf_generator.generate_pdf(
+        Extent(428100, 6665230, 431900, 6670770),
+        paper_size="A4",
+        orientation="portrait",
+        out_pdf_path=str(out),
+    )
+    assert b"03/2031" in _page_content(out.read_bytes())
+
+
+def test_attribution_is_finnish_time(monkeypatch):
+    """23:30 UTC on 30 Nov is already December in Helsinki."""
+    from datetime import datetime as real_datetime
+    from datetime import timezone
+
+    class FakeDatetime(real_datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return real_datetime(2026, 11, 30, 23, 30, tzinfo=timezone.utc).astimezone(tz)
+
+    monkeypatch.setattr(pdf_generator, "datetime", FakeDatetime)
+    assert pdf_generator.attribution().endswith("12/2026")
+
+
+def test_multi_page_pdf_has_one_attribution_date(tmp_path, monkeypatch):
+    """Pages must not disagree on the month when rendering crosses midnight."""
+    from datetime import datetime as real_datetime
+
+    months = iter(range(1, 13))
+
+    class FakeDatetime(real_datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return real_datetime(2031, next(months), 1)
+
+    monkeypatch.setattr(pdf_generator, "render_extent_image", _fake_render)
+    monkeypatch.setattr(pdf_generator, "datetime", FakeDatetime)
+    page = {"paper_size": "A4", "orientation": "portrait"}
+    ext = Extent(428100, 6665230, 431900, 6670770)
+    out = tmp_path / "multi.pdf"
+    pdf_generator.generate_multi_pdf([(ext, page), (ext, page)], str(out))
+    data = _page_content(out.read_bytes())
+    assert data.count(b"01/2031") == 2
+    assert b"02/2031" not in data
+
+
+@pytest.mark.parametrize("color", ["#fff", "red", "#12345g", "#ff00ff00", ""])
+def test_generate_pdf_rejects_bad_color(tmp_path, monkeypatch, color):
+    def no_render(*args, **kwargs):
+        raise AssertionError("tiles fetched before the colour was checked")
+
+    monkeypatch.setattr(pdf_generator, "render_extent_image", no_render)
+    with pytest.raises(ValueError, match="colour"):
+        pdf_generator.generate_pdf(
+            Extent(428100, 6665230, 431900, 6670770),
+            paper_size="A4",
+            orientation="portrait",
+            gpx_color=color,
+            out_pdf_path=str(tmp_path / "x.pdf"),
+        )
+
+
+def test_parse_hex_color():
+    assert pdf_generator._parse_hex_color("#FF0080") == (1.0, 0.0, 128 / 255)
+
+
+@pytest.mark.parametrize(
+    ("step_pt", "needed_pt", "expected"),
+    [(20, 10, 1), (10, 10, 1), (6, 10, 2), (3, 10, 5), (1.5, 10, 10), (0.4, 10, 50)],
+)
+def test_label_every(step_pt, needed_pt, expected):
+    assert pdf_generator._label_every(step_pt, needed_pt) == expected
+
+
+def test_dense_half_km_grid_labels_only_whole_km(tmp_path, monkeypatch):
+    """At 1:200 000, 500 m lines are 2.5 mm apart: label every km, not every line."""
+    monkeypatch.setattr(pdf_generator, "render_extent_image", _fake_render)
+    from fastmap.services.print_layout import extent_for_center
+
+    out = tmp_path / "dense.pdf"
+    pdf_generator.generate_pdf(
+        extent_for_center(430000, 6668000, 200000, "A4", "portrait", 10),
+        paper_size="A4",
+        orientation="portrait",
+        margin_mm=10,
+        zoom_level=8,
+        grid_mode="full_coords",
+        grid_spacing_m=500,
+        out_pdf_path=str(out),
+    )
+    data = _page_content(out.read_bytes())
+    assert b"(430)" in data
+    assert b"(430.5)" not in data
+
+
+def test_stream_length_regex_is_direct_only():
+    """An indirect '/Length 12 0 R' must not be read as a length of 1."""
+    assert _LENGTH.search(b"/Length 594 /Filter").group(1) == b"594"
+    assert _LENGTH.search(b"/Length 12 0 R") is None
+
+
+def test_multi_pdf_checks_every_page_before_fetching_tiles(tmp_path, monkeypatch):
+    def no_render(*args, **kwargs):
+        raise AssertionError("tiles fetched before all pages were checked")
+
+    monkeypatch.setattr(pdf_generator, "render_extent_image", no_render)
+    ext = Extent(428100, 6665230, 431900, 6670770)
+    good = {"paper_size": "A4", "orientation": "portrait"}
+    with pytest.raises(ValueError, match="colour"):
+        pdf_generator.generate_multi_pdf(
+            [(ext, good), (ext, {**good, "gpx_color": "red"})], str(tmp_path / "m.pdf")
+        )
+    with pytest.raises(ValueError, match="layer"):
+        pdf_generator.generate_multi_pdf(
+            [(ext, good), (ext, {**good, "layer": "nope"})], str(tmp_path / "m.pdf")
+        )

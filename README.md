@@ -25,7 +25,8 @@ frontend/index.html        Single-file UI (OpenLayers v10 via CDN, EPSG:3067,
                            optional grid overlay selector)
 src/fastmap/
 ├── api/routes.py          POST /generate-map, POST /generate-maps-batch,
-│                          GET /api/nls-tiles proxy, GET /health
+│                          GET /api/nls-tiles proxy, GET /api/attribution,
+│                          GET /health
 ├── schemas/               Pydantic request models + validation
 ├── services/
 │   ├── print_layout.py    Pure maths: paper sizes, extents, pixel dims

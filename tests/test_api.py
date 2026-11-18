@@ -368,3 +368,34 @@ def test_generate_map_with_elevation_gpx_ok():
     )
     assert resp.status_code == 200
     assert resp.content[:5] == b"%PDF-"
+
+
+@pytest.mark.parametrize("color", ["red", "#fff", "#12345g", "ff00ff", "#ff00ff00"])
+def test_bad_gpx_color_is_422(color):
+    resp = client.post(
+        "/generate-map",
+        json={"center_x": 385000, "center_y": 6672000, "scale": 50000, "gpx_color": color},
+    )
+    assert resp.status_code == 422
+
+
+def test_gpx_color_accepts_any_case_hex():
+    resp = client.post(
+        "/generate-map",
+        json={
+            "center_x": 385000,
+            "center_y": 6672000,
+            "scale": 50000,
+            "gpx_color": "#A1b2C3",
+            "gpx_routes": [[[384000, 6671000], [386000, 6673000]]],
+        },
+    )
+    assert resp.status_code == 200
+
+
+def test_attribution_endpoint_matches_pdf_text():
+    from fastmap.services.pdf_generator import attribution
+
+    resp = client.get("/api/attribution")
+    assert resp.status_code == 200
+    assert resp.json() == {"text": attribution()}

@@ -54,7 +54,7 @@ class MapRequest(BaseModel):
     grid_mode: GridMode = "off"
     grid_spacing_m: GridSpacing = 1000
     gpx_routes: list[list[list[float]]] = Field(default_factory=list)
-    gpx_color: str = "#ff00ff"
+    gpx_color: str = Field(default="#ff00ff", pattern=r"^#[0-9a-fA-F]{6}$")
     gpx_width: int = Field(default=5, ge=1, le=20)
     gpx_opacity: float = Field(default=0.6, ge=0.1, le=1.0)
 
