@@ -2,7 +2,7 @@
 <html lang="fi">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>FastMap – tulostuskelpoiset kartat</title>
     <link rel="icon" type="image/png" href="favicon.png">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ol@10.11.0/ol.css">
@@ -30,7 +30,7 @@
             accent-color: var(--accent);
         }
 
-        html, body { height: 100%; margin: 0; font-family: var(--font); color: var(--ink); }
+        html, body { height: 100%; margin: 0; overflow: hidden; font-family: var(--font); color: var(--ink); background: var(--surface-2); }
         ::selection { background: var(--accent-soft); color: var(--ink); }
         #map { position: absolute; inset: 0; }
 
@@ -44,14 +44,22 @@
 
         /* --- Panel ---------------------------------------------------------- */
         .panel {
-            position: absolute; top: 12px; right: 12px; z-index: 1000;
+            position: absolute; z-index: 1000;
+            top: max(12px, env(safe-area-inset-top)); right: max(12px, env(safe-area-inset-right));
             width: 288px; box-sizing: border-box;
-            max-height: calc(100vh - 24px); overflow-y: auto;
+            max-height: calc(100vh - 2 * max(12px, env(safe-area-inset-top)));
+            display: flex; flex-direction: column; overflow: hidden;
             background: var(--surface); border-radius: 8px;
             box-shadow: var(--shadow);
+        }
+        .sheet-head { flex: 0 0 auto; }
+        .grabber, #sheetSummary { display: none; }
+        .head-row { display: flex; align-items: baseline; gap: 10px; padding: 14px 16px 4px; }
+        .panel h1 { font-size: 17px; font-weight: 700; margin: 0; letter-spacing: -.01em; }
+        .sheet-body {
+            flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain;
             scrollbar-width: thin; scrollbar-color: var(--line) transparent;
         }
-        .panel h1 { font-size: 17px; font-weight: 700; margin: 0; padding: 14px 16px 4px; letter-spacing: -.01em; }
 
         .section { padding: 12px 16px 14px; }
         .section + .section { border-top: 1px solid var(--surface-3); }
@@ -159,7 +167,7 @@
         .range-row output { font-size: 13px; color: var(--ink-2); min-width: 4ch; text-align: right; font-variant-numeric: tabular-nums; }
 
         /* --- Download footer ----------------------------------------------- */
-        .download { position: sticky; bottom: 0; background: var(--surface); border-top: 1px solid var(--surface-3); }
+        .download { flex: 0 0 auto; background: var(--surface); border-top: 1px solid var(--surface-3); }
         .dl-row { display: flex; gap: 8px; }
         .dl-row select { flex: 0 0 112px; height: 36px !important; }
         .dl-row .btn { flex: 1; }
@@ -172,7 +180,8 @@
 
         /* --- Bottom-left stack: toast, hint, attribution ------------------- */
         .stack {
-            position: absolute; left: 12px; bottom: 8px; z-index: 1000;
+            position: absolute; z-index: 1000;
+            left: max(12px, env(safe-area-inset-left)); bottom: max(8px, env(safe-area-inset-bottom));
             max-width: calc(100% - 336px);
             display: flex; flex-direction: column; align-items: flex-start; gap: 6px;
         }
@@ -195,17 +204,100 @@
             box-shadow: 0 1px 3px rgba(16, 24, 32, .18);
         }
         .hint[hidden] { display: none; }
+        @media (pointer: coarse) { .hint-dblclick { display: none; } }
         #attribution {
             font-size: 12px; color: var(--ink-2);
             background: rgba(255,255,255,.8); border-radius: var(--radius-sm); padding: 1px 6px;
+        }
+
+        /* --- Map tool: move the selected map to the view centre ------------ */
+        .map-tool {
+            position: absolute; top: 76px; left: max(.5em, env(safe-area-inset-left)); z-index: 900;
+            display: inline-flex; align-items: center; gap: 6px;
+            min-height: 32px; padding: 0 10px 0 8px; border: none; border-radius: var(--radius);
+            background: var(--surface); color: var(--ink); font-size: 13px; font-weight: 600;
+            box-shadow: 0 1px 3px rgba(16, 24, 32, .25); cursor: pointer;
+        }
+        .map-tool:hover { background: var(--surface-2); }
+        .ol-zoom { left: max(.5em, env(safe-area-inset-left)); top: max(.5em, env(safe-area-inset-top)); }
+
+        /* --- Touch: 44px targets, 16px form text (no iOS focus zoom) ------- */
+        @media (pointer: coarse) {
+            .panel select, .panel input[type=number], .panel input[type=text], #gpxColor { height: 44px; font-size: 16px; }
+            .dl-row select { height: 44px !important; flex-basis: 120px; }
+            .btn { min-height: 44px; font-size: 15px; }
+            .btn-text, summary, .toast button { min-height: 44px; }
+            .icon-btn { width: 44px; height: 44px; }
+            #mapList .m-select { min-height: 44px; font-size: 14px; }
+            .panel label, summary { font-size: 14px; }
+            /* +/- stay: a one-finger alternative to pinch (WCAG 2.5.1) */
+            .ol-zoom { top: max(12px, env(safe-area-inset-top)); left: max(12px, env(safe-area-inset-left)); }
+            .ol-zoom .ol-zoom-in, .ol-zoom .ol-zoom-out { width: 44px; height: 44px; font-size: 22px; }
+            .map-tool {
+                /* below the two 44px zoom buttons */
+                top: calc(max(12px, env(safe-area-inset-top)) + 104px);
+                left: max(12px, env(safe-area-inset-left));
+                min-height: 44px; padding: 0 14px 0 12px; font-size: 14px;
+            }
+        }
+
+        /* --- Phone: the panel becomes a bottom sheet ----------------------- */
+        @media (max-width: 640px) {
+            .panel {
+                top: auto; right: 0; left: 0; bottom: 0; width: auto;
+                height: var(--sheet-h, 45vh); max-height: none;
+                border-radius: 14px 14px 0 0;
+                box-shadow: 0 -2px 6px rgba(16, 24, 32, .08), 0 -10px 30px rgba(16, 24, 32, .18);
+                transition: height .28s cubic-bezier(.22, 1, .36, 1);
+            }
+            .panel.dragging { transition: none; }
+            .sheet-head { touch-action: none; cursor: grab; user-select: none; -webkit-user-select: none; }
+            .grabber {
+                display: flex; justify-content: center; align-items: center;
+                width: 100%; height: 22px; padding: 0; border: none; background: none; cursor: inherit;
+            }
+            .grabber span { width: 40px; height: 5px; border-radius: 3px; background: var(--line-strong); }
+            .head-row { padding: 0 16px 10px; align-items: center; min-height: 32px; }
+            #sheetSummary {
+                display: block; flex: 1; min-width: 0; text-align: right;
+                font-size: 14px; color: var(--ink-2);
+                white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+                font-variant-numeric: tabular-nums;
+            }
+            #sheetSummary b { color: var(--ink); font-weight: 600; }
+            .panel[data-sheet="peek"] .sheet-body { visibility: hidden; }
+            .download { padding-bottom: max(14px, env(safe-area-inset-bottom)); }
+            .stack {
+                left: max(12px, env(safe-area-inset-left)); right: max(12px, env(safe-area-inset-right)); max-width: none;
+                bottom: calc(var(--sheet-h, 45vh) + 8px);
+                transition: bottom .28s cubic-bezier(.22, 1, .36, 1);
+            }
+            .stack.dragging { transition: none; }
+            .panel:not([data-sheet="peek"]) ~ .stack .hint { display: none; }
+            /* Fully open: the map strip is too small for the map controls.
+               The attribution stays: tiles are still on screen (CC BY 4.0). */
+            .panel[data-sheet="full"] ~ .map-tool,
+            body:has(.panel[data-sheet="full"]) .ol-zoom { display: none; }
+            .panel[data-sheet="full"] ~ .stack #attribution { padding: 0 4px; }
+        }
+        @media (max-width: 640px) and (prefers-reduced-motion: reduce) {
+            .panel, .stack { transition: none; }
         }
     </style>
 </head>
 <body>
 <div id="map"></div>
 
-<div class="panel">
-    <h1>FastMap</h1>
+<div class="panel" id="panel">
+    <div class="sheet-head" id="sheetHead">
+        <button class="grabber" id="grabber" type="button" aria-controls="sheetBody" aria-expanded="true" aria-label="Laajenna tai pienennä paneeli"><span></span></button>
+        <div class="head-row">
+            <h1>FastMap</h1>
+            <span id="sheetSummary" aria-hidden="true"></span>
+        </div>
+    </div>
+
+    <div class="sheet-body" id="sheetBody">
 
     <section class="section" aria-labelledby="mapsHeading">
         <div class="section-head">
@@ -324,6 +416,7 @@
             </div>
         </details>
     </section>
+    </div>
 
     <section class="section download" aria-label="Lataus">
         <div class="dl-row">
@@ -339,13 +432,15 @@
     </section>
 </div>
 
+<button id="centerBtn" class="map-tool" type="button"></button>
+
 <div class="stack">
     <div id="toast" class="toast" role="status" aria-live="polite" hidden>
         <span id="toastMsg"></span>
         <button id="undoBtn" type="button">Kumoa</button>
     </div>
     <div id="hint" class="hint">
-        <span>Siirrä aluetta raahaamalla · keskitä kaksoisnapauttamalla · muokkaa edellisiä valitsemalla listasta</span>
+        <span>Siirrä aluetta raahaamalla tai ”Siirrä kartta tähän” -painikkeella<span class="hint-dblclick"> (myös kaksoisklikkaus)</span> · muokkaa edellisiä valitsemalla listasta</span>
         <button id="hintClose" class="icon-btn" type="button" aria-label="Piilota ohje" data-icon="x"></button>
     </div>
     <div id="attribution">© Maanmittauslaitos, CC BY 4.0</div>
@@ -382,6 +477,7 @@
     import GPX from 'ol/format/GPX.js';
     import proj4 from 'proj4';
     import { register } from 'ol/proj/proj4.js';
+    import { containsExtent } from 'ol/extent.js';
 
     // --- Icons (one stroke family, 24px grid) -----------------------------
     const ICON_PATHS = {
@@ -392,6 +488,7 @@
         plus: '<path d="M12 5v14M5 12h14"/>',
         upload: '<path d="M12 20V9"/><path d="m7 14 5-5 5 5"/><path d="M5 4h14"/>',
         chevron: '<path d="m9 6 6 6-6 6"/>',
+        target: '<circle cx="12" cy="12" r="7"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/>',
     };
     function icon(name) {
         return `<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICON_PATHS[name]}</svg>`;
@@ -594,7 +691,7 @@
             gridMode: cur.gridMode,
             gridSpacing: cur.gridSpacing,
         } : {};
-        setActive(createEntry(view.getCenter(), settings).id);
+        setActive(createEntry(visibleCenter(), settings).id);
     }
 
     function removeAll() {
@@ -721,7 +818,7 @@
             select.className = 'm-select';
             select.dataset.key = `select-${e.id}`;
             select.setAttribute('aria-pressed', String(isActive));
-            select.addEventListener('click', () => setActive(e.id));
+            select.addEventListener('click', () => { setActive(e.id); revealEntry(e); });
 
             const chip = document.createElement('span');
             chip.className = 'chip';
@@ -775,6 +872,13 @@
         }
         const cur = active();
         el('activeName').textContent = cur ? displayName(cur) : '';
+        const summary = el('sheetSummary');
+        summary.textContent = '';
+        if (cur) {
+            const b = document.createElement('b');
+            b.textContent = displayName(cur);
+            summary.append(b, ` · ${cur.paperSize} · 1:${cur.scale.toLocaleString('fi-FI')}`);
+        }
         el('downloadAllBtn').textContent = maps.length > 1 ? `Lataa kaikki (${maps.length})` : 'Lataa';
         refreshLabels();
     }
@@ -894,6 +998,160 @@
         persist();
     });
 
+    // --- Bottom sheet (phones) ---------------------------------------------
+    // Three heights: peek (title + download), half, full. Drag the header,
+    // flick it, or tap it to step through. Desktop keeps the floating panel.
+    const panel = el('panel');
+    const sheetHead = el('sheetHead');
+    const stack = document.querySelector('.stack');
+    const phone = matchMedia('(max-width: 640px)');
+    const SHEET_NEXT = { peek: 'half', half: 'full', full: 'peek' };
+    let sheetState = 'peek';
+    let drag = null;
+    let suppressClick = false;
+
+    function sheetHeights() {
+        const H = window.innerHeight;
+        const peek = sheetHead.offsetHeight + panel.querySelector('.download').offsetHeight;
+        return {
+            peek,
+            half: Math.max(peek, Math.round(H * 0.5)),
+            full: Math.max(peek, H - 72),
+        };
+    }
+
+    function applySheetHeight(h) {
+        document.documentElement.style.setProperty('--sheet-h', `${Math.round(h)}px`);
+    }
+
+    function setSheet(state) {
+        sheetState = state;
+        if (!phone.matches) {
+            panel.removeAttribute('data-sheet');
+            document.documentElement.style.removeProperty('--sheet-h');
+            el('grabber').setAttribute('aria-expanded', 'true');
+            return;
+        }
+        panel.dataset.sheet = state;
+        el('grabber').setAttribute('aria-expanded', String(state !== 'peek'));
+        applySheetHeight(sheetHeights()[state]);
+    }
+
+    // Pixel height of map hidden behind the sheet (0 on desktop)
+    function coveredBottom() {
+        return phone.matches ? panel.getBoundingClientRect().height : 0;
+    }
+
+    // Pixel width of map hidden behind the floating side panel (0 on phones)
+    function coveredRight() {
+        if (phone.matches) return 0;
+        const [w] = map.getSize() ?? [window.innerWidth];
+        return Math.max(0, w - panel.getBoundingClientRect().left);
+    }
+
+    sheetHead.addEventListener('pointerdown', ev => {
+        if (!phone.matches || ev.button > 0) return;
+        suppressClick = false;
+        // Measure once per gesture: reading layout on every move would force
+        // a reflow right after the previous move changed --sheet-h
+        const { peek, full } = sheetHeights();
+        drag = { id: ev.pointerId, y: ev.clientY, h: panel.offsetHeight, peek, full,
+                 lastY: ev.clientY, lastT: ev.timeStamp, v: 0, moved: false };
+        try { sheetHead.setPointerCapture(ev.pointerId); } catch { /* pointer already gone */ }
+    });
+    sheetHead.addEventListener('pointermove', ev => {
+        if (!drag || ev.pointerId !== drag.id) return;
+        const dy = ev.clientY - drag.y;
+        if (!drag.moved) {
+            if (Math.abs(dy) < 6) return;
+            drag.moved = true;
+            panel.classList.add('dragging');
+            stack.classList.add('dragging');
+            panel.dataset.sheet = 'drag';
+        }
+        const dt = ev.timeStamp - drag.lastT;
+        if (dt > 0) drag.v = (ev.clientY - drag.lastY) / dt;
+        drag.lastY = ev.clientY;
+        drag.lastT = ev.timeStamp;
+        applySheetHeight(Math.min(drag.full, Math.max(drag.peek, drag.h - dy)));
+    });
+    function endDrag(ev) {
+        if (!drag || ev.pointerId !== drag.id) return;
+        const d = drag;
+        drag = null;
+        panel.classList.remove('dragging');
+        stack.classList.remove('dragging');
+        if (!d.moved) return;           // a tap: the click handler steps the sheet
+        suppressClick = true;
+        const h = panel.offsetHeight;
+        const hs = sheetHeights();
+        const order = ['peek', 'half', 'full'];
+        let target = order.reduce((a, b) => (Math.abs(hs[b] - h) < Math.abs(hs[a] - h) ? b : a));
+        // A flick moves one step in its direction from where it was released
+        if (Math.abs(d.v) > 0.5) {
+            const up = d.v < 0;
+            target = up
+                ? (order.find(s => hs[s] > h + 1) ?? 'full')
+                : ([...order].reverse().find(s => hs[s] < h - 1) ?? 'peek');
+        }
+        setSheet(target);
+    }
+    for (const type of ['pointerup', 'pointercancel', 'lostpointercapture']) {
+        sheetHead.addEventListener(type, endDrag);
+    }
+    sheetHead.addEventListener('click', () => {
+        if (suppressClick) { suppressClick = false; return; }
+        if (phone.matches) setSheet(SHEET_NEXT[sheetState]);
+    });
+    // Keyboard path: in peek the body is visibility:hidden (not focusable),
+    // so Tab reaches the grabber button, whose click opens the sheet.
+    phone.addEventListener('change', () => setSheet(phone.matches ? 'peek' : sheetState));
+    window.addEventListener('resize', () => { if (!drag) setSheet(sheetState); });
+    // Status / progress lines change the footer height, so peek follows it
+    new ResizeObserver(() => { if (!drag && phone.matches) setSheet(sheetState); })
+        .observe(panel.querySelector('.download'));
+
+    // --- Map helpers that respect the sheet --------------------------------
+    // Centre of the part of the map the user can actually see
+    // (from the view, so it works before the first frame has rendered)
+    function visibleCenter() {
+        const [cx, cy] = view.getCenter();
+        const res = view.getResolution();
+        return [cx - (coveredRight() / 2) * res, cy + (coveredBottom() / 2) * res];
+    }
+
+    // Pan so the entry sits in the visible area, if it is not there already
+    function revealEntry(e) {
+        const [w, h] = map.getSize() ?? [0, 0];
+        const bottom = coveredBottom();
+        const right = coveredRight();
+        if (h - bottom < 120 || w - right < 120) return;
+        const res = view.getResolution();
+        const [vx, vy] = view.getCenter();
+        const visible = [vx - (w / 2) * res, vy - (h / 2 - bottom) * res,
+                         vx + (w / 2 - right) * res, vy + (h / 2) * res];
+        if (containsExtent(visible, e.feature.getGeometry().getExtent())) return;
+        const [cx, cy] = entryCenter(e);
+        view.animate({ center: [cx + (right / 2) * res, cy - (bottom / 2) * res], duration: 300 });
+    }
+
+    // "Siirrä tähän": move the selected map to the centre of the visible map
+    setButton(el('centerBtn'), 'target', 'Siirrä kartta tähän');
+    el('centerBtn').title = 'Siirrä valittu kartta näkyvän alueen keskelle';
+    el('centerBtn').addEventListener('click', () => {
+        const cur = active();
+        if (!cur) return;
+        const [cx, cy] = visibleCenter();
+        const [w, h] = contentMeters(cur);
+        cur.feature.getGeometry().setCoordinates([ring(cx, cy, w, h)]);
+        syncLabel(cur);
+        downloadedIds.delete(cur.id);
+        renderList();
+        persist();
+    });
+
+    // Size the sheet first: newMap() places the first map in the visible area
+    setSheet(sheetState);
     if (!restore()) newMap();
     else {
         const saved = (() => { try { return JSON.parse(localStorage.getItem(STORAGE_KEY)).activeId; } catch { return null; } })();
