@@ -364,3 +364,29 @@ def test_multi_pdf_checks_every_page_before_fetching_tiles(tmp_path, monkeypatch
         pdf_generator.generate_multi_pdf(
             [(ext, good), (ext, {**good, "layer": "nope"})], str(tmp_path / "m.pdf")
         )
+
+
+def test_pdf_streams_skip_ascii85(tmp_path, monkeypatch):
+    """ReportLab's ASCII85 runs in pure Python without its optional C
+    extension and adds ~25 % to the file; binary Flate streams are standard."""
+    monkeypatch.setattr(pdf_generator, "render_extent_image", _fake_render)
+    out = tmp_path / "plain.pdf"
+    pdf_generator.generate_pdf(
+        Extent(428100, 6665230, 431900, 6670770),
+        paper_size="A4",
+        orientation="portrait",
+        title="Binary streams",
+        out_pdf_path=str(out),
+    )
+    data = out.read_bytes()
+    assert b"ASCII85Decode" not in data
+    assert b"FlateDecode" in data
+    assert b"(Binary streams)" in _page_content(data)  # still decodable text
+
+
+def test_reportlab_uses_its_c_extension():
+    """rl_accel roughly halves PDF build time; it's optional in ReportLab, so
+    check it is installed rather than silently falling back to pure Python."""
+    from reportlab.lib import rl_accel
+
+    assert rl_accel.fp_str.__module__ == "_rl_accel"

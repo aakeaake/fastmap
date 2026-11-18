@@ -9,6 +9,7 @@ from fastapi.staticfiles import StaticFiles
 from fastmap import __version__
 from fastmap.api import routes
 from fastmap.api.routes import router
+from fastmap.services import mml_source
 
 log = logging.getLogger(__name__)
 
@@ -16,8 +17,10 @@ log = logging.getLogger(__name__)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     yield
-    # Don't let queued renders delay exit; their results die with the process.
+    # Don't let queued renders or tile downloads delay exit; their results die
+    # with the process.
     routes.jobs.shutdown()
+    mml_source.shutdown_tile_pool()
 
 
 app = FastAPI(title="FastMap API", version=__version__, lifespan=lifespan)
