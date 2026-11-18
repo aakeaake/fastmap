@@ -469,12 +469,19 @@ def test_failed_zip_write_leaves_no_temp_files(tmp_path, monkeypatch):
 
 
 def test_app_shutdown_stops_the_job_store(monkeypatch):
+    from concurrent.futures import ThreadPoolExecutor
+
     from fastmap.api import routes
+    from fastmap.services import mml_source
     from fastmap.services.jobs import JobStore
 
     store = JobStore(workers=1, max_pending=5, ttl_s=60)
+    tiles = ThreadPoolExecutor(max_workers=1)
     monkeypatch.setattr(routes, "jobs", store)
+    monkeypatch.setattr(mml_source, "_tile_pool", tiles)
     with TestClient(app):
         pass  # startup + shutdown
     with pytest.raises(RuntimeError):
         store.submit(lambda: {"path": None, "filename": "x"})
+    with pytest.raises(RuntimeError):  # queued tile downloads don't delay exit either
+        tiles.submit(lambda: None)

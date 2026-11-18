@@ -4,12 +4,17 @@ from fastmap.core.config import parse_render_limits
 
 
 def test_defaults():
-    assert parse_render_limits({}) == (2, 10, 1800.0)
+    assert parse_render_limits({}) == (2, 10, 1800.0, 8)
 
 
 def test_values_from_environment():
-    env = {"RENDER_WORKERS": "3", "MAX_PENDING_JOBS": "6", "JOB_TTL_S": "90.5"}
-    assert parse_render_limits(env) == (3, 6, 90.5)
+    env = {
+        "RENDER_WORKERS": "3",
+        "MAX_PENDING_JOBS": "6",
+        "JOB_TTL_S": "90.5",
+        "TILE_FETCH_WORKERS": "4",
+    }
+    assert parse_render_limits(env) == (3, 6, 90.5, 4)
 
 
 @pytest.mark.parametrize(
@@ -22,6 +27,8 @@ def test_values_from_environment():
         ({"JOB_TTL_S": "0"}, "JOB_TTL_S"),
         ({"JOB_TTL_S": "-5"}, "JOB_TTL_S"),
         ({"JOB_TTL_S": "1800   # seconds"}, "JOB_TTL_S"),  # inline comment via --env-file
+        ({"TILE_FETCH_WORKERS": "0"}, "TILE_FETCH_WORKERS"),
+        ({"TILE_FETCH_WORKERS": "many"}, "TILE_FETCH_WORKERS"),
     ],
 )
 def test_bad_values_name_the_variable(env, name):
