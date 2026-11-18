@@ -25,6 +25,7 @@ from fastmap.services.mml_source import (
     MMLError,
 )
 from fastmap.services.pdf_generator import (
+    attribution,
     generate_multi_pdf,
     generate_pdf_to_temp,
 )
@@ -403,6 +404,12 @@ def generate_maps_batch_async(batch: BatchMapRequest):
 @router.get("/health")
 def health():
     return {"status": "ok"}
+
+
+@router.get("/api/attribution")
+def get_attribution():
+    """The MML licence line printed on PDFs, so the frontend shows the same text."""
+    return {"text": attribution()}
 
 
 # ---------------------------------------------------------------------------

@@ -236,7 +236,7 @@
 
 <div class="hint">Siirrä aluetta raahaamalla · keskitä kaksoisnapauttamalla · muokkaa edellisiä valitsemalla listasta</div>
 
-<div id="attribution"></div>
+<div id="attribution">© Maanmittauslaitos, CC BY 4.0</div>
 
 <script type="importmap">
 {
@@ -737,7 +737,8 @@ import Point from 'ol/geom/Point.js';
             gpxLayer.getSource().clear();
             gpxLayer.getSource().addFeatures(features);
             // Prefer the track/route name; waypoints (Points) also carry names
-            const line = features.find(f => f.getGeometry()?.getType() !== 'Point');
+            const line = features.find(
+                f => f.getGeometry()?.getType() !== 'Point' && f.get('name'));
             gpxName = line?.get('name') || file.name.replace(/\.gpx$/i, '');
             gpxBtn.textContent = 'Poista reitti';
             gpxInfo.textContent = gpxName;
@@ -754,9 +755,11 @@ import Point from 'ol/geom/Point.js';
 
     // --- PDF generation -----------------------------------------------------
     const statusEl = el('status');
-    const now = new Date();
-    el('attribution').textContent =
-        `© Maanmittauslaitos, CC BY 4.0 — Maastotietokanta ${String(now.getMonth()+1).padStart(2,'0')}/${now.getFullYear()}`;
+    // Same licence line as the PDFs (server builds it, dated in Finnish time)
+    fetch('/api/attribution')
+        .then(r => (r.ok ? r.json() : Promise.reject(r.status)))
+        .then(d => { el('attribution').textContent = d.text; })
+        .catch(() => {});
 
     function setStatus(msg, isError = false) {
         statusEl.textContent = msg;

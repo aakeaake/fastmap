@@ -391,3 +391,11 @@ def test_gpx_color_accepts_any_case_hex():
         },
     )
     assert resp.status_code == 200
+
+
+def test_attribution_endpoint_matches_pdf_text():
+    from fastmap.services.pdf_generator import attribution
+
+    resp = client.get("/api/attribution")
+    assert resp.status_code == 200
+    assert resp.json() == {"text": attribution()}

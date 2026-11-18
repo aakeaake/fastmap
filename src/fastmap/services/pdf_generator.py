@@ -7,8 +7,11 @@ image files are needed - the PIL image is embedded directly.
 
 from __future__ import annotations
 
+import math
+import re
 from dataclasses import dataclass
 from datetime import datetime
+from zoneinfo import ZoneInfo
 
 from PIL import Image
 from reportlab.lib.colors import Color, black
@@ -25,15 +28,45 @@ from fastmap.services.print_layout import (
     oriented_page_mm,
 )
 
+_LOCAL_TZ = ZoneInfo("Europe/Helsinki")
+_HEX_COLOR = re.compile(r"#([0-9a-fA-F]{2})([0-9a-fA-F]{2})([0-9a-fA-F]{2})")
 
-def _attribution() -> str:
-    """MML licence line, dated when the PDF is drawn (not at server start)."""
-    return f"© Maanmittauslaitos, CC BY 4.0 — Maastotietokanta {datetime.now():%m/%Y}"
+
+def attribution() -> str:
+    """MML licence line, dated in Finnish time when called (once per document)."""
+    return f"© Maanmittauslaitos, CC BY 4.0 — Maastotietokanta {datetime.now(_LOCAL_TZ):%m/%Y}"
+
+
+def _parse_hex_color(value: str) -> tuple[float, float, float]:
+    """'#rrggbb' -> (r, g, b) in 0..1. Raises ValueError for anything else."""
+    m = _HEX_COLOR.fullmatch(value)
+    if not m:
+        raise ValueError(f"Invalid colour {value!r}, expected '#rrggbb'")
+    r, g, b = (int(part, 16) / 255 for part in m.groups())
+    return r, g, b
 
 
 def _grid_label(value_m: int) -> str:
     """Coordinate in km: '429' for whole km, '428.5' for half-km lines."""
     return f"{value_m / 1000:g}"
+
+
+def _grid_values(lo: float, hi: float, spacing_m: int) -> list[int]:
+    """Grid coordinates (multiples of ``spacing_m``) inside ``[lo, hi]``."""
+    start = math.ceil(lo / spacing_m) * spacing_m
+    return list(range(start, math.floor(hi) + 1, spacing_m))
+
+
+def _label_every(step_pt: float, needed_pt: float) -> int:
+    """Smallest 1-2-5 multiple of the grid step that leaves ``needed_pt`` of room."""
+    if step_pt <= 0:
+        return 1
+    decade = 1
+    while True:
+        for k in (decade, 2 * decade, 5 * decade):
+            if k * step_pt >= needed_pt:
+                return k
+        decade *= 10
 
 
 _TEXT_INSET_MM = 2.0  # overlay text distance from the content-area corner
@@ -89,50 +122,54 @@ def _draw_grid_lines(
     show_coords = mode in ("vertical_coords", "full_coords")
     show_horizontal = mode in ("full", "full_coords")
 
+    xs = [
+        (gx, (gx - extent.minx) / (extent.maxx - extent.minx) * w + x0)
+        for gx in _grid_values(extent.minx, extent.maxx, spacing_m)
+    ]
+    ys = (
+        [
+            (gy, (gy - extent.miny) / (extent.maxy - extent.miny) * h + y0)
+            for gy in _grid_values(extent.miny, extent.maxy, spacing_m)
+        ]
+        if show_horizontal
+        else []
+    )
+
     c.saveState()
     c.setStrokeColor(Color(0.35, 0.35, 0.35))
     c.setLineWidth(0.3)
-
-    # vertical lines (south-north)
-    start_x = int(extent.minx // spacing_m) * spacing_m
-    for gx in range(start_x, int(extent.maxx) + spacing_m, spacing_m):
-        if gx < extent.minx or gx > extent.maxx:
-            continue
-        px = (gx - extent.minx) / (extent.maxx - extent.minx) * w + x0
+    for _, px in xs:  # vertical lines (south-north)
         c.line(px, y0, px, y0 + h)
-
-    # horizontal lines (west-east) — full grid only
-    start_y = int(extent.miny // spacing_m) * spacing_m
-    if show_horizontal:
-        for gy in range(start_y, int(extent.maxy) + spacing_m, spacing_m):
-            if gy < extent.miny or gy > extent.maxy:
-                continue
-            py = (gy - extent.miny) / (extent.maxy - extent.miny) * h + y0
-            c.line(x0, py, x0 + w, py)
-
+    for _, py in ys:  # horizontal lines (west-east) - full grid only
+        c.line(x0, py, x0 + w, py)
     c.restoreState()
 
     # coordinate labels at edges
     if not show_coords:
         return
+    font, size = "Helvetica", 5.5
     c.setFillColor(Color(0.35, 0.35, 0.35))
-    c.setFont("Helvetica", 5.5)
+    c.setFont(font, size)
     label_pad = 1.5  # mm from edge
+    gap = 1 * mm  # minimum clear space between neighbouring labels
+    step_pt = spacing_m / (extent.maxx - extent.minx) * w
 
-    for gx in range(start_x, int(extent.maxx) + spacing_m, spacing_m):
-        if gx < extent.minx or gx > extent.maxx:
-            continue
-        px = (gx - extent.minx) / (extent.maxx - extent.minx) * w + x0
-        label = _grid_label(gx)
-        c.drawString(px - c.stringWidth(label, "Helvetica", 5.5) / 2, y0 + label_pad * mm, label)
-
-    if show_horizontal:
-        for gy in range(start_y, int(extent.maxy) + spacing_m, spacing_m):
-            if gy < extent.miny or gy > extent.maxy:
+    # Thin labels when lines are too dense, keeping labelled lines aligned to
+    # multiples of the label interval so they stay the same across pages.
+    if xs:
+        widest = max(c.stringWidth(_grid_label(gx), font, size) for gx, _ in xs)
+        every = _label_every(step_pt, widest + gap) * spacing_m
+        for gx, px in xs:
+            if gx % every:
                 continue
-            py = (gy - extent.miny) / (extent.maxy - extent.miny) * h + y0
-            label = _grid_label(gy)
-            c.drawString(x0 + label_pad * mm, py - 2, label)
+            label = _grid_label(gx)
+            c.drawString(px - c.stringWidth(label, font, size) / 2, y0 + label_pad * mm, label)
+
+    every = _label_every(spacing_m / (extent.maxy - extent.miny) * h, size + gap) * spacing_m
+    for gy, py in ys:
+        if gy % every:
+            continue
+        c.drawString(x0 + label_pad * mm, py - 2, _grid_label(gy))
 
 
 def _draw_page(
@@ -144,6 +181,7 @@ def _draw_page(
     orientation: str,
     margin_mm: float,
     title: str | None,
+    attribution_text: str,
     grid_mode: str = "off",
     grid_spacing_m: int = 1000,
     gpx_routes: list[list[list[float]]] | None = None,
@@ -175,10 +213,7 @@ def _draw_page(
             clip = c.beginPath()
             clip.rect(x0, y0, w, h)
             c.clipPath(clip, stroke=0, fill=0)
-            # parse hex color and apply opacity
-            r = int(gpx_color[1:3], 16) / 255
-            g = int(gpx_color[3:5], 16) / 255
-            b = int(gpx_color[5:7], 16) / 255
+            r, g, b = _parse_hex_color(gpx_color)
             c.setStrokeColor(Color(r, g, b, alpha=gpx_opacity))
             c.setLineWidth(gpx_width)
             for route in gpx_routes:
@@ -196,7 +231,7 @@ def _draw_page(
     pad = _TEXT_INSET_MM * mm
 
     # inside bottom-left: license attribution
-    _draw_overlay_text(c, x0 + pad, y0 + pad, _attribution())
+    _draw_overlay_text(c, x0 + pad, y0 + pad, attribution_text)
 
     # inside bottom-right: printed scale
     _draw_overlay_text(
@@ -246,6 +281,7 @@ def generate_pdf(
     """
     if layer not in MML_LAYERS:
         raise ValueError(f"Unknown layer '{layer}'")
+    _parse_hex_color(gpx_color)  # fail before the slow tile download
 
     dpi_val = dpi or 300
     page_w_mm, page_h_mm = oriented_page_mm(paper_size, orientation)
@@ -275,6 +311,7 @@ def generate_pdf(
         orientation=orientation,
         margin_mm=margin_mm,
         title=title,
+        attribution_text=attribution(),
         grid_mode=grid_mode,
         grid_spacing_m=grid_spacing_m,
         gpx_routes=gpx_routes,
@@ -307,6 +344,7 @@ def generate_multi_pdf(
     """
     results: list[PrintResult] = []
     c: canvas.Canvas | None = None
+    attribution_text = attribution()  # one date for every page of the document
     for extent, kwargs in items:
         layer = kwargs.get("layer", "maastokartta")
         if layer not in MML_LAYERS:
@@ -322,6 +360,7 @@ def generate_multi_pdf(
         gpx_color = kwargs.get("gpx_color", "#ff00ff")
         gpx_width = kwargs.get("gpx_width", 5)
         gpx_opacity = kwargs.get("gpx_opacity", 0.6)
+        _parse_hex_color(gpx_color)  # fail before the slow tile download
 
         dpi_val = dpi or 300
         page_w_mm, _ = oriented_page_mm(paper_size, orientation)
@@ -352,6 +391,7 @@ def generate_multi_pdf(
             orientation=orientation,
             margin_mm=margin_mm,
             title=kwargs.get("title"),
+            attribution_text=attribution_text,
             grid_mode=grid_mode,
             grid_spacing_m=grid_spacing_m,
             gpx_routes=gpx_routes,
@@ -387,6 +427,7 @@ def generate_pdf_to_temp(extent, **kwargs) -> PrintResult:
 
 
 __all__ = [
+    "attribution",
     "generate_pdf",
     "generate_multi_pdf",
     "generate_pdf_to_temp",
