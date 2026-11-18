@@ -1,4 +1,5 @@
 """Run the FastMap development server."""
+
 import uvicorn
 
 if __name__ == "__main__":

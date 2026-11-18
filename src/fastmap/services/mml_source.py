@@ -46,16 +46,14 @@ class MMLError(RuntimeError):
 
 def _require_api_key() -> str:
     if not MML_API_KEY:
-        raise MMLError(
-            "MML API key is not configured. Set MML_API_KEY in .env "
-            "(see .env.example)."
-        )
+        raise MMLError("MML API key is not configured. Set MML_API_KEY in .env (see .env.example).")
     return MML_API_KEY
 
 
 # ---------------------------------------------------------------------------
 # Shared helpers
 # ---------------------------------------------------------------------------
+
 
 def _on_white(img: Image.Image) -> Image.Image:
     """Flatten transparency onto white so no-data areas print as white."""
@@ -72,6 +70,7 @@ def _on_white(img: Image.Image) -> Image.Image:
 # ---------------------------------------------------------------------------
 # WMS
 # ---------------------------------------------------------------------------
+
 
 def build_wms_url(
     extent: Extent,
@@ -111,9 +110,7 @@ def fetch_wms_image(
     url = build_wms_url(extent, width_px, height_px, layer)
     resp = _session.get(url, timeout=60)
     if resp.status_code != 200:
-        raise MMLError(
-            f"WMS GetMap failed ({resp.status_code}): {resp.text[:200]}"
-        )
+        raise MMLError(f"WMS GetMap failed ({resp.status_code}): {resp.text[:200]}")
     try:
         img = _on_white(Image.open(io.BytesIO(resp.content)))
         resp.close()
@@ -126,8 +123,9 @@ def fetch_wms_image(
 # WMTS
 # ---------------------------------------------------------------------------
 
+
 def wmts_resolution(level: int) -> float:
-    return 8192.0 / 2 ** level
+    return 8192.0 / 2**level
 
 
 def pick_wmts_level(target_res: float) -> int:

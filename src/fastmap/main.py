@@ -1,16 +1,16 @@
 import logging
 import os
-import time
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
+from fastmap import __version__
 from fastmap.api.routes import router
 
 log = logging.getLogger(__name__)
 
-app = FastAPI(title="FastMap API", version="0.2.0")
+app = FastAPI(title="FastMap API", version=__version__)
 
 app.add_middleware(
     CORSMiddleware,
@@ -32,10 +32,14 @@ async def log_requests(request: Request, call_next):
     client = request.client.host if request.client else "?"
     log.info(
         "%s %s %s  %d",
-        request.method, request.url.path, client,
+        request.method,
+        request.url.path,
+        client,
         resp.status_code,
     )
     return resp
+
+
 app.include_router(router)
 
 _FRONTEND_DIR = os.environ.get(

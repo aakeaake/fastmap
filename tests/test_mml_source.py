@@ -141,8 +141,6 @@ def test_render_skips_wms_when_unconfigured(monkeypatch):
         raise AssertionError("no HTTP expected")
 
     monkeypatch.setattr(mml_source._session, "get", fake_get)
-    monkeypatch.setattr(
-        mml_source, "fetch_wmts_mosaic", lambda *a, **k: "MOSAIC"
-    )
+    monkeypatch.setattr(mml_source, "fetch_wmts_mosaic", lambda *a, **k: "MOSAIC")
     assert render_extent_image(OTANIEMI, 100, 100) == "MOSAIC"
     assert not hits

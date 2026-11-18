@@ -52,9 +52,7 @@ def oriented_page_mm(paper_size: str, orientation: str) -> tuple[float, float]:
     return (long, short) if orientation == "landscape" else (short, long)
 
 
-def content_area_mm(
-    paper_size: str, orientation: str, margin_mm: float
-) -> tuple[float, float]:
+def content_area_mm(paper_size: str, orientation: str, margin_mm: float) -> tuple[float, float]:
     """Printable content area (width, height) in mm after equal margins."""
     page_w, page_h = oriented_page_mm(paper_size, orientation)
     w = page_w - 2 * margin_mm
