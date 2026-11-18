@@ -18,6 +18,7 @@ import math
 import requests
 from PIL import Image
 from requests.adapters import HTTPAdapter
+from urllib3.exceptions import ReadTimeoutError
 from urllib3.util.retry import Retry
 
 from fastmap.core.config import (
@@ -40,15 +41,23 @@ MML_LAYERS = ("maastokartta", "taustakartta", "selkokartta", "ortokuva")
 # Retries for every MML request (tiles and WMS), done by urllib3 on the
 # shared session: up to 2 retries for connection errors and for 429/5xx
 # (no wait before the 1st retry, 1 s before the 2nd; a 429's Retry-After is
-# honoured, capped). Read timeouts are NOT retried and connects time out
-# after 5 s, so an unresponsive MML fails a tile in ~30 s instead of ~90 s
-# and doesn't keep the render workers busy.
+# honoured, capped). Dropped connections (reset, RemoteDisconnected) count
+# as read errors and ARE retried; read *timeouts* are not, and connects time
+# out after 5 s, so an unresponsive MML fails a tile in ~30 s instead of
+# ~90 s and doesn't keep the render workers busy.
 TILE_TIMEOUT = (5, 30)  # (connect, read) seconds
 WMS_TIMEOUT = (5, 60)
 MAX_RETRY_AFTER_S = 10.0
 
 
 class _Retry(Retry):
+    def increment(self, method=None, url=None, response=None, error=None, **kwargs):
+        # Re-raise the timeout itself (not MaxRetryError), so requests maps it
+        # to requests.ReadTimeout and the error names the actual cause.
+        if isinstance(error, ReadTimeoutError):
+            raise error
+        return super().increment(method, url, response=response, error=error, **kwargs)
+
     def get_retry_after(self, response):
         seconds = super().get_retry_after(response)
         return None if seconds is None else min(seconds, MAX_RETRY_AFTER_S)
@@ -56,7 +65,6 @@ class _Retry(Retry):
 
 _RETRY = _Retry(
     total=2,
-    read=0,
     backoff_factor=0.5,
     status_forcelist=(429, 500, 502, 503, 504),
     allowed_methods=frozenset({"GET"}),

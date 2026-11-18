@@ -195,7 +195,8 @@ def test_wms_network_error_does_not_leak_api_key(monkeypatch):
 
 class _ScriptedServer:
     """Local HTTP server answering each request from a script of
-    ``(status, headers, delay_s)``; the last entry repeats."""
+    ``(status, headers, delay_s)``; the last entry repeats. ``status=None``
+    closes the connection without a response."""
 
     def __init__(self, script):
         import http.server
@@ -211,6 +212,9 @@ class _ScriptedServer:
                 outer.hits += 1
                 status, headers, delay = outer.script[min(outer.hits, len(outer.script)) - 1]
                 threading.Event().wait(delay)  # not time.sleep: tests patch it
+                if status is None:  # drop the connection without answering
+                    self.close_connection = True
+                    return
                 payload = body if status == 200 else b"error"
                 self.send_response(status)
                 for k, v in headers.items():
@@ -317,11 +321,26 @@ def test_wms_is_retried_too(mml_server):
     assert server.hits == 2
 
 
+def test_dropped_connection_is_retried(mml_server):
+    """A reset / RemoteDisconnected mid-request is transient: retry it."""
+    server = mml_server((None, {}, 0), _ok())
+    assert _tile().size == (256, 256)
+    assert server.hits == 2
+
+
+def test_dropped_connections_give_up_naming_the_tile(mml_server):
+    server = mml_server((None, {}, 0))
+    with pytest.raises(mml_source.MMLError, match="maastokartta 11/2/1") as info:
+        _tile()
+    assert server.hits == 3
+    assert SECRET not in str(info.value)
+
+
 def test_read_timeout_is_not_retried(mml_server, monkeypatch):
     """When MML stops answering, fail after one read timeout, not three."""
     monkeypatch.setattr(mml_source, "TILE_TIMEOUT", (2, 0.2))
     server = mml_server((200, {}, 1.0))
-    with pytest.raises(mml_source.MMLError) as info:
+    with pytest.raises(mml_source.MMLError, match="ReadTimeout") as info:
         _tile()
     assert server.hits == 1
     assert SECRET not in str(info.value)
