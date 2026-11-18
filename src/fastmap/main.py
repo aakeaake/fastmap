@@ -6,11 +6,12 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
+from fastmap import __version__
 from fastmap.api.routes import router
 
 log = logging.getLogger(__name__)
 
-app = FastAPI(title="FastMap API", version="0.2.0")
+app = FastAPI(title="FastMap API", version=__version__)
 
 app.add_middleware(
     CORSMiddleware,

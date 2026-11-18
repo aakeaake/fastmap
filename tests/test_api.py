@@ -277,3 +277,25 @@ def test_async_batch_pdf_poll_and_download():
 def test_async_batch_empty_maps_422():
     resp = client.post("/generate-maps-batch-async", json={"maps": []})
     assert resp.status_code == 422
+
+
+def test_app_version_matches_package():
+    from importlib.metadata import version
+
+    assert app.version == version("fastmap")
+
+
+def test_version_fallback_when_not_installed(monkeypatch):
+    import importlib
+    import importlib.metadata as md
+
+    import fastmap
+
+    def boom(name):
+        raise md.PackageNotFoundError(name)
+
+    monkeypatch.setattr(md, "version", boom)
+    importlib.reload(fastmap)
+    assert fastmap.__version__ == "0.0.0+unknown"
+    monkeypatch.undo()
+    importlib.reload(fastmap)
