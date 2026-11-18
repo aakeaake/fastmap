@@ -242,7 +242,6 @@ def generate_pdf(
     dpi_val = dpi or 300
     page_w_mm, page_h_mm = oriented_page_mm(paper_size, orientation)
     content_w_mm = page_w_mm - 2 * margin_mm
-    content_w_m = content_w_mm / 1000.0 * (extent.width_m / (content_w_mm / 1000.0))
     px_w_est = round(content_w_mm / 25.4 * dpi_val)
 
     if zoom_level is None:

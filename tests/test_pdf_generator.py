@@ -77,7 +77,7 @@ def test_generate_pdf_with_title(tmp_path, monkeypatch):
     ext = Extent(428100, 6665230, 431900, 6670770)
     out = tmp_path / "titled.pdf"
 
-    result = pdf_generator.generate_pdf(
+    pdf_generator.generate_pdf(
         ext,
         paper_size="A4",
         orientation="portrait",

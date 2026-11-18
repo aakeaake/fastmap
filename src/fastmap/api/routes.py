@@ -18,8 +18,6 @@ from fastmap.core.config import (
     MML_WMTS_URL,
     USER_AGENT,
 )
-
-log = logging.getLogger(__name__)
 from fastmap.schemas.map_request import BatchMapRequest, MapRequest
 from fastmap.services.mml_source import (
     MML_LAYERS,
@@ -35,6 +33,7 @@ from fastmap.services.print_layout import (
     content_area_mm,
 )
 
+log = logging.getLogger(__name__)
 router = APIRouter()
 
 
@@ -304,7 +303,7 @@ def generate_maps_batch(batch: BatchMapRequest):
     zip_tmp = tempfile.NamedTemporaryFile(prefix="fastmap_maps_", suffix=".zip", delete=False)
     zip_tmp.close()
     with zipfile.ZipFile(zip_tmp.name, "w", zipfile.ZIP_DEFLATED) as zf:
-        for i, (path, (_, req)) in enumerate(zip(pdf_paths, pairs), start=1):
+        for i, (path, (_, req)) in enumerate(zip(pdf_paths, pairs, strict=True), start=1):
             name_title = req.title or f"Kartta {i}"
             zf.write(path, arcname=f"{i:02d}_{_slug(name_title)}.pdf")
 
@@ -357,7 +356,7 @@ def _run_batch_job(job_id: str, batch: BatchMapRequest) -> None:
             )
             zip_tmp.close()
             with zipfile.ZipFile(zip_tmp.name, "w", zipfile.ZIP_DEFLATED) as zf:
-                for i, (path, (_, req)) in enumerate(zip(pdf_paths, pairs), start=1):
+                for i, (path, (_, req)) in enumerate(zip(pdf_paths, pairs, strict=True), start=1):
                     name_title = req.title or f"Kartta {i}"
                     zf.write(path, arcname=f"{i:02d}_{_slug(name_title)}.pdf")
             _remove_quietly(pdf_paths)

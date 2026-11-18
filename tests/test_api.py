@@ -1,5 +1,6 @@
 import io
 import re
+import time
 import zipfile
 
 import pytest
@@ -164,8 +165,6 @@ def test_slug_normalises_filenames():
 # ---------------------------------------------------------------------------
 # Async generation
 # ---------------------------------------------------------------------------
-
-import time
 
 
 def _poll_until(job_id: str, max_polls: int = 50, delay: float = 0.1) -> dict:
