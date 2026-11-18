@@ -192,8 +192,8 @@ FastMap uses [GitHub Flow](https://docs.github.com/en/get-started/using-github/g
    and a Docker build; all must pass before merging.
 4. **Squash merge.** Render deploys `main` automatically once checks pass.
 
-**Releases:** bump `version` in `pyproject.toml` (the only place it lives) in a
-PR, merge it, then tag the merge commit:
+**Releases:** in one PR, bump `version` in `pyproject.toml` (the only place it
+lives) and add an entry to `CHANGELOG.md`; merge it, then tag the merge commit:
 
 ```bash
 git switch main && git pull
