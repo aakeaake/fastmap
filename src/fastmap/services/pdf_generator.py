@@ -14,6 +14,7 @@ from datetime import datetime
 from zoneinfo import ZoneInfo
 
 from PIL import Image
+from reportlab import rl_config
 from reportlab.lib.colors import Color, black
 from reportlab.lib.units import mm
 from reportlab.lib.utils import ImageReader
@@ -27,6 +28,11 @@ from fastmap.services.print_layout import (
     format_scale_label,
     oriented_page_mm,
 )
+
+# Write binary Flate streams, not ASCII85 on top: without ReportLab's optional
+# C extension (rl_accel) ASCII85 runs in pure Python and dominated PDF build
+# time (~3.0 s -> 1.2 s for an A4 map), and it adds ~25 % to the file size.
+rl_config.useA85 = 0
 
 _LOCAL_TZ = ZoneInfo("Europe/Helsinki")
 _HEX_COLOR = re.compile(r"#([0-9a-fA-F]{2})([0-9a-fA-F]{2})([0-9a-fA-F]{2})")
