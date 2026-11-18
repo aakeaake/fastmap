@@ -96,8 +96,8 @@ Open <http://127.0.0.1:8000/> — the UI is served by the same server.
 At most `RENDER_WORKERS` maps (default 2) render at once; up to
 `MAX_PENDING_JOBS` (default 10) may be queued or rendering, and further
 requests get **503** with `Retry-After`. Finished results that are never
-downloaded are deleted after `JOB_TTL_S` (default 30 min). Failed MML tile
-downloads are retried up to 3 times. See `.env.example`.
+downloaded are deleted after `JOB_TTL_S` (default 30 min). Failed MML requests
+are retried up to 3 attempts (not read timeouts). See `.env.example`.
 
 ## Usage
 

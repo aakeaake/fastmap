@@ -145,6 +145,7 @@ def _render_batch(pairs: list, output: str) -> dict:
         }
     else:
         pdf_paths: list[str] = []
+        zip_path: str | None = None
         try:
             for i, (extent, req) in enumerate(pairs, start=1):
                 log.info("generate-maps-batch  map %d/%d", i, len(pairs))
@@ -153,13 +154,18 @@ def _render_batch(pairs: list, output: str) -> dict:
                 prefix="fastmap_maps_", suffix=".zip", delete=False
             )
             zip_tmp.close()
-            with zipfile.ZipFile(zip_tmp.name, "w", zipfile.ZIP_DEFLATED) as zf:
+            zip_path = zip_tmp.name
+            with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
                 for i, (path, (_, req)) in enumerate(zip(pdf_paths, pairs, strict=True), start=1):
                     zf.write(path, arcname=f"{i:02d}_{_slug(req.title or f'Kartta {i}')}.pdf")
+        except Exception:
+            if zip_path:
+                _remove_quietly([zip_path])  # partial ZIP
+            raise
         finally:
             _remove_quietly(pdf_paths)
         result = {
-            "path": zip_tmp.name,
+            "path": zip_path,
             "filename": f"fastmap_{len(pairs)}maps_{_timestamp()}.zip",
             "media_type": "application/zip",
         }
@@ -169,7 +175,13 @@ def _render_batch(pairs: list, output: str) -> dict:
 
 
 def _run_now(fn) -> dict:
-    """Render synchronously within the shared limits, mapping errors to HTTP."""
+    """Render synchronously on an idle worker, mapping errors to HTTP.
+
+    Sync requests never queue: waiting behind other renders could outlast the
+    proxy's idle timeout, leaving a render (and its temp file, normally deleted
+    by the response's background task) for a client that has gone. They get
+    503 + Retry-After instead; the UI uses the async endpoints.
+    """
     try:
         return jobs.run(fn)
     except QueueFull as exc:
@@ -251,12 +263,13 @@ def map_status(job_id: str):
 @router.get("/map-download/{job_id}")
 def map_download(job_id: str):
     """Download the completed file. Cleans up the temp file after serving."""
-    job = jobs.get(job_id)
+    # One atomic step: a second download or a sweep can't delete the file
+    # while this response is still streaming it.
+    job = jobs.take_done(job_id)
     if job is None:
         raise HTTPException(status_code=404, detail="Unknown job_id")
     if job["status"] != "done":
         raise HTTPException(status_code=409, detail="Job not ready yet")
-    jobs.pop(job_id)
     return _file_response(job)
 
 

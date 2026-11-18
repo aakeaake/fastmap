@@ -424,3 +424,57 @@ def test_busy_server_answers_503_with_retry_after(full_queue, path, body):
     assert resp.status_code == 503
     assert resp.headers["retry-after"] == "30"
     assert "uudelleen" in resp.json()["detail"]
+
+
+def test_second_download_of_a_job_is_404():
+    job_id = client.post("/generate-map-async", json=_single_payload()).json()["job_id"]
+    url = _poll_until(job_id)["download_url"]
+    assert client.get(url).status_code == 200
+    assert client.get(url).status_code == 404
+
+
+def test_download_while_pending_is_409_and_keeps_the_job(monkeypatch):
+    import threading
+
+    gate = threading.Event()
+
+    def slow_render(extent, width_px, height_px, layer="maastokartta"):
+        gate.wait(5)
+        return Image.new("RGB", (width_px, height_px), (255, 0, 0))
+
+    monkeypatch.setattr("fastmap.services.pdf_generator.render_extent_image", slow_render)
+    job_id = client.post("/generate-map-async", json=_single_payload()).json()["job_id"]
+    assert client.get(f"/map-download/{job_id}").status_code == 409
+    gate.set()
+    assert _poll_until(job_id)["status"] == "done"  # still there after the 409
+    assert client.get(f"/map-download/{job_id}").status_code == 200
+
+
+def test_failed_zip_write_leaves_no_temp_files(tmp_path, monkeypatch):
+    import tempfile
+
+    from fastmap.api import routes
+
+    monkeypatch.setattr(tempfile, "tempdir", str(tmp_path))
+
+    class BrokenZip(zipfile.ZipFile):
+        def write(self, *a, **kw):
+            raise OSError("disk full")
+
+    monkeypatch.setattr(routes.zipfile, "ZipFile", BrokenZip)
+    body = {"output": "zip", "maps": [_single_payload(), _single_payload()]}
+    with pytest.raises(OSError, match="disk full"):
+        client.post("/generate-maps-batch", json=body)
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_app_shutdown_stops_the_job_store(monkeypatch):
+    from fastmap.api import routes
+    from fastmap.services.jobs import JobStore
+
+    store = JobStore(workers=1, max_pending=5, ttl_s=60)
+    monkeypatch.setattr(routes, "jobs", store)
+    with TestClient(app):
+        pass  # startup + shutdown
+    with pytest.raises(RuntimeError):
+        store.submit(lambda: {"path": None, "filename": "x"})

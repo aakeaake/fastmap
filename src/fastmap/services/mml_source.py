@@ -14,10 +14,11 @@ from __future__ import annotations
 
 import io
 import math
-import time
 
 import requests
 from PIL import Image
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 
 from fastmap.core.config import (
     MAX_RENDER_PIXELS,
@@ -36,16 +37,38 @@ WMTS_ORIGIN = (-548576.0, 8388608.0)  # top-left corner of level-0 mosaic
 
 MML_LAYERS = ("maastokartta", "taustakartta", "selkokartta", "ortokuva")
 
-# Transient failures (network, rate limit, server errors) are retried with
-# exponential backoff: 0.5 s, 1 s. Client errors (bad key, 404) are not.
-TILE_ATTEMPTS = 3
-_BACKOFF_S = 0.5
-_RETRY_STATUS = frozenset({429, 500, 502, 503, 504})
-_sleep = time.sleep  # patched in tests
+# Retries for every MML request (tiles and WMS), done by urllib3 on the
+# shared session: up to 2 retries for connection errors and for 429/5xx
+# (no wait before the 1st retry, 1 s before the 2nd; a 429's Retry-After is
+# honoured, capped). Read timeouts are NOT retried and connects time out
+# after 5 s, so an unresponsive MML fails a tile in ~30 s instead of ~90 s
+# and doesn't keep the render workers busy.
+TILE_TIMEOUT = (5, 30)  # (connect, read) seconds
+WMS_TIMEOUT = (5, 60)
+MAX_RETRY_AFTER_S = 10.0
+
+
+class _Retry(Retry):
+    def get_retry_after(self, response):
+        seconds = super().get_retry_after(response)
+        return None if seconds is None else min(seconds, MAX_RETRY_AFTER_S)
+
+
+_RETRY = _Retry(
+    total=2,
+    read=0,
+    backoff_factor=0.5,
+    status_forcelist=(429, 500, 502, 503, 504),
+    allowed_methods=frozenset({"GET"}),
+    respect_retry_after_header=True,
+    raise_on_status=False,  # hand back the last response so errors name its status
+)
 
 _HEADERS = {"User-Agent": USER_AGENT}
 _session = requests.Session()
 _session.headers.update(_HEADERS)
+_session.mount("https://", HTTPAdapter(max_retries=_RETRY))
+_session.mount("http://", HTTPAdapter(max_retries=_RETRY))
 
 
 class MMLError(RuntimeError):
@@ -117,7 +140,7 @@ def fetch_wms_image(
 ) -> Image.Image:
     url = build_wms_url(extent, width_px, height_px, layer)
     try:
-        resp = _session.get(url, timeout=60)
+        resp = _session.get(url, timeout=WMS_TIMEOUT)  # retried by the adapter
     except requests.RequestException as exc:
         # never echo the URL: it carries the API key
         raise MMLError(f"WMS GetMap failed ({type(exc).__name__})") from None
@@ -168,21 +191,12 @@ def fetch_wmts_tile(x: int, y: int, level: int, layer: str) -> Image.Image:
     # Error messages reach clients and logs: name the tile, never the URL
     # (it carries the API key, and requests' own messages include it).
     tile = f"{layer} {level}/{y}/{x}"
-    for attempt in range(TILE_ATTEMPTS):
-        last = attempt == TILE_ATTEMPTS - 1
-        try:
-            resp = _session.get(url, timeout=30)
-        except requests.RequestException as exc:
-            if last:
-                raise MMLError(
-                    f"WMTS tile fetch failed ({type(exc).__name__}) for {tile}"
-                ) from None
-        else:
-            if resp.status_code == 200:
-                break
-            if last or resp.status_code not in _RETRY_STATUS:
-                raise MMLError(f"WMTS tile fetch failed ({resp.status_code}) for {tile}")
-        _sleep(_BACKOFF_S * 2**attempt)
+    try:
+        resp = _session.get(url, timeout=TILE_TIMEOUT)  # retried by the adapter
+    except requests.RequestException as exc:
+        raise MMLError(f"WMTS tile fetch failed ({type(exc).__name__}) for {tile}") from None
+    if resp.status_code != 200:
+        raise MMLError(f"WMTS tile fetch failed ({resp.status_code}) for {tile}")
     img = _on_white(Image.open(io.BytesIO(resp.content)))
     resp.close()
     return img

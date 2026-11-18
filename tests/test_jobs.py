@@ -24,6 +24,14 @@ def _wait(store, job_id, timeout=5.0):
     raise AssertionError(f"job {job_id} did not finish")
 
 
+def _until(cond, timeout=5.0):
+    end = time.monotonic() + timeout
+    while not cond():
+        if time.monotonic() > end:
+            raise AssertionError("condition not reached")
+        time.sleep(0.01)
+
+
 def _blocking_store(**kw):
     """Store whose jobs wait on ``gate``; tracks peak concurrency."""
     gate = threading.Event()
@@ -64,7 +72,8 @@ def test_failed_job_records_error():
 def test_at_most_workers_jobs_render_at_once():
     store, job, gate, state = _blocking_store(workers=2, max_pending=10, ttl_s=60)
     ids = [store.submit(job) for _ in range(5)]
-    time.sleep(0.2)
+    _until(lambda: state["running"] == 2)
+    time.sleep(0.1)  # give a third job the chance to (wrongly) start
     assert state["running"] == 2
     gate.set()
     for i in ids:
@@ -79,8 +88,7 @@ def test_queue_full_rejects_until_a_job_finishes():
     with pytest.raises(QueueFull):
         store.submit(job)
     gate.set()
-    _wait(store, first)
-    time.sleep(0.05)
+    _wait(store, first)  # the slot is freed before the job shows as done
     store.submit(lambda: {"path": None, "filename": "x"})  # room again
 
 
@@ -135,10 +143,63 @@ def test_sweep_keeps_unfinished_jobs():
     gate.set()
 
 
-def test_pop_hands_over_the_job():
-    store = JobStore(workers=1, max_pending=5, ttl_s=60)
-    job_id = store.submit(lambda: {"path": None, "filename": "a.pdf"})
-    _wait(store, job_id)
-    assert store.pop(job_id)["filename"] == "a.pdf"
-    assert store.get(job_id) is None
-    assert store.pop(job_id) is None
+def test_run_rejects_when_no_worker_is_free_right_now():
+    """Sync requests must not queue behind async renders (proxy idle timeout)."""
+    store, job, gate, state = _blocking_store(workers=1, max_pending=5, ttl_s=60)
+    store.submit(job)
+    _until(lambda: state["running"] == 1)
+    with pytest.raises(QueueFull):
+        store.run(lambda: 1)  # queue has room, but no idle worker
+    gate.set()
+    _until(lambda: state["running"] == 0)
+    _until(lambda: _try_run(store) == 1)
+
+
+def _try_run(store):
+    try:
+        return store.run(lambda: 1)
+    except QueueFull:
+        return None
+
+
+def test_take_done_removes_only_finished_jobs():
+    store, job, gate, _ = _blocking_store(workers=1, max_pending=5, ttl_s=60)
+    pending = store.submit(job)
+    assert store.take_done(pending)["status"] == "pending"
+    assert store.get(pending) is not None  # still there
+    gate.set()
+    _wait(store, pending)
+    assert store.take_done(pending)["status"] == "done"
+    assert store.take_done(pending) is None  # a second download gets nothing
+
+
+def test_failed_pool_submit_frees_the_slot(monkeypatch):
+    store = JobStore(workers=1, max_pending=1, ttl_s=60)
+    real_submit = store._pool.submit
+
+    def broken(*a, **kw):
+        raise RuntimeError("cannot schedule new futures after shutdown")
+
+    monkeypatch.setattr(store._pool, "submit", broken)
+    with pytest.raises(RuntimeError):
+        store.submit(lambda: {"path": None, "filename": "x"})
+    with pytest.raises(RuntimeError):
+        store.run(lambda: 1)
+    assert len(store) == 0  # no orphan "pending" row
+
+    monkeypatch.setattr(store._pool, "submit", real_submit)
+    assert store.run(lambda: 7) == 7  # the single slot is free again
+
+
+def test_shutdown_cancels_queued_jobs():
+    store, job, gate, state = _blocking_store(workers=1, max_pending=5, ttl_s=60)
+    store.submit(job)
+    queued = store.submit(job)
+    _until(lambda: state["running"] == 1)
+    store.shutdown()
+    gate.set()
+    time.sleep(0.1)
+    assert store.get(queued)["status"] == "pending"  # never ran
+    assert state["peak"] == 1
+    with pytest.raises(RuntimeError):
+        store.submit(job)

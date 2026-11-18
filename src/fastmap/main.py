@@ -1,16 +1,26 @@
 import logging
 import os
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from fastmap import __version__
+from fastmap.api import routes
 from fastmap.api.routes import router
 
 log = logging.getLogger(__name__)
 
-app = FastAPI(title="FastMap API", version=__version__)
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    yield
+    # Don't let queued renders delay exit; their results die with the process.
+    routes.jobs.shutdown()
+
+
+app = FastAPI(title="FastMap API", version=__version__, lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
