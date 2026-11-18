@@ -144,3 +144,47 @@ def test_render_skips_wms_when_unconfigured(monkeypatch):
     monkeypatch.setattr(mml_source, "fetch_wmts_mosaic", lambda *a, **k: "MOSAIC")
     assert render_extent_image(OTANIEMI, 100, 100) == "MOSAIC"
     assert not hits
+
+
+SECRET = "s3cr3t-api-key"
+
+
+def test_tile_http_error_does_not_leak_api_key(monkeypatch):
+    resp = _FakeResp(b"")
+    resp.status_code = 500
+
+    monkeypatch.setattr(mml_source, "MML_API_KEY", SECRET)
+    monkeypatch.setattr(mml_source._session, "get", lambda url, **kw: resp)
+    with pytest.raises(mml_source.MMLError) as info:
+        fetch_wmts_tile(x=1243, y=802, level=11, layer="maastokartta")
+    assert SECRET not in str(info.value)
+    assert "500" in str(info.value)
+
+
+def test_tile_network_error_does_not_leak_api_key(monkeypatch):
+    import requests
+
+    def boom(url, **kw):
+        # requests puts the full URL, query string included, in its messages
+        raise requests.ConnectionError(f"Max retries exceeded with url: {url}")
+
+    monkeypatch.setattr(mml_source, "MML_API_KEY", SECRET)
+    monkeypatch.setattr(mml_source._session, "get", boom)
+    with pytest.raises(mml_source.MMLError) as info:
+        fetch_wmts_tile(x=1243, y=802, level=11, layer="maastokartta")
+    assert SECRET not in str(info.value)
+    assert info.value.__cause__ is None and info.value.__suppress_context__
+
+
+def test_wms_network_error_does_not_leak_api_key(monkeypatch):
+    import requests
+
+    def boom(url, **kw):
+        raise requests.ConnectionError(f"Max retries exceeded with url: {url}")
+
+    monkeypatch.setattr(mml_source, "MML_API_KEY", SECRET)
+    monkeypatch.setattr(mml_source, "MML_WMS_URL", "https://wms.example/")
+    monkeypatch.setattr(mml_source._session, "get", boom)
+    with pytest.raises(mml_source.MMLError) as info:
+        mml_source.fetch_wms_image(OTANIEMI, 100, 100)
+    assert SECRET not in str(info.value)
