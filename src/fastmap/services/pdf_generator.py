@@ -11,12 +11,11 @@ from dataclasses import dataclass
 from datetime import datetime
 
 from PIL import Image
-from reportlab.lib.colors import black, Color
+from reportlab.lib.colors import Color, black
 from reportlab.lib.units import mm
 from reportlab.lib.utils import ImageReader
 from reportlab.pdfgen import canvas
 
-from fastmap.core.config import DEFAULT_ZOOM
 from fastmap.services.mml_source import MML_LAYERS, pick_wmts_level, render_extent_image
 from fastmap.services.print_layout import (
     Extent,

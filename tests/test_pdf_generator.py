@@ -1,10 +1,10 @@
 import re
 
 import pytest
+from PIL import Image
 
 from fastmap.services import pdf_generator
 from fastmap.services.print_layout import Extent
-from PIL import Image
 
 
 def _fake_render(extent, width_px, height_px, layer="maastokartta"):
@@ -161,6 +161,7 @@ def test_generate_pdf_with_gpx_route(tmp_path, monkeypatch):
 
     subprocess.run(["pdftoppm", "-png", "-r", "100", str(out), str(tmp_path / "gpx")], check=True)
     from glob import glob
+
     from PIL import Image
 
     imgs = sorted(glob(str(tmp_path / "gpx-*.png")))

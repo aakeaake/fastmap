@@ -22,9 +22,9 @@ from fastmap.core.config import (
 log = logging.getLogger(__name__)
 from fastmap.schemas.map_request import BatchMapRequest, MapRequest
 from fastmap.services.mml_source import (
-    MMLError,
     MML_LAYERS,
     WMTS_MAX_LEVEL,
+    MMLError,
 )
 from fastmap.services.pdf_generator import (
     generate_multi_pdf,
