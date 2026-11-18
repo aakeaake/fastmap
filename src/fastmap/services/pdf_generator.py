@@ -25,9 +25,17 @@ from fastmap.services.print_layout import (
     oriented_page_mm,
 )
 
-ATTRIBUTION = (
-    f"© Maanmittauslaitos, CC BY 4.0 — Maastotietokanta {datetime.now().strftime('%m/%Y')}"
-)
+
+def _attribution() -> str:
+    """MML licence line, dated when the PDF is drawn (not at server start)."""
+    return f"© Maanmittauslaitos, CC BY 4.0 — Maastotietokanta {datetime.now():%m/%Y}"
+
+
+def _grid_label(value_m: int) -> str:
+    """Coordinate in km: '429' for whole km, '428.5' for half-km lines."""
+    return f"{value_m / 1000:g}"
+
+
 _TEXT_INSET_MM = 2.0  # overlay text distance from the content-area corner
 
 
@@ -115,7 +123,7 @@ def _draw_grid_lines(
         if gx < extent.minx or gx > extent.maxx:
             continue
         px = (gx - extent.minx) / (extent.maxx - extent.minx) * w + x0
-        label = f"{gx // 1000}"
+        label = _grid_label(gx)
         c.drawString(px - c.stringWidth(label, "Helvetica", 5.5) / 2, y0 + label_pad * mm, label)
 
     if show_horizontal:
@@ -123,7 +131,7 @@ def _draw_grid_lines(
             if gy < extent.miny or gy > extent.maxy:
                 continue
             py = (gy - extent.miny) / (extent.maxy - extent.miny) * h + y0
-            label = f"{gy // 1000}"
+            label = _grid_label(gy)
             c.drawString(x0 + label_pad * mm, py - 2, label)
 
 
@@ -188,7 +196,7 @@ def _draw_page(
     pad = _TEXT_INSET_MM * mm
 
     # inside bottom-left: license attribution
-    _draw_overlay_text(c, x0 + pad, y0 + pad, ATTRIBUTION)
+    _draw_overlay_text(c, x0 + pad, y0 + pad, _attribution())
 
     # inside bottom-right: printed scale
     _draw_overlay_text(

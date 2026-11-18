@@ -176,3 +176,69 @@ def test_generate_pdf_with_gpx_route(tmp_path, monkeypatch):
         if px[x, y][0] > 180 and px[x, y][1] < 100 and px[x, y][2] > 180
     )
     assert magenta > 100  # route should be visible
+
+
+def _page_content(data: bytes) -> bytes:
+    """Inflate the PDF's compressed streams so drawn text can be searched."""
+    import base64
+    import zlib
+
+    out = []
+    for m in re.finditer(rb"stream\r?\n(.*?)endstream", data, re.S):
+        raw = m.group(1).strip()
+        try:
+            if raw.endswith(b"~>"):  # ReportLab: ASCII85 over Flate
+                raw = base64.a85decode(raw[:-2], adobe=False)
+            out.append(zlib.decompress(raw))
+        except (ValueError, zlib.error):
+            pass  # streams that are not Flate text (e.g. images)
+    return b"\n".join(out)
+
+
+def _grid_pdf(tmp_path, monkeypatch, spacing):
+    monkeypatch.setattr(pdf_generator, "render_extent_image", _fake_render)
+    out = tmp_path / f"grid_{spacing}.pdf"
+    pdf_generator.generate_pdf(
+        Extent(428100, 6665230, 431900, 6670770),
+        paper_size="A4",
+        orientation="portrait",
+        margin_mm=10,
+        grid_mode="full_coords",
+        grid_spacing_m=spacing,
+        out_pdf_path=str(out),
+    )
+    return _page_content(out.read_bytes())
+
+
+def test_grid_labels_distinct_at_500m(tmp_path, monkeypatch):
+    """Half-km lines need a decimal, or 428 000 and 428 500 both read '428'."""
+    data = _grid_pdf(tmp_path, monkeypatch, 500)
+    assert b"(428.5)" in data
+    assert b"(6665.5)" in data
+
+
+def test_grid_labels_whole_km_have_no_decimal(tmp_path, monkeypatch):
+    data = _grid_pdf(tmp_path, monkeypatch, 1000)
+    assert b"(429)" in data
+    assert b"(429.0)" not in data
+
+
+def test_attribution_uses_render_date(tmp_path, monkeypatch):
+    """The month must be the PDF's, not the server start's."""
+    from datetime import datetime as real_datetime
+
+    class FakeDatetime(real_datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return real_datetime(2031, 3, 15)
+
+    monkeypatch.setattr(pdf_generator, "render_extent_image", _fake_render)
+    monkeypatch.setattr(pdf_generator, "datetime", FakeDatetime)
+    out = tmp_path / "attr.pdf"
+    pdf_generator.generate_pdf(
+        Extent(428100, 6665230, 431900, 6670770),
+        paper_size="A4",
+        orientation="portrait",
+        out_pdf_path=str(out),
+    )
+    assert b"03/2031" in _page_content(out.read_bytes())
