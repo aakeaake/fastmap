@@ -3,6 +3,13 @@
 The rendered raster is placed at the exact content-area rectangle of the
 page, so the printed scale equals the requested nominal scale. No temp
 image files are needed - the PIL image is embedded directly.
+
+Process-wide side effect, on purpose: importing this module sets ReportLab's
+global ``rl_config.useA85 = 0``, so every PDF this process writes uses binary
+Flate streams instead of ASCII85 text on top. ASCII85 only makes a PDF
+7-bit-safe, which nothing here needs, and it makes map PDFs ~20 % larger.
+FastMap is the only ReportLab user in the process, so import order can't
+change another component's output.
 """
 
 from __future__ import annotations
@@ -29,9 +36,9 @@ from fastmap.services.print_layout import (
     oriented_page_mm,
 )
 
-# Write binary Flate streams, not ASCII85 on top: without ReportLab's optional
-# C extension (rl_accel) ASCII85 runs in pure Python and dominated PDF build
-# time (~3.0 s -> 1.2 s for an A4 map), and it adds ~25 % to the file size.
+# See the module docstring. With the rl_accel C extension (a dependency)
+# ASCII85 is cheap (~0.08 s per A4 map), so this is about file size:
+# 4.18 MB -> 3.35 MB for an A4 1:50 000 map.
 rl_config.useA85 = 0
 
 _LOCAL_TZ = ZoneInfo("Europe/Helsinki")

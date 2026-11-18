@@ -12,6 +12,7 @@ Both paths are in EPSG:3067 (ETRS-TM35FIN) so printed scale is true:
 
 from __future__ import annotations
 
+import http.cookiejar
 import io
 import math
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -27,6 +28,8 @@ from fastmap.core.config import (
     MML_API_KEY,
     MML_WMS_URL,
     MML_WMTS_URL,
+    RENDER_WORKERS,
+    TILE_FETCH_WORKERS,
     USER_AGENT,
 )
 from fastmap.services.print_layout import Extent
@@ -47,9 +50,6 @@ MML_LAYERS = ("maastokartta", "taustakartta", "selkokartta", "ortokuva")
 # out after 5 s, so an unresponsive MML fails a tile in ~30 s instead of
 # ~90 s and doesn't keep the render workers busy.
 TILE_TIMEOUT = (5, 30)  # (connect, read) seconds
-# Tiles downloaded at once per render. With RENDER_WORKERS renders that is
-# up to RENDER_WORKERS x this many requests to MML; 429s are retried.
-TILE_FETCH_WORKERS = 8
 WMS_TIMEOUT = (5, 60)
 MAX_RETRY_AFTER_S = 10.0
 
@@ -76,12 +76,31 @@ _RETRY = _Retry(
     raise_on_status=False,  # hand back the last response so errors name its status
 )
 
+# One process-wide pool downloads tiles for every render, so MML never sees
+# more than TILE_FETCH_WORKERS tile requests at once, however many renders
+# run. A failed render cancels its queued tiles; its in-flight ones finish
+# inside the same limit and are closed (see fetch_wmts_mosaic).
+_tile_pool = ThreadPoolExecutor(max_workers=TILE_FETCH_WORKERS, thread_name_prefix="tiles")
+
+
+def shutdown_tile_pool() -> None:
+    """Cancel queued tile downloads (at app shutdown)."""
+    _tile_pool.shutdown(wait=False, cancel_futures=True)
+
+
+# One Session is shared by the tile threads and the render workers. That is
+# safe here: urllib3's connection pool is thread-safe, the adapters and
+# headers are set once at import and only read afterwards, and the cookie
+# jar is disabled (MML sets load-balancer cookies the tiles don't need), so
+# no per-request state is shared between threads.
 _HEADERS = {"User-Agent": USER_AGENT}
 _session = requests.Session()
 _session.headers.update(_HEADERS)
-# Keep enough pooled connections for parallel downloads in a few renders
-# (urllib3's default of 10 would discard and reopen connections).
-_POOL_MAXSIZE = 32
+_session.cookies.set_policy(http.cookiejar.DefaultCookiePolicy(allowed_domains=[]))
+# Enough pooled connections for every request that can be in flight at
+# once: the tile pool plus one WMS request per render worker. Fewer, and
+# urllib3 discards and reopens (TLS) connections.
+_POOL_MAXSIZE = TILE_FETCH_WORKERS + RENDER_WORKERS
 _session.mount("https://", HTTPAdapter(max_retries=_RETRY, pool_maxsize=_POOL_MAXSIZE))
 _session.mount("http://", HTTPAdapter(max_retries=_RETRY, pool_maxsize=_POOL_MAXSIZE))
 
@@ -269,20 +288,29 @@ def fetch_wmts_mosaic(
     def fetch(r: int, c: int):
         return r, c, fetch_wmts_tile(col_min + c, row_min + r, level, layer)
 
-    # Download tiles in parallel (network-bound); paste on this thread as
-    # they arrive. On the first failure, cancel the tiles still queued.
-    pool = ThreadPoolExecutor(max_workers=TILE_FETCH_WORKERS, thread_name_prefix="tiles")
+    # Download tiles on the shared pool (network-bound); paste on this thread
+    # as they arrive. On the first failure, cancel this render's queued tiles
+    # and close whatever its in-flight downloads still return.
+    futures = []
     try:
-        futures = [pool.submit(fetch, r, c) for r in range(n_rows) for c in range(n_cols)]
+        for r in range(n_rows):
+            for c in range(n_cols):
+                futures.append(_tile_pool.submit(fetch, r, c))
         for future in as_completed(futures):
             paste(*future.result())
     except BaseException:
-        pool.shutdown(wait=False, cancel_futures=True)
+        for future in futures:
+            if not future.cancel():  # running or finished: close its tile when done
+                future.add_done_callback(_close_abandoned_tile)
         output.close()
         raise
-    pool.shutdown()
 
     return output.quantize(colors=128)
+
+
+def _close_abandoned_tile(future) -> None:
+    if not future.cancelled() and future.exception() is None:
+        future.result()[2].close()  # closing a tile already pasted is harmless
 
 
 def render_extent_image(

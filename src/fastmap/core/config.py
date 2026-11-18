@@ -43,11 +43,13 @@ def _env_number(env: Mapping[str, str], name: str, default: str, kind: type):
         raise ValueError(f"{name} must be a {kind.__name__}, got {raw!r}") from None
 
 
-def parse_render_limits(env: Mapping[str, str]) -> tuple[int, int, float]:
-    """(RENDER_WORKERS, MAX_PENDING_JOBS, JOB_TTL_S), checked; errors name the variable."""
+def parse_render_limits(env: Mapping[str, str]) -> tuple[int, int, float, int]:
+    """(RENDER_WORKERS, MAX_PENDING_JOBS, JOB_TTL_S, TILE_FETCH_WORKERS), checked;
+    errors name the variable."""
     workers = _env_number(env, "RENDER_WORKERS", "2", int)
     max_pending = _env_number(env, "MAX_PENDING_JOBS", "10", int)
     ttl_s = _env_number(env, "JOB_TTL_S", "1800", float)
+    tile_workers = _env_number(env, "TILE_FETCH_WORKERS", "8", int)
     if workers < 1:
         raise ValueError(f"RENDER_WORKERS must be at least 1, got {workers}")
     if max_pending < workers:
@@ -56,8 +58,12 @@ def parse_render_limits(env: Mapping[str, str]) -> tuple[int, int, float]:
         )
     if not ttl_s > 0:
         raise ValueError(f"JOB_TTL_S must be greater than 0, got {ttl_s}")
-    return workers, max_pending, ttl_s
+    if tile_workers < 1:
+        raise ValueError(f"TILE_FETCH_WORKERS must be at least 1, got {tile_workers}")
+    return workers, max_pending, ttl_s, tile_workers
 
 
 # JOB_TTL_S: seconds a finished but never downloaded result is kept.
-RENDER_WORKERS, MAX_PENDING_JOBS, JOB_TTL_S = parse_render_limits(os.environ)
+# TILE_FETCH_WORKERS: MML tile downloads in flight at once, process-wide
+# (shared by all renders); lower it if MML answers 429.
+RENDER_WORKERS, MAX_PENDING_JOBS, JOB_TTL_S, TILE_FETCH_WORKERS = parse_render_limits(os.environ)

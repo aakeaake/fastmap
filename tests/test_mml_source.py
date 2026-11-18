@@ -351,7 +351,25 @@ def test_session_uses_a_short_connect_timeout():
     assert connect <= 5 < read
 
 
-# --- Parallel tile downloads ------------------------------------------------
+# --- Parallel tile downloads (one shared pool for the whole process) ------
+
+
+@pytest.fixture
+def tile_pool(monkeypatch):
+    """Swap in a fresh shared tile pool of a given size; shut down afterwards."""
+    from concurrent.futures import ThreadPoolExecutor
+
+    pools = []
+
+    def make(size):
+        pool = ThreadPoolExecutor(max_workers=size, thread_name_prefix="test-tiles")
+        pools.append(pool)
+        monkeypatch.setattr(mml_source, "_tile_pool", pool)
+        return pool
+
+    yield make
+    for pool in pools:
+        pool.shutdown(wait=True, cancel_futures=True)
 
 
 def _colour_tile(x, y, level, layer):
@@ -359,58 +377,109 @@ def _colour_tile(x, y, level, layer):
     return Image.new("RGB", (256, 256), (x % 251, y % 241, (x * 7 + y) % 239))
 
 
-def test_parallel_mosaic_matches_sequential(monkeypatch):
+def test_parallel_mosaic_matches_sequential(monkeypatch, tile_pool):
     monkeypatch.setattr(mml_source, "fetch_wmts_tile", _colour_tile)
-    monkeypatch.setattr(mml_source, "TILE_FETCH_WORKERS", 1)
+    tile_pool(1)
     sequential = fetch_wmts_mosaic(OTANIEMI, 950, 1385)
-    monkeypatch.setattr(mml_source, "TILE_FETCH_WORKERS", 8)
+    tile_pool(8)
     parallel = fetch_wmts_mosaic(OTANIEMI, 950, 1385)
     assert parallel.tobytes() == sequential.tobytes()
 
 
-def test_mosaic_downloads_tiles_concurrently(monkeypatch):
+def test_mosaic_runs_pool_size_downloads_at_once(monkeypatch, tile_pool):
+    """The first 4 tiles meet at a barrier: it only opens if all 4 run at once."""
     import threading
-    import time
+
+    barrier = threading.Barrier(4, timeout=5)
+    lock = threading.Lock()
+    calls = []
+
+    def tile(x, y, level, layer):
+        with lock:
+            calls.append((x, y))
+            first_four = len(calls) <= 4
+        if first_four:
+            barrier.wait()  # BrokenBarrierError -> test fails if not concurrent
+        return _colour_tile(x, y, level, layer)
+
+    monkeypatch.setattr(mml_source, "fetch_wmts_tile", tile)
+    tile_pool(4)
+    fetch_wmts_mosaic(OTANIEMI, 950, 1385)
+    assert len(calls) == len(_tiles_for(OTANIEMI, 950))
+
+
+def test_tile_limit_is_shared_by_concurrent_renders(monkeypatch, tile_pool):
+    """Two renders at once still stay within the one process-wide limit."""
+    import threading
 
     lock = threading.Lock()
     state = {"now": 0, "peak": 0}
 
-    def slow_tile(x, y, level, layer):
+    def tile(x, y, level, layer):
         with lock:
             state["now"] += 1
             state["peak"] = max(state["peak"], state["now"])
-        time.sleep(0.02)
+        threading.Event().wait(0.002)
         with lock:
             state["now"] -= 1
         return _colour_tile(x, y, level, layer)
 
-    monkeypatch.setattr(mml_source, "fetch_wmts_tile", slow_tile)
-    monkeypatch.setattr(mml_source, "TILE_FETCH_WORKERS", 4)
-    fetch_wmts_mosaic(OTANIEMI, 950, 1385)
-    assert state["peak"] == 4
+    monkeypatch.setattr(mml_source, "fetch_wmts_tile", tile)
+    tile_pool(3)
+    renders = [
+        threading.Thread(target=fetch_wmts_mosaic, args=(OTANIEMI, 950, 1385)) for _ in range(2)
+    ]
+    for t in renders:
+        t.start()
+    for t in renders:
+        t.join(10)
+    assert state["peak"] <= 3  # an upper bound: holds however threads are scheduled
 
 
-def test_mosaic_fails_fast_on_a_tile_error(monkeypatch):
+class _TrackedTile:
+    """Stands in for a tile image; records whether it was closed."""
+
+    def __init__(self):
+        self.closed = False
+
+    def crop(self, box):
+        left, top, right, bottom = box
+        return Image.new("RGB", (right - left, bottom - top))
+
+    def close(self):
+        self.closed = True
+
+
+def test_failed_mosaic_cancels_queued_tiles_and_closes_in_flight_ones(monkeypatch, tile_pool):
     import threading
 
-    started = []
     lock = threading.Lock()
+    release = threading.Event()
+    started, returned = [], []
 
-    def flaky(x, y, level, layer):
+    def tile(x, y, level, layer):
         with lock:
             started.append((x, y))
-            first = len(started) == 1
-        if first:
+            n = len(started)
+        if n == 1:
             raise mml_source.MMLError("WMTS tile fetch failed (404) for maastokartta 12/1/1")
-        threading.Event().wait(0.05)
-        return _colour_tile(x, y, level, layer)
+        release.wait(5)  # still downloading when the render fails
+        t = _TrackedTile()
+        with lock:
+            returned.append(t)
+        return t
 
-    monkeypatch.setattr(mml_source, "fetch_wmts_tile", flaky)
-    monkeypatch.setattr(mml_source, "TILE_FETCH_WORKERS", 2)
+    monkeypatch.setattr(mml_source, "fetch_wmts_tile", tile)
+    pool = tile_pool(3)
     with pytest.raises(mml_source.MMLError, match="404"):
         fetch_wmts_mosaic(OTANIEMI, 950, 1385)
-    total = len(list(_tiles_for(OTANIEMI, 950)))
-    assert len(started) < total  # queued tiles were cancelled, not all fetched
+    release.set()
+    pool.shutdown(wait=True)  # let the in-flight downloads finish
+    # 3 workers block in release.wait(); only the one whose tile failed is free
+    # and may start one more before the cancel lands. Everything else queued
+    # was cancelled and never fetched.
+    assert len(started) <= 3 + 1 < len(_tiles_for(OTANIEMI, 950))
+    assert returned and all(t.closed for t in returned)  # abandoned tiles closed
 
 
 def _tiles_for(extent, width_px):
@@ -419,6 +488,17 @@ def _tiles_for(extent, width_px):
     return [(c, r) for r in range(r0, r1 + 1) for c in range(c0, c1 + 1)]
 
 
-def test_connection_pool_fits_parallel_downloads():
+def test_connection_pool_fits_all_concurrent_mml_requests():
+    """Tile downloads (shared pool) plus WMS requests (one per render worker)."""
+    from fastmap.core import config
+
     adapter = mml_source._session.get_adapter("https://avoin-karttakuva.maanmittauslaitos.fi/")
-    assert adapter._pool_maxsize >= mml_source.TILE_FETCH_WORKERS * 2
+    assert adapter._pool_maxsize >= config.TILE_FETCH_WORKERS + config.RENDER_WORKERS
+    assert mml_source._tile_pool._max_workers == config.TILE_FETCH_WORKERS
+
+
+def test_session_keeps_no_cookies(mml_server):
+    """MML sets cookies; the session is shared by threads, so it stores none."""
+    mml_server((200, {"Content-Type": "image/png", "Set-Cookie": "lb=abc; Path=/"}, 0))
+    _tile()
+    assert len(mml_source._session.cookies) == 0

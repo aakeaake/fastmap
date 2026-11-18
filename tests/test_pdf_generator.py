@@ -382,3 +382,11 @@ def test_pdf_streams_skip_ascii85(tmp_path, monkeypatch):
     assert b"ASCII85Decode" not in data
     assert b"FlateDecode" in data
     assert b"(Binary streams)" in _page_content(data)  # still decodable text
+
+
+def test_reportlab_uses_its_c_extension():
+    """rl_accel roughly halves PDF build time; it's optional in ReportLab, so
+    check it is installed rather than silently falling back to pure Python."""
+    from reportlab.lib import rl_accel
+
+    assert rl_accel.fp_str.__module__ == "_rl_accel"
