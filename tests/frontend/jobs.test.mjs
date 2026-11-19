@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { errorDetail, pollDelay, runJob } from '../../frontend/js/jobs.js';
+import { errorDetail, JobError, pollDelay, runJob } from '../../frontend/js/jobs.js';
 
 const response = (status, body, blob) => ({
     ok: status >= 200 && status < 300,
@@ -62,6 +62,29 @@ test('runJob reports a failed job', async () => {
         '/map-status/j': [response(200, { status: 'error', error: 'Tile fetch failed' })],
     });
     await assert.rejects(runJob('/x', {}, { fetch, sleep: async () => {} }), /Tile fetch failed/);
+});
+
+// Errors the app words itself carry a translation key; server text does not
+async function caught(promise) {
+    try { await promise; } catch (e) { return e; }
+    throw new Error('did not reject');
+}
+
+test('runJob errors carry translation keys', async () => {
+    const statusFail = fakeFetch({ '/x': [response(200, { job_id: 'j' })], '/map-status/j': [response(503)] });
+    const e1 = await caught(runJob('/x', {}, { fetch: statusFail.fetch, sleep: async () => {} }));
+    assert.ok(e1 instanceof JobError);
+    assert.equal(e1.key, 'job.statusFailed');
+    assert.deepEqual(e1.params, { status: 503 });
+
+    const silentFail = fakeFetch({
+        '/x': [response(200, { job_id: 'j' })],
+        '/map-status/j': [response(200, { status: 'error' })],
+    });
+    assert.equal((await caught(runJob('/x', {}, { fetch: silentFail.fetch, sleep: async () => {} }))).key, 'job.failed');
+
+    const serverDetail = fakeFetch({ '/x': [response(422, { detail: 'Alue on Suomen ulkopuolella' })] });
+    assert.equal((await caught(runJob('/x', {}, { fetch: serverDetail.fetch, sleep: async () => {} }))).key, null);
 });
 
 test('errorDetail: string, structured and non-JSON bodies', async () => {

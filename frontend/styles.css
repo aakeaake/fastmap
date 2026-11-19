@@ -293,6 +293,13 @@ button { font: inherit; color: inherit; }
 }
 .map-tool .icon { width: 18px; height: 18px; }
 .map-tool:hover { background: var(--surface-2); }
+/* Language switch: under the move-here button, same size and look */
+.lang-tool { top: calc(var(--edge-t) + 3 * var(--tool) + 1px + 16px); }
+.lang-tool .flag {
+    display: block; width: 20px; height: 14px; border-radius: 2px;
+    box-shadow: 0 0 0 1px rgba(16, 24, 32, .2);
+}
+@media (pointer: coarse) { .lang-tool .flag { width: 24px; height: 16px; } }
 
 /* --- Collapsed (desktop): the rail replaces the settings pane ------ */
 @media (min-width: 641px) {

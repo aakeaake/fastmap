@@ -1,9 +1,10 @@
-// User-facing strings built from data. Pure.
+// User-facing strings built from data, in the given language. Pure.
+import { LOCALES, translate } from './strings.js';
 
-const fi = n => n.toLocaleString('fi-FI');
+const num = (n, lang) => n.toLocaleString(LOCALES[lang] ?? LOCALES.en);
 
-export function displayName(entry, index) {
-    return entry.title || `Kartta ${index + 1}`;
+export function displayName(entry, index, lang = 'en') {
+    return entry.title || translate(lang, 'map.default', { n: index + 1 });
 }
 
 // Short form for the label drawn on the map
@@ -11,24 +12,26 @@ export function shortName(name) {
     return name.length > 16 ? `${name.slice(0, 15)}…` : name;
 }
 
-// "A4 · 1:20 000"
-export function mapSummary({ paperSize, scale }) {
-    return `${paperSize} · 1:${fi(scale)}`;
+// "A4 · 1:20,000" / "A4 · 1:20 000"
+export function mapSummary({ paperSize, scale }, lang = 'en') {
+    return `${paperSize} · 1:${num(scale, lang)}`;
 }
 
-export function deletedLabel(count) {
-    return count === 1 ? 'Kartta poistettu' : `${count} karttaa poistettu`;
+export function deletedLabel(count, lang = 'en') {
+    return count === 1 ? translate(lang, 'deleted.one') : translate(lang, 'deleted.many', { count });
 }
 
-// On-screen credit "© Maanmittauslaitos MM/YYYY". The month comes from the
-// server's licence line (Finnish time); today is the fallback.
+// On-screen credit "© Maanmittauslaitos MM/YYYY" (the licensor's name, the
+// same in both languages). The month comes from the server's licence line
+// (Finnish time); today is the fallback.
 export function attributionLabel(serverText, now = new Date()) {
     const month = /(\d{2}\/\d{4})/.exec(serverText ?? '')?.[1]
         ?? `${String(now.getMonth() + 1).padStart(2, '0')}/${now.getFullYear()}`;
     return `© Maanmittauslaitos ${month}`;
 }
 
-export function progressLabel(running, secs) {
-    const what = running === 1 ? 'Luodaan PDF:ää' : `Luodaan ${running} tiedostoa`;
-    return `${what}… ${secs} s`;
+export function progressLabel(running, secs, lang = 'en') {
+    return running === 1
+        ? translate(lang, 'progress.one', { secs })
+        : translate(lang, 'progress.many', { count: running, secs });
 }

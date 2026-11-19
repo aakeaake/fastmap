@@ -4,9 +4,10 @@ import {
     attributionLabel, deletedLabel, displayName, mapSummary, progressLabel, shortName,
 } from '../../frontend/js/text.js';
 
-test('displayName: title, else "Kartta n" by position', () => {
-    assert.equal(displayName({ title: 'Nuuksio' }, 0), 'Nuuksio');
-    assert.equal(displayName({ title: '' }, 2), 'Kartta 3');
+test('displayName: title, else a numbered default in the language', () => {
+    assert.equal(displayName({ title: 'Nuuksio' }, 0, 'fi'), 'Nuuksio');
+    assert.equal(displayName({ title: '' }, 2), 'Map 3');
+    assert.equal(displayName({ title: '' }, 2, 'fi'), 'Kartta 3');
 });
 
 test('shortName trims to 16 characters', () => {
@@ -15,14 +16,17 @@ test('shortName trims to 16 characters', () => {
     assert.equal(shortName('12345678901234567'), '123456789012345…');
 });
 
-test('mapSummary uses Finnish digit grouping', () => {
+test('mapSummary groups digits for the language', () => {
+    assert.equal(mapSummary({ paperSize: 'A4', scale: 20000 }), 'A4 · 1:20,000');
     // fi-FI groups with a no-break space
-    assert.match(mapSummary({ paperSize: 'A4', scale: 20000 }), /^A4 · 1:20\s000$/);
+    assert.match(mapSummary({ paperSize: 'A4', scale: 20000 }, 'fi'), /^A4 · 1:20\s000$/);
 });
 
 test('deletedLabel', () => {
-    assert.equal(deletedLabel(1), 'Kartta poistettu');
-    assert.equal(deletedLabel(3), '3 karttaa poistettu');
+    assert.equal(deletedLabel(1), 'Map deleted');
+    assert.equal(deletedLabel(3), '3 maps deleted');
+    assert.equal(deletedLabel(1, 'fi'), 'Kartta poistettu');
+    assert.equal(deletedLabel(3, 'fi'), '3 karttaa poistettu');
 });
 
 test('attributionLabel takes the month from the server line', () => {
@@ -36,6 +40,8 @@ test('attributionLabel falls back to the given date', () => {
 });
 
 test('progressLabel', () => {
-    assert.equal(progressLabel(1, 4), 'Luodaan PDF:ää… 4 s');
-    assert.equal(progressLabel(2, 12), 'Luodaan 2 tiedostoa… 12 s');
+    assert.equal(progressLabel(1, 4), 'Creating PDF… 4 s');
+    assert.equal(progressLabel(2, 12), 'Creating 2 files… 12 s');
+    assert.equal(progressLabel(1, 4, 'fi'), 'Luodaan PDF:ää… 4 s');
+    assert.equal(progressLabel(2, 12, 'fi'), 'Luodaan 2 tiedostoa… 12 s');
 });

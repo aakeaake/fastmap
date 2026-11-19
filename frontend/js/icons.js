@@ -24,6 +24,21 @@ export function setButton(btn, iconName, text) {
     btn.lastChild.textContent = text;
 }
 
+// Flags for the language switch, drawn as SVG (emoji flags render as plain
+// letters on Windows). United Kingdom for English, Finland for Finnish.
+const FLAGS = {
+    en: '<svg class="flag" viewBox="0 0 60 30" aria-hidden="true"><clipPath id="flag-uk-c"><path d="M30 15h30v15zv15H0zH0V0zV0h30z"/></clipPath>'
+        + '<path d="M0 0v30h60V0z" fill="#012169"/><path d="M0 0l60 30m0-30L0 30" stroke="#fff" stroke-width="6"/>'
+        + '<path d="M0 0l60 30m0-30L0 30" clip-path="url(#flag-uk-c)" stroke="#c8102e" stroke-width="4"/>'
+        + '<path d="M30 0v30M0 15h60" stroke="#fff" stroke-width="10"/><path d="M30 0v30M0 15h60" stroke="#c8102e" stroke-width="6"/></svg>',
+    fi: '<svg class="flag" viewBox="0 0 18 11" aria-hidden="true"><path d="M0 0h18v11H0z" fill="#fff"/>'
+        + '<path d="M5 0h3v11H5zM0 4h18v3H0z" fill="#002f6c"/></svg>',
+};
+
+export function flag(lang) {
+    return FLAGS[lang] ?? '';
+}
+
 // Fill every [data-icon] placeholder in the markup
 export function hydrateIcons(root = document) {
     root.querySelectorAll('[data-icon]').forEach(n => { n.innerHTML = icon(n.dataset.icon); });
