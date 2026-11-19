@@ -750,12 +750,17 @@
     const gpxLayer = new VectorLayer({ source: new VectorSource(), style: gpxStyle });
 
     // Printable content size in metres for an entry's settings.
+    // Mirrors FOOTER_MM in print_layout.py: space under the map for the
+    // PDF footer line. The map keeps its width (and scale), loses this height.
+    const FOOTER_MM = 4;
+
     function contentMeters(e) {
         let [wmm, hmm] = PAPER_MM[e.paperSize] || PAPER_MM.A4;
         if (e.orientation === 'landscape') [wmm, hmm] = [hmm, wmm];
-        // Mirror backend content_area_mm(): paper minus equal margins.
+        // Mirror backend content_area_mm(): paper minus equal margins,
+        // minus the footer band.
         const m = Math.max(0, Math.min(e.margin, Math.min(wmm, hmm) / 2 - 0.5));
-        return [(wmm - 2 * m) / 1000 * e.scale, (hmm - 2 * m) / 1000 * e.scale];
+        return [(wmm - 2 * m) / 1000 * e.scale, (hmm - 2 * m - FOOTER_MM) / 1000 * e.scale];
     }
 
     function ring(cx, cy, w, h) {
@@ -1095,7 +1100,13 @@
             if (!PAPER_MM[m.paperSize] || !['portrait', 'landscape'].includes(m.orientation)) continue;
             if (!LAYERS.includes(m.layer)) continue;
             if (!Number.isFinite(m.scale) || m.scale < 100 || m.scale > 2000000) continue;
-            createEntry([0, 0], {
+            // Rebuild the rectangle from its saved centre with the current
+            // contentMeters(), rather than reusing the saved corners: maps
+            // saved before a layout change (e.g. the PDF footer band) would
+            // otherwise keep a size that no longer matches the print.
+            const xs = c.map(p => p[0]), ys = c.map(p => p[1]);
+            const center = [(Math.min(...xs) + Math.max(...xs)) / 2, (Math.min(...ys) + Math.max(...ys)) / 2];
+            createEntry(center, {
                 ...(Number.isInteger(m.id) ? { id: m.id } : {}),
                 title: typeof m.title === 'string' ? m.title : '',
                 paperSize: m.paperSize,
@@ -1108,7 +1119,7 @@
                 ...(Number.isInteger(m.colorIdx)
                     && m.colorIdx >= 0 && m.colorIdx < PALETTE.length
                     ? { colorIdx: m.colorIdx } : {}),
-            }, c);
+            });
             moveFeature(maps[maps.length - 1], lockedLayer);
         }
         if (!maps.length) return false;

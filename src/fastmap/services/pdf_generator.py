@@ -25,10 +25,12 @@ from reportlab import rl_config
 from reportlab.lib.colors import Color, black
 from reportlab.lib.units import mm
 from reportlab.lib.utils import ImageReader
+from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfgen import canvas
 
 from fastmap.services.mml_source import MML_LAYERS, pick_wmts_level, render_extent_image
 from fastmap.services.print_layout import (
+    FOOTER_MM,
     Extent,
     actual_scale,
     content_area_mm,
@@ -46,8 +48,14 @@ _HEX_COLOR = re.compile(r"#([0-9a-fA-F]{2})([0-9a-fA-F]{2})([0-9a-fA-F]{2})")
 
 
 def attribution() -> str:
-    """MML licence line, dated in Finnish time when called (once per document)."""
-    return f"© Maanmittauslaitos, CC BY 4.0 — Maastotietokanta {datetime.now(_LOCAL_TZ):%m/%Y}"
+    """MML attribution, dated in Finnish time when called (once per document)."""
+    return f"© Maanmittauslaitos {datetime.now(_LOCAL_TZ):%m/%Y}"
+
+
+# Footer line under the map (PDF base font: nothing embedded, 0 bytes added)
+_FOOTER_FONT = "Courier"
+_FOOTER_SIZE = 7.0
+_FOOTER_GAP_MM = 2.0  # minimum space between the title part and the attribution
 
 
 def _parse_hex_color(value: str) -> tuple[float, float, float]:
@@ -60,8 +68,22 @@ def _parse_hex_color(value: str) -> tuple[float, float, float]:
 
 
 def _grid_label(value_m: int) -> str:
-    """Coordinate in km: '429' for whole km, '428.5' for half-km lines."""
-    return f"{value_m / 1000:g}"
+    """Coordinate in metres ÷ 100: '3855' for E 385 500, '66725' for N 6 672 500.
+
+    No decimals at any grid spacing (all spacings are multiples of 100 m).
+    """
+    return str(value_m // 100)
+
+
+# Grid coordinate labels (PDF base font, like the footer)
+_LABEL_FONT = "Courier"
+_LABEL_SIZE = 5.5
+_LABEL_COLOR = Color(0.35, 0.35, 0.35)
+# Labels go in the margin, outside the map, when it is at least this wide;
+# in a narrower margin they fall back to inside the map edges.
+LABEL_MIN_MARGIN_MM = 3.0
+_LABEL_OFFSET_MM = 1.0  # outside: baseline distance from the map edge
+_LABEL_INSET_MM = 1.5  # inside fallback: distance from the map edge
 
 
 def _grid_values(lo: float, hi: float, spacing_m: int) -> list[int]:
@@ -82,9 +104,6 @@ def _label_every(step_pt: float, needed_pt: float) -> int:
         decade *= 10
 
 
-_TEXT_INSET_MM = 2.0  # overlay text distance from the content-area corner
-
-
 @dataclass(frozen=True)
 class PrintResult:
     path: str
@@ -94,28 +113,37 @@ class PrintResult:
     height_px: int
 
 
-def _draw_overlay_text(
+def _draw_footer(
     c: canvas.Canvas,
-    x: float,
-    y: float,
-    text: str,
-    *,
-    font: str = "Helvetica",
-    size: float = 7,
-    align_right: bool = False,
+    x0: float,
+    y0: float,
+    w: float,
+    title: str | None,
+    scale_label: str,
+    attribution_text: str,
 ) -> None:
-    """Black text on a semi-transparent white background for legibility."""
-    if align_right:
-        x -= c.stringWidth(text, font, size)
-    pad = 1
-    tw = c.stringWidth(text, font, size)
-    c.saveState()
-    c.setFillColor(Color(1, 1, 1, alpha=0.50))
-    c.rect(x - pad, y - pad, tw + 2 * pad, size + 2 * pad, stroke=0, fill=1)
-    c.restoreState()
+    """One line under the map: ``title · scale`` left, attribution right.
+
+    ``y0`` is the margin line: the bottom of the text (descenders) sits on
+    it. A title that would run into the attribution is shortened with "…".
+    """
+    font, size = _FOOTER_FONT, _FOOTER_SIZE
+    baseline = y0 - pdfmetrics.getDescent(font, size)
+    right_x = x0 + w - c.stringWidth(attribution_text, font, size)
+    room = right_x - _FOOTER_GAP_MM * mm - x0
+
+    left = f"{title} · {scale_label}" if title else scale_label
+    if c.stringWidth(left, font, size) > room and title:
+        tail = f"… · {scale_label}"
+        cut = title
+        while cut and c.stringWidth(cut + tail, font, size) > room:
+            cut = cut[:-1]
+        left = cut.rstrip() + tail
+
     c.setFillColor(black)
     c.setFont(font, size)
-    c.drawString(x, y, text)
+    c.drawString(x0, baseline, left)
+    c.drawString(right_x, baseline, attribution_text)
 
 
 def _draw_grid_lines(
@@ -128,6 +156,7 @@ def _draw_grid_lines(
     *,
     mode: str,
     spacing_m: int,
+    margin_mm: float,
 ) -> None:
     """Draw thin grey grid lines over the map content area."""
     if mode == "off":
@@ -157,32 +186,57 @@ def _draw_grid_lines(
         c.line(x0, py, x0 + w, py)
     c.restoreState()
 
-    # coordinate labels at edges
+    # coordinate labels: east labels on the top edge, north labels on the left
     if not show_coords:
         return
-    font, size = "Helvetica", 5.5
-    c.setFillColor(Color(0.35, 0.35, 0.35))
+    font, size = _LABEL_FONT, _LABEL_SIZE
+    c.setFillColor(_LABEL_COLOR)
     c.setFont(font, size)
-    label_pad = 1.5  # mm from edge
     gap = 1 * mm  # minimum clear space between neighbouring labels
-    step_pt = spacing_m / (extent.maxx - extent.minx) * w
+    outside = margin_mm >= LABEL_MIN_MARGIN_MM
+    offset = _LABEL_OFFSET_MM * mm
+    inset = _LABEL_INSET_MM * mm
+
+    def width(label: str) -> float:
+        return c.stringWidth(label, font, size)
 
     # Thin labels when lines are too dense, keeping labelled lines aligned to
     # multiples of the label interval so they stay the same across pages.
     if xs:
-        widest = max(c.stringWidth(_grid_label(gx), font, size) for gx, _ in xs)
+        step_pt = spacing_m / (extent.maxx - extent.minx) * w
+        widest = max(width(_grid_label(gx)) for gx, _ in xs)
         every = _label_every(step_pt, widest + gap) * spacing_m
+        y = y0 + h + offset if outside else y0 + inset
         for gx, px in xs:
-            if gx % every:
-                continue
             label = _grid_label(gx)
-            c.drawString(px - c.stringWidth(label, font, size) / 2, y0 + label_pad * mm, label)
+            left = px - width(label) / 2
+            if gx % every or left < x0 or left + width(label) > x0 + w:
+                continue  # thinned out, or would run past a map corner
+            c.drawString(left, y, label)
 
-    every = _label_every(spacing_m / (extent.maxy - extent.miny) * h, size + gap) * spacing_m
-    for gy, py in ys:
-        if gy % every:
-            continue
-        c.drawString(x0 + label_pad * mm, py - 2, _grid_label(gy))
+    if ys:
+        step_pt = spacing_m / (extent.maxy - extent.miny) * h
+        # Rotated labels take their length along the edge, upright ones their height
+        needed = max(width(_grid_label(gy)) for gy, _ in ys) if outside else size
+        every = _label_every(step_pt, needed + gap) * spacing_m
+        for gy, py in ys:
+            label = _grid_label(gy)
+            if gy % every:
+                continue
+            if outside:
+                start = py - width(label) / 2
+                if start < y0 or start + width(label) > y0 + h:
+                    continue  # would run past a map corner
+                # Rotated 90° anticlockwise, reading upward, left of the map
+                c.saveState()
+                c.translate(x0 - offset, py)
+                c.rotate(90)
+                c.drawCentredString(0, 0, label)
+                c.restoreState()
+            else:
+                if py - 2 < y0 or py - 2 + size > y0 + h:
+                    continue
+                c.drawString(x0 + inset, py - 2, label)
 
 
 def _draw_page(
@@ -202,12 +256,13 @@ def _draw_page(
     gpx_width: int = 5,
     gpx_opacity: float = 0.6,
 ) -> int:
-    """Draw one full page (map plus inside-corner overlays). Returns true scale."""
+    """Draw one full page: map, footer line below it. Returns true scale."""
     cont_w_mm, cont_h_mm = content_area_mm(paper_size, orientation, margin_mm)
     scale_value = actual_scale(extent, cont_w_mm)
 
-    x0 = margin_mm * mm
-    y0 = margin_mm * mm
+    margin = margin_mm * mm  # the margin line, measured from the page edge
+    x0 = margin
+    y0 = margin + FOOTER_MM * mm  # map bottom: the footer band sits below it
     w = cont_w_mm * mm
     h = cont_h_mm * mm
 
@@ -215,7 +270,9 @@ def _draw_page(
     c.drawImage(ImageReader(img), x0, y0, w, h)
 
     # optional grid lines
-    _draw_grid_lines(c, extent, x0, y0, w, h, mode=grid_mode, spacing_m=grid_spacing_m)
+    _draw_grid_lines(
+        c, extent, x0, y0, w, h, mode=grid_mode, spacing_m=grid_spacing_m, margin_mm=margin_mm
+    )
 
     # optional GPX routes
     if gpx_routes:
@@ -241,31 +298,7 @@ def _draw_page(
                 c.drawPath(p, stroke=1, fill=0)
             c.restoreState()
 
-    pad = _TEXT_INSET_MM * mm
-
-    # inside bottom-left: license attribution
-    _draw_overlay_text(c, x0 + pad, y0 + pad, attribution_text)
-
-    # inside bottom-right: printed scale
-    _draw_overlay_text(
-        c,
-        x0 + w - pad,
-        y0 + pad,
-        format_scale_label(scale_value),
-        align_right=True,
-    )
-
-    # inside top-right: optional title
-    if title:
-        _draw_overlay_text(
-            c,
-            x0 + w - pad,
-            y0 + h - pad - 9,
-            title,
-            font="Helvetica-Bold",
-            size=9,
-            align_right=True,
-        )
+    _draw_footer(c, x0, margin, w, title, format_scale_label(scale_value), attribution_text)
 
     return scale_value
 

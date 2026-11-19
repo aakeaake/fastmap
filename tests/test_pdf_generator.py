@@ -209,14 +209,14 @@ def _page_content(data: bytes) -> bytes:
     return b"\n".join(out)
 
 
-def _grid_pdf(tmp_path, monkeypatch, spacing):
+def _grid_pdf(tmp_path, monkeypatch, spacing, margin=10):
     monkeypatch.setattr(pdf_generator, "render_extent_image", _fake_render)
     out = tmp_path / f"grid_{spacing}.pdf"
     pdf_generator.generate_pdf(
         Extent(428100, 6665230, 431900, 6670770),
         paper_size="A4",
         orientation="portrait",
-        margin_mm=10,
+        margin_mm=margin,
         grid_mode="full_coords",
         grid_spacing_m=spacing,
         out_pdf_path=str(out),
@@ -224,17 +224,18 @@ def _grid_pdf(tmp_path, monkeypatch, spacing):
     return _page_content(out.read_bytes())
 
 
+@pytest.mark.parametrize(
+    ("value", "label"), [(385500, "3855"), (6672500, "66725"), (429000, "4290")]
+)
+def test_grid_label_is_coordinate_over_100(value, label):
+    assert pdf_generator._grid_label(value) == label
+
+
 def test_grid_labels_distinct_at_500m(tmp_path, monkeypatch):
-    """Half-km lines need a decimal, or 428 000 and 428 500 both read '428'."""
+    """Half-km lines must differ from whole-km ones, without decimals."""
     data = _grid_pdf(tmp_path, monkeypatch, 500)
-    assert b"(428.5)" in data
-    assert b"(6665.5)" in data
-
-
-def test_grid_labels_whole_km_have_no_decimal(tmp_path, monkeypatch):
-    data = _grid_pdf(tmp_path, monkeypatch, 1000)
-    assert b"(429)" in data
-    assert b"(429.0)" not in data
+    assert b"(4285)" in data and b"(4290)" in data
+    assert b"." not in b"".join(re.findall(rb"\((\d[\d.]*)\) Tj", data))
 
 
 def test_attribution_uses_render_date(tmp_path, monkeypatch):
@@ -339,8 +340,8 @@ def test_dense_half_km_grid_labels_only_whole_km(tmp_path, monkeypatch):
         out_pdf_path=str(out),
     )
     data = _page_content(out.read_bytes())
-    assert b"(430)" in data
-    assert b"(430.5)" not in data
+    assert b"(4300)" in data
+    assert b"(4305)" not in data
 
 
 def test_stream_length_regex_is_direct_only():
@@ -381,7 +382,7 @@ def test_pdf_streams_skip_ascii85(tmp_path, monkeypatch):
     data = out.read_bytes()
     assert b"ASCII85Decode" not in data
     assert b"FlateDecode" in data
-    assert b"(Binary streams)" in _page_content(data)  # still decodable text
+    assert b"Binary streams" in _page_content(data)  # still decodable text
 
 
 def test_reportlab_uses_its_c_extension():
@@ -390,3 +391,158 @@ def test_reportlab_uses_its_c_extension():
     from reportlab.lib import rl_accel
 
     assert rl_accel.fp_str.__module__ == "_rl_accel"
+
+
+# --- Footer line under the map ----------------------------------------------
+
+from reportlab.lib.units import mm  # noqa: E402
+from reportlab.pdfbase.pdfmetrics import stringWidth  # noqa: E402
+
+from fastmap.services.print_layout import FOOTER_MM, format_scale_label  # noqa: E402
+
+_TEXT_OP = re.compile(
+    rb"(?:([-\d.]+) ([-\d.]+) ([-\d.]+) ([-\d.]+) ([-\d.]+) ([-\d.]+) cm\s+)?"
+    rb"BT 1 0 0 1 ([-\d.]+) ([-\d.]+) Tm \(((?:\\.|[^\\)])*)\) Tj"
+)
+
+
+def _pdf_string(raw: bytes) -> str:
+    """Decode a PDF literal string (octal and backslash escapes, cp1252)."""
+    out = re.sub(
+        rb"\\([0-7]{3}|.)",
+        lambda m: bytes([int(m.group(1), 8)]) if len(m.group(1)) == 3 else m.group(1),
+        raw,
+    )
+    return out.decode("cp1252")
+
+
+def _text_ops(content: bytes) -> list[tuple[float, float, str, bool]]:
+    """(x, y, text, rotated) for each drawn string, in page coordinates."""
+    ops = []
+    for m in _TEXT_OP.finditer(content):
+        tx, ty = float(m.group(7)), float(m.group(8))
+        text = _pdf_string(m.group(9))
+        if m.group(1) is not None:  # inside a translate+rotate 'cm'
+            a, b, c, d, e, f = (float(m.group(i)) for i in range(1, 7))
+            ops.append((a * tx + c * ty + e, b * tx + d * ty + f, text, (a, b) == (0.0, 1.0)))
+        else:
+            ops.append((tx, ty, text, False))
+    return ops
+
+
+def _image_box(content: bytes) -> tuple[float, float, float, float]:
+    m = re.search(rb"([\d.]+) 0 0 ([\d.]+) ([\d.]+) ([\d.]+) cm\s+/FormXob", content)
+    w, h, x, y = (float(v) for v in m.groups())
+    return x, y, w, h
+
+
+def _footer_pdf(tmp_path, monkeypatch, *, title="Test Map", margin=10.0, **kw):
+    monkeypatch.setattr(pdf_generator, "render_extent_image", _fake_render)
+    out = tmp_path / "footer.pdf"
+    result = pdf_generator.generate_pdf(
+        Extent(428100, 6665230, 431900, 6670770),
+        paper_size="A4",
+        orientation="portrait",
+        margin_mm=margin,
+        title=title,
+        out_pdf_path=str(out),
+        **kw,
+    )
+    return result, _page_content(out.read_bytes())
+
+
+def test_attribution_text_is_short():
+    assert re.fullmatch(r"© Maanmittauslaitos \d\d/\d{4}", pdf_generator.attribution())
+
+
+def test_map_sits_footer_height_above_the_margin(tmp_path, monkeypatch):
+    _, content = _footer_pdf(tmp_path, monkeypatch)
+    x, y, w, h = _image_box(content)
+    assert (x, y) == pytest.approx((10 * mm, (10 + FOOTER_MM) * mm), abs=0.01)
+    assert (w, h) == pytest.approx((190 * mm, (277 - FOOTER_MM) * mm), abs=0.01)
+
+
+def test_footer_line_is_below_the_map_and_has_no_box(tmp_path, monkeypatch):
+    result, content = _footer_pdf(tmp_path, monkeypatch)
+    mx, my, mw, _ = _image_box(content)
+    texts = {t: (x, y) for x, y, t, _ in _text_ops(content)}
+    left = f"Test Map · {format_scale_label(result.actual_scale)}"
+    right = pdf_generator.attribution()
+    assert left in texts and right in texts
+    for _x, y in (texts[left], texts[right]):
+        assert 10 * mm <= y < my  # between the margin line and the map
+    assert texts[left][0] == pytest.approx(mx, abs=0.01)
+    assert texts[right][0] + stringWidth(right, "Courier", 7) == pytest.approx(mx + mw, abs=0.01)
+    assert b" re f" not in content  # the white boxes behind on-map text are gone
+
+
+def test_footer_without_title_shows_only_scale(tmp_path, monkeypatch):
+    result, content = _footer_pdf(tmp_path, monkeypatch, title=None)
+    texts = [t for _, _, t, _ in _text_ops(content)]
+    assert format_scale_label(result.actual_scale) in texts
+    assert not any("·" in t for t in texts)
+
+
+def test_long_title_is_shortened_not_overlapping(tmp_path, monkeypatch):
+    _, content = _footer_pdf(tmp_path, monkeypatch, title="Pitkä otsikko " * 8)
+    ops = {t: x for x, _, t, _ in _text_ops(content)}
+    left = next(t for t in ops if t.startswith("Pitkä"))
+    right = pdf_generator.attribution()
+    # only the title is shortened; the scale is never cut
+    assert re.fullmatch(r"Pitkä otsikko.*… · 1 : \d+ \d{3}", left)
+    assert ops[left] + stringWidth(left, "Courier", 7) + 2 * mm <= ops[right] + 0.01
+
+
+def test_every_batch_page_has_a_footer(tmp_path, monkeypatch):
+    monkeypatch.setattr(pdf_generator, "render_extent_image", _fake_render)
+    out = tmp_path / "multi.pdf"
+    page = {"paper_size": "A4", "orientation": "portrait"}
+    a3 = {"paper_size": "A3", "orientation": "landscape"}
+    ext = Extent(428100, 6665230, 431900, 6670770)
+    pdf_generator.generate_multi_pdf([(ext, page), (ext, a3)], str(out))
+    content = _page_content(out.read_bytes())
+    assert content.count(b"Maanmittauslaitos") == 2
+
+
+# --- Grid labels outside the map ----------------------------------------------
+
+
+def _label_ops(content: bytes):
+    """Grid label ops: (x, y, text, rotated) for all-digit strings."""
+    return [op for op in _text_ops(content) if op[2].isdigit()]
+
+
+def test_grid_labels_outside_the_map(tmp_path, monkeypatch):
+    content = _grid_pdf(tmp_path, monkeypatch, 500)
+    mx, my, mw, mh = _image_box(content)
+    ops = _label_ops(content)
+    east = [op for op in ops if not op[3]]
+    north = [op for op in ops if op[3]]
+    assert east and north
+    for _x, y, text, _ in east:
+        assert y > my + mh, text  # above the map's top edge
+    for x, _y, text, _ in north:
+        # rotated 90° anticlockwise, in the left margin: the baseline is left
+        # of the map edge and the glyphs (5.5 pt tall) still end on the page
+        assert 0 <= x - 5.5 and x < mx, text
+    assert {t for *_, t, _ in north} >= {"66655", "66660"}
+
+
+def test_grid_labels_fall_back_inside_with_small_margin(tmp_path, monkeypatch):
+    content = _grid_pdf(tmp_path, monkeypatch, 500, margin=2)
+    mx, my, mw, mh = _image_box(content)
+    ops = _label_ops(content)
+    assert ops and not any(rotated for *_, rotated in ops)
+    for x, y, text, _ in ops:
+        assert mx <= x <= mx + mw and my <= y <= my + mh, text
+
+
+def test_grid_labels_skip_corners(tmp_path, monkeypatch):
+    content = _grid_pdf(tmp_path, monkeypatch, 500)
+    mx, my, mw, mh = _image_box(content)
+    for x, y, text, rotated in _label_ops(content):
+        width = stringWidth(text, "Courier", 5.5)
+        if rotated:  # x, y is the label's start; it runs upward along the edge
+            assert my <= y and y + width <= my + mh + 0.01, text
+        else:
+            assert mx <= x and x + width <= mx + mw + 0.01, text

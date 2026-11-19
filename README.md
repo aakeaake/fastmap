@@ -125,12 +125,16 @@ MML requests are retried up to 3 attempts (not read timeouts). See
 
 Each generated PDF contains:
 
-* The map raster filling the content area exactly (no frame or border).
-* **Attribution** (bottom-left inside corner) on a semi-transparent white box.
-* **Scale label** (bottom-right inside corner) on a semi-transparent white box.
-* **Title** (top-right inside corner, optional) on a semi-transparent white box.
+* The map raster filling the area inside the margins exactly, except for a
+  4 mm band at the bottom (no frame or border).
+* **Footer line** in that band, below the map, in Courier: `title · scale`
+  on the left (just the scale without a title; a long title is shortened
+  with "…") and `© Maanmittauslaitos MM/YYYY` on the right.
 * **Grid lines** (optional) — thin grey lines at the selected spacing, with
-  optional coordinate labels at content-area edges.
+  optional coordinate labels in TM35FIN metres ÷ 100 (E 385 500 → `3855`,
+  N 6 672 500 → `66725`). Labels sit outside the map, in the margin: east
+  labels above the top edge, north labels left of the map, rotated 90°
+  anticlockwise. In a margin under 3 mm they go inside the map edges.
 * **GPX route** (optional) — coloured polyline clipped to the content area,
   with configurable colour, width, and opacity.
 
