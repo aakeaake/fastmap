@@ -750,12 +750,17 @@
     const gpxLayer = new VectorLayer({ source: new VectorSource(), style: gpxStyle });
 
     // Printable content size in metres for an entry's settings.
+    // Mirrors FOOTER_MM in print_layout.py: space under the map for the
+    // PDF footer line. The map keeps its width (and scale), loses this height.
+    const FOOTER_MM = 4;
+
     function contentMeters(e) {
         let [wmm, hmm] = PAPER_MM[e.paperSize] || PAPER_MM.A4;
         if (e.orientation === 'landscape') [wmm, hmm] = [hmm, wmm];
-        // Mirror backend content_area_mm(): paper minus equal margins.
+        // Mirror backend content_area_mm(): paper minus equal margins,
+        // minus the footer band.
         const m = Math.max(0, Math.min(e.margin, Math.min(wmm, hmm) / 2 - 0.5));
-        return [(wmm - 2 * m) / 1000 * e.scale, (hmm - 2 * m) / 1000 * e.scale];
+        return [(wmm - 2 * m) / 1000 * e.scale, (hmm - 2 * m - FOOTER_MM) / 1000 * e.scale];
     }
 
     function ring(cx, cy, w, h) {

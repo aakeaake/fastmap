@@ -20,6 +20,12 @@ TM35FIN_BOUNDS = (-548576.0, 6291456.0, 1548576.0, 8388608.0)
 
 MM_PER_INCH = 25.4
 
+# Space under the map for the PDF footer line (title, scale, attribution).
+# The map keeps its full width (so its scale is unchanged) and loses this
+# much height. Mirrored as FOOTER_MM in frontend/index.html so the on-screen
+# rectangle still shows exactly what prints.
+FOOTER_MM = 4.0
+
 
 @dataclass(frozen=True)
 class Extent:
@@ -53,10 +59,11 @@ def oriented_page_mm(paper_size: str, orientation: str) -> tuple[float, float]:
 
 
 def content_area_mm(paper_size: str, orientation: str, margin_mm: float) -> tuple[float, float]:
-    """Printable content area (width, height) in mm after equal margins."""
+    """Map area (width, height) in mm: page minus equal margins, minus the
+    footer band at the bottom."""
     page_w, page_h = oriented_page_mm(paper_size, orientation)
     w = page_w - 2 * margin_mm
-    h = page_h - 2 * margin_mm
+    h = page_h - 2 * margin_mm - FOOTER_MM
     if w <= 0 or h <= 0:
         raise ValueError("Margin too large for paper size")
     return (w, h)
