@@ -381,7 +381,7 @@ def test_pdf_streams_skip_ascii85(tmp_path, monkeypatch):
     data = out.read_bytes()
     assert b"ASCII85Decode" not in data
     assert b"FlateDecode" in data
-    assert b"(Binary streams)" in _page_content(data)  # still decodable text
+    assert b"Binary streams" in _page_content(data)  # still decodable text
 
 
 def test_reportlab_uses_its_c_extension():
@@ -390,3 +390,114 @@ def test_reportlab_uses_its_c_extension():
     from reportlab.lib import rl_accel
 
     assert rl_accel.fp_str.__module__ == "_rl_accel"
+
+
+# --- Footer line under the map ----------------------------------------------
+
+from reportlab.lib.units import mm  # noqa: E402
+from reportlab.pdfbase.pdfmetrics import stringWidth  # noqa: E402
+
+from fastmap.services.print_layout import FOOTER_MM, format_scale_label  # noqa: E402
+
+_TEXT_OP = re.compile(
+    rb"(?:([-\d.]+) ([-\d.]+) ([-\d.]+) ([-\d.]+) ([-\d.]+) ([-\d.]+) cm\s+)?"
+    rb"BT 1 0 0 1 ([-\d.]+) ([-\d.]+) Tm \(((?:\\.|[^\\)])*)\) Tj"
+)
+
+
+def _pdf_string(raw: bytes) -> str:
+    """Decode a PDF literal string (octal and backslash escapes, cp1252)."""
+    out = re.sub(
+        rb"\\([0-7]{3}|.)",
+        lambda m: bytes([int(m.group(1), 8)]) if len(m.group(1)) == 3 else m.group(1),
+        raw,
+    )
+    return out.decode("cp1252")
+
+
+def _text_ops(content: bytes) -> list[tuple[float, float, str, bool]]:
+    """(x, y, text, rotated) for each drawn string, in page coordinates."""
+    ops = []
+    for m in _TEXT_OP.finditer(content):
+        tx, ty = float(m.group(7)), float(m.group(8))
+        text = _pdf_string(m.group(9))
+        if m.group(1) is not None:  # inside a translate+rotate 'cm'
+            a, b, c, d, e, f = (float(m.group(i)) for i in range(1, 7))
+            ops.append((a * tx + c * ty + e, b * tx + d * ty + f, text, (a, b) == (0.0, 1.0)))
+        else:
+            ops.append((tx, ty, text, False))
+    return ops
+
+
+def _image_box(content: bytes) -> tuple[float, float, float, float]:
+    m = re.search(rb"([\d.]+) 0 0 ([\d.]+) ([\d.]+) ([\d.]+) cm\s+/FormXob", content)
+    w, h, x, y = (float(v) for v in m.groups())
+    return x, y, w, h
+
+
+def _footer_pdf(tmp_path, monkeypatch, *, title="Test Map", margin=10.0, **kw):
+    monkeypatch.setattr(pdf_generator, "render_extent_image", _fake_render)
+    out = tmp_path / "footer.pdf"
+    result = pdf_generator.generate_pdf(
+        Extent(428100, 6665230, 431900, 6670770),
+        paper_size="A4",
+        orientation="portrait",
+        margin_mm=margin,
+        title=title,
+        out_pdf_path=str(out),
+        **kw,
+    )
+    return result, _page_content(out.read_bytes())
+
+
+def test_attribution_text_is_short():
+    assert re.fullmatch(r"© Maanmittauslaitos \d\d/\d{4}", pdf_generator.attribution())
+
+
+def test_map_sits_footer_height_above_the_margin(tmp_path, monkeypatch):
+    _, content = _footer_pdf(tmp_path, monkeypatch)
+    x, y, w, h = _image_box(content)
+    assert (x, y) == pytest.approx((10 * mm, (10 + FOOTER_MM) * mm), abs=0.01)
+    assert (w, h) == pytest.approx((190 * mm, (277 - FOOTER_MM) * mm), abs=0.01)
+
+
+def test_footer_line_is_below_the_map_and_has_no_box(tmp_path, monkeypatch):
+    result, content = _footer_pdf(tmp_path, monkeypatch)
+    mx, my, mw, _ = _image_box(content)
+    texts = {t: (x, y) for x, y, t, _ in _text_ops(content)}
+    left = f"Test Map · {format_scale_label(result.actual_scale)}"
+    right = pdf_generator.attribution()
+    assert left in texts and right in texts
+    for _x, y in (texts[left], texts[right]):
+        assert 10 * mm <= y < my  # between the margin line and the map
+    assert texts[left][0] == pytest.approx(mx, abs=0.01)
+    assert texts[right][0] + stringWidth(right, "Courier", 7) == pytest.approx(mx + mw, abs=0.01)
+    assert b" re f" not in content  # the white boxes behind on-map text are gone
+
+
+def test_footer_without_title_shows_only_scale(tmp_path, monkeypatch):
+    result, content = _footer_pdf(tmp_path, monkeypatch, title=None)
+    texts = [t for _, _, t, _ in _text_ops(content)]
+    assert format_scale_label(result.actual_scale) in texts
+    assert not any("·" in t for t in texts)
+
+
+def test_long_title_is_shortened_not_overlapping(tmp_path, monkeypatch):
+    _, content = _footer_pdf(tmp_path, monkeypatch, title="Pitkä otsikko " * 8)
+    ops = {t: x for x, _, t, _ in _text_ops(content)}
+    left = next(t for t in ops if t.startswith("Pitkä"))
+    right = pdf_generator.attribution()
+    # only the title is shortened; the scale is never cut
+    assert re.fullmatch(r"Pitkä otsikko.*… · 1 : \d+ \d{3}", left)
+    assert ops[left] + stringWidth(left, "Courier", 7) + 2 * mm <= ops[right] + 0.01
+
+
+def test_every_batch_page_has_a_footer(tmp_path, monkeypatch):
+    monkeypatch.setattr(pdf_generator, "render_extent_image", _fake_render)
+    out = tmp_path / "multi.pdf"
+    page = {"paper_size": "A4", "orientation": "portrait"}
+    a3 = {"paper_size": "A3", "orientation": "landscape"}
+    ext = Extent(428100, 6665230, 431900, 6670770)
+    pdf_generator.generate_multi_pdf([(ext, page), (ext, a3)], str(out))
+    content = _page_content(out.read_bytes())
+    assert content.count(b"Maanmittauslaitos") == 2
