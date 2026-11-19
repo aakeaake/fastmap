@@ -14,7 +14,9 @@ from __future__ import annotations
 
 import http.cookiejar
 import io
+import logging
 import math
+import re
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import requests
@@ -75,6 +77,41 @@ _RETRY = _Retry(
     respect_retry_after_header=True,
     raise_on_status=False,  # hand back the last response so errors name its status
 )
+
+# urllib3 logs request URLs, query string included, so the API key: WARNING
+# when it retries a broken connection, DEBUG for every request and retry.
+# Redact it before any handler sees the record. A logger's filters only see
+# records logged on that logger itself (not on its children), so the filter
+# goes on every urllib3 logger. They all exist by now: urllib3 creates them
+# at import, and importing requests imported it.
+_API_KEY_RE = re.compile(r"(api-key=)[^&\s'\"#]+", re.IGNORECASE)
+
+
+class _RedactApiKey(logging.Filter):
+    def filter(self, record: logging.LogRecord) -> bool:
+        # urllib3 passes the URL in record.args; render the message first so
+        # neither msg nor args (nor any object's repr) keeps the key.
+        try:
+            message = record.getMessage()
+        except Exception:  # noqa: BLE001 - malformed record: redact what we can
+            message = f"{record.msg} {record.args}"
+        record.msg = _API_KEY_RE.sub(r"\1REDACTED", message)
+        record.args = None
+        return True
+
+
+def _install_log_redaction() -> None:
+    names = {"urllib3"} | {
+        name for name in list(logging.Logger.manager.loggerDict) if name.startswith("urllib3.")
+    }
+    for name in sorted(names):
+        logger = logging.getLogger(name)
+        if not any(isinstance(f, _RedactApiKey) for f in logger.filters):
+            logger.addFilter(_RedactApiKey())
+
+
+_install_log_redaction()
+
 
 # One process-wide pool downloads tiles for every render, so MML never sees
 # more than TILE_FETCH_WORKERS tile requests at once, however many renders

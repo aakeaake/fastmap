@@ -1,4 +1,5 @@
 import io
+import logging
 
 import pytest
 from PIL import Image
@@ -334,6 +335,28 @@ def test_dropped_connections_give_up_naming_the_tile(mml_server):
         _tile()
     assert server.hits == 3
     assert SECRET not in str(info.value)
+
+
+def _leaks(record) -> bool:
+    texts = [record.getMessage(), str(record.msg), repr(record.args)]
+    return any(SECRET in text for text in texts)
+
+
+@pytest.mark.parametrize("fetch", ["tile", "wms"])
+def test_retry_logs_do_not_leak_api_key(mml_server, caplog, fetch):
+    """urllib3 logs the request URL (query string and API key included) when
+    it retries a broken connection (WARNING) and for every request (DEBUG)."""
+    caplog.set_level(logging.DEBUG)  # every logger, every level
+    server = mml_server((None, {}, 0), _ok())
+    if fetch == "tile":
+        _tile()
+    else:
+        mml_source.fetch_wms_image(OTANIEMI, 256, 256)
+    assert server.hits == 2
+    urllib3_records = [r for r in caplog.records if r.name.startswith("urllib3")]
+    assert any("Retrying" in r.getMessage() for r in urllib3_records)
+    assert any(" 200 " in r.getMessage() for r in urllib3_records)  # DEBUG request line
+    assert [r.getMessage() for r in caplog.records if _leaks(r)] == []
 
 
 def test_read_timeout_is_not_retried(mml_server, monkeypatch):
