@@ -26,7 +26,14 @@
             --radius: 6px;
             --radius-sm: 4px;
             --shadow: 0 2px 4px rgba(16, 24, 32, .08), 0 8px 24px rgba(16, 24, 32, .16);
+            --shadow-sm: 0 1px 3px rgba(16, 24, 32, .25);
             --font: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+            /* map edge offsets, clear of notches and rounded corners */
+            --edge-t: max(12px, env(safe-area-inset-top));
+            --edge-r: max(12px, env(safe-area-inset-right));
+            --edge-b: max(8px, env(safe-area-inset-bottom));
+            --edge-l: max(12px, env(safe-area-inset-left));
+            --tool: 32px;              /* map control size; 44px on touch */
             accent-color: var(--accent);
         }
 
@@ -42,20 +49,29 @@
             clip: rect(0 0 0 0); white-space: nowrap;
         }
 
-        /* --- Panel ---------------------------------------------------------- */
-        .panel {
+        /* --- Left column: settings pane | rail, route pane, undo ----------- */
+        .left-col {
             position: absolute; z-index: 1000;
-            top: max(12px, env(safe-area-inset-top)); right: max(12px, env(safe-area-inset-right));
-            width: 288px; box-sizing: border-box;
-            max-height: calc(100vh - 2 * max(12px, env(safe-area-inset-top)));
-            display: flex; flex-direction: column; overflow: hidden;
-            background: var(--surface); border-radius: 8px;
-            box-shadow: var(--shadow);
+            top: var(--edge-t); left: var(--edge-l);
+            height: calc(100vh - var(--edge-t) - 12px);
+            display: flex; align-items: flex-start; gap: 10px;
+            pointer-events: none;           /* the gaps keep panning the map */
         }
+        .left-col > * { pointer-events: auto; }
+
+        .pane {
+            width: 288px; box-sizing: border-box; max-height: 100%;
+            display: flex; flex-direction: column; overflow: hidden;
+            background: var(--surface); border-radius: 8px; box-shadow: var(--shadow);
+        }
+        .pane[hidden] { display: none; }
+        #sharedPane { width: 264px; }
         .sheet-head { flex: 0 0 auto; }
         .grabber, #sheetSummary { display: none; }
-        .head-row { display: flex; align-items: baseline; gap: 10px; padding: 14px 16px 4px; }
-        .panel h1 { font-size: 17px; font-weight: 700; margin: 0; letter-spacing: -.01em; }
+        .head-row { display: flex; align-items: center; gap: 10px; padding: 10px 8px 2px 16px; min-height: 32px; }
+        .head-row .icon-btn { margin-left: auto; }
+        .pane h1 { font-size: 17px; font-weight: 700; margin: 0; letter-spacing: -.01em; }
+        .pane-title { font-size: 15px; font-weight: 650; margin: 0; }
         .sheet-body {
             flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain;
             scrollbar-width: thin; scrollbar-color: var(--line) transparent;
@@ -66,16 +82,17 @@
         .section-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 6px; }
         .section h2 { font-size: 14px; font-weight: 650; margin: 0; }
         .section-note { font-size: 12px; color: var(--ink-3); margin: 2px 0 0; }
-        .section h3 { font-size: 13px; font-weight: 650; margin: 14px 0 0; }
+        .section h3 { font-size: 13px; font-weight: 650; margin: 16px 0 0; }
+        .section h3:first-of-type { margin-top: 12px; }
 
-        .panel label { display: block; font-size: 13px; color: var(--ink-2); margin: 10px 0 3px; }
-        .panel select, .panel input[type=number], .panel input[type=text] {
+        .pane label { display: block; font-size: 13px; color: var(--ink-2); margin: 10px 0 3px; }
+        .pane select, .pane input[type=number], .pane input[type=text] {
             width: 100%; box-sizing: border-box; height: 32px; padding: 4px 8px;
             border: 1px solid var(--line-strong); border-radius: var(--radius-sm);
             font: inherit; font-size: 14px; color: var(--ink); background: var(--surface);
         }
-        .panel select:disabled { color: var(--ink-3); background: var(--surface-2); border-color: var(--line); }
-        .panel input::placeholder { color: var(--ink-3); }
+        .pane select:disabled { color: var(--ink-3); background: var(--surface-2); border-color: var(--line); }
+        .pane input::placeholder { color: var(--ink-3); }
         .row { display: flex; gap: 10px; }
         .row > div { flex: 1; min-width: 0; }
 
@@ -114,6 +131,20 @@
         }
         .icon-btn:hover { background: var(--surface-3); color: var(--ink); }
 
+        /* Row that opens the route & precision pane */
+        .nav-row {
+            display: flex; align-items: center; gap: 10px; width: 100%; box-sizing: border-box;
+            min-height: 44px; padding: 6px 8px 6px 10px; margin: 0;
+            border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface);
+            text-align: left; cursor: pointer;
+        }
+        .nav-row:hover { background: var(--surface-2); }
+        .nav-row[aria-expanded="true"] { border-color: var(--accent); background: var(--accent-soft); }
+        .nav-row .nav-text { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+        .nav-row b { font-size: 14px; font-weight: 600; }
+        .nav-row small { font-size: 12px; color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .nav-row > .icon:last-child { color: var(--ink-2); }
+
         /* --- Map list ------------------------------------------------------ */
         #mapList { list-style: none; margin: 0 0 10px; padding: 0; max-height: 212px; overflow-y: auto; }
         #mapList li {
@@ -147,20 +178,42 @@
             .btn { transition: none; }
         }
 
-        /* --- Shared settings ----------------------------------------------- */
+        /* --- Collapsed rail: one numbered tile per map --------------------- */
+        .rail {
+            box-sizing: border-box; width: 52px; max-height: 100%; padding: 6px;
+            display: flex; flex-direction: column; align-items: center; gap: 4px;
+            background: var(--surface); border-radius: 8px; box-shadow: var(--shadow);
+        }
+        .rail[hidden] { display: none; }
+        .rail .icon-btn { width: 40px; height: 40px; }
+        .rail hr { width: 28px; border: 0; border-top: 1px solid var(--surface-3); margin: 4px 0; }
+        #railMaps {
+            list-style: none; margin: 0; padding: 0; min-height: 0; overflow-y: auto;
+            display: flex; flex-direction: column; gap: 4px; scrollbar-width: none;
+        }
+        .rail-map {
+            width: 40px; height: 40px; padding: 0; box-sizing: border-box;
+            display: grid; place-items: center;
+            border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface);
+            font-size: 14px; font-weight: 650; font-variant-numeric: tabular-nums; color: var(--ink-2);
+            cursor: pointer; position: relative;
+        }
+        .rail-map:hover { background: var(--surface-2); color: var(--ink); }
+        .rail-map[aria-pressed="true"] { border: 2px solid var(--active); background: var(--active-soft); color: var(--active); }
+        .rail-map.done::after {           /* downloaded and unchanged */
+            content: ''; position: absolute; right: 3px; bottom: 3px;
+            width: 6px; height: 6px; border-radius: 50%; background: var(--success);
+        }
+        .rail-map.generating { border-style: dashed; }
+        #railDownload { background: var(--accent); color: #fff; margin-top: 2px; }
+        #railDownload:hover { background: var(--accent-strong); }
+        #railDownload.loading .icon { animation: spin 1s linear infinite; }
+        #railShared[aria-expanded="true"] { background: var(--accent-soft); color: var(--accent); }
+
+        /* --- Route & precision pane ---------------------------------------- */
         #gpxBtn { margin-top: 6px; }
         #gpxInfo { font-size: 13px; color: var(--ink-2); margin-top: 6px; overflow-wrap: anywhere; }
         #gpxInfo:empty { display: none; }
-        details { margin-top: 10px; }
-        summary {
-            display: flex; align-items: center; gap: 6px; min-height: 28px;
-            font-size: 13px; color: var(--ink-2); cursor: pointer; list-style: none;
-            border-radius: var(--radius-sm);
-        }
-        summary::-webkit-details-marker { display: none; }
-        summary .icon { transition: transform .15s ease-out; }
-        details[open] summary .icon { transform: rotate(90deg); }
-        summary:hover { color: var(--ink); }
         #gpxColor { width: 100%; height: 32px; padding: 2px; box-sizing: border-box; border: 1px solid var(--line-strong); border-radius: var(--radius-sm); background: var(--surface); }
         .range-row { display: flex; align-items: center; gap: 10px; }
         .range-row input { flex: 1; margin: 0; }
@@ -178,15 +231,9 @@
         #progress { font-size: 13px; color: var(--ink-2); margin-top: 8px; font-variant-numeric: tabular-nums; }
         #progress:empty { display: none; }
 
-        /* --- Bottom-left stack: toast, hint, attribution ------------------- */
-        .stack {
-            position: absolute; z-index: 1000;
-            left: max(12px, env(safe-area-inset-left)); bottom: max(8px, env(safe-area-inset-bottom));
-            max-width: calc(100% - 336px);
-            display: flex; flex-direction: column; align-items: flex-start; gap: 6px;
-        }
+        /* --- Undo message: beside the open panes --------------------------- */
         .toast {
-            display: flex; align-items: center; gap: 12px;
+            display: flex; align-items: center; gap: 12px; flex: 0 0 auto;
             background: var(--ink); color: #fff; border-radius: var(--radius);
             padding: 6px 6px 6px 12px; font-size: 13px; box-shadow: var(--shadow);
         }
@@ -197,67 +244,106 @@
         }
         .toast button:hover { background: rgba(255,255,255,.24); }
         .toast button:focus-visible { outline-color: #fff; }
+
+        /* --- Bottom-right stack: hint, attribution ------------------------- */
+        .stack {
+            position: absolute; z-index: 1000;
+            right: var(--edge-r); bottom: var(--edge-b);
+            max-width: min(520px, calc(100% - 360px));
+            display: flex; flex-direction: column; align-items: flex-end; gap: 6px;
+        }
         .hint {
             display: flex; align-items: center; gap: 4px;
             background: rgba(255,255,255,.94); border-radius: var(--radius);
-            padding: 4px 4px 4px 12px; font-size: 13px; color: var(--ink-2);
+            padding: 4px 4px 4px 12px; font-size: 13px; line-height: 1.45; color: var(--ink-2);
             box-shadow: 0 1px 3px rgba(16, 24, 32, .18);
         }
         .hint[hidden] { display: none; }
+        /* Short screens (landscape phones): the panes fill the height, so
+           the hint would sit on top of them. It is optional help: drop it. */
+        @media (min-width: 641px) and (max-height: 500px) { .hint { display: none; } }
+        .hint .kbd-icon {
+            display: inline-grid; place-items: center; vertical-align: -5px;
+            width: 20px; height: 20px; margin: 0 2px 0 1px; border-radius: var(--radius-sm);
+            background: var(--surface); box-shadow: var(--shadow-sm); color: var(--ink);
+        }
+        .hint .kbd-icon .icon { width: 13px; height: 13px; }
         @media (pointer: coarse) { .hint-dblclick { display: none; } }
         #attribution {
             font-size: 12px; color: var(--ink-2);
             background: rgba(255,255,255,.8); border-radius: var(--radius-sm); padding: 1px 6px;
         }
 
-        /* --- Map tool: move the selected map to the view centre ------------ */
-        .map-tool {
-            position: absolute; top: 76px; left: max(.5em, env(safe-area-inset-left)); z-index: 900;
-            display: inline-flex; align-items: center; gap: 6px;
-            min-height: 32px; padding: 0 10px 0 8px; border: none; border-radius: var(--radius);
-            background: var(--surface); color: var(--ink); font-size: 13px; font-weight: 600;
-            box-shadow: 0 1px 3px rgba(16, 24, 32, .25); cursor: pointer;
+        /* --- Map controls, right edge: zoom, then move-here ---------------- */
+        .ol-zoom {
+            top: var(--edge-t); right: var(--edge-r); left: auto;
+            padding: 0; background: none; border-radius: var(--radius);
+            box-shadow: var(--shadow-sm); overflow: hidden;
+            display: flex; flex-direction: column; gap: 1px;
         }
+        .ol-zoom:hover { background: none; }
+        .ol-zoom .ol-zoom-in, .ol-zoom .ol-zoom-out {
+            width: var(--tool); height: var(--tool); margin: 0; border-radius: 0;
+            background: var(--surface); color: var(--ink); font-size: 20px; font-weight: 500;
+        }
+        .ol-zoom .ol-zoom-in:hover, .ol-zoom .ol-zoom-out:hover,
+        .ol-zoom .ol-zoom-in:focus, .ol-zoom .ol-zoom-out:focus { background: var(--surface-2); outline: none; }
+        .ol-zoom button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+        .map-tool {
+            position: absolute; z-index: 900;
+            top: calc(var(--edge-t) + 2 * var(--tool) + 1px + 8px); right: var(--edge-r);
+            width: var(--tool); height: var(--tool); padding: 0;
+            display: grid; place-items: center;
+            border: none; border-radius: var(--radius);
+            background: var(--surface); color: var(--ink); box-shadow: var(--shadow-sm); cursor: pointer;
+        }
+        .map-tool .icon { width: 18px; height: 18px; }
         .map-tool:hover { background: var(--surface-2); }
-        .ol-zoom { left: max(.5em, env(safe-area-inset-left)); top: max(.5em, env(safe-area-inset-top)); }
+
+        /* --- Collapsed (desktop): the rail replaces the settings pane ------ */
+        @media (min-width: 641px) {
+            .left-col[data-collapsed] #panel { display: none; }
+        }
+        @media (max-width: 640px) {
+            .rail { display: none !important; }
+            #collapseBtn { display: none; }
+        }
 
         /* --- Touch: 44px targets, 16px form text (no iOS focus zoom) ------- */
         @media (pointer: coarse) {
-            .panel select, .panel input[type=number], .panel input[type=text], #gpxColor { height: 44px; font-size: 16px; }
+            :root { --tool: 44px; }
+            .pane select, .pane input[type=number], .pane input[type=text], #gpxColor { height: 44px; font-size: 16px; }
             .dl-row select { height: 44px !important; flex-basis: 120px; }
             .btn { min-height: 44px; font-size: 15px; }
-            .btn-text, summary, .toast button { min-height: 44px; }
+            .btn-text, .toast button { min-height: 44px; }
             .icon-btn { width: 44px; height: 44px; }
+            .rail { width: 56px; }
+            .rail .icon-btn, .rail-map { width: 44px; height: 44px; }
             #mapList .m-select { min-height: 44px; font-size: 14px; }
-            .panel label, summary { font-size: 14px; }
-            /* +/- stay: a one-finger alternative to pinch (WCAG 2.5.1) */
-            .ol-zoom { top: max(12px, env(safe-area-inset-top)); left: max(12px, env(safe-area-inset-left)); }
-            .ol-zoom .ol-zoom-in, .ol-zoom .ol-zoom-out { width: 44px; height: 44px; font-size: 22px; }
-            .map-tool {
-                /* below the two 44px zoom buttons */
-                top: calc(max(12px, env(safe-area-inset-top)) + 104px);
-                left: max(12px, env(safe-area-inset-left));
-                min-height: 44px; padding: 0 14px 0 12px; font-size: 14px;
-            }
+            .pane label { font-size: 14px; }
+            .ol-zoom .ol-zoom-in, .ol-zoom .ol-zoom-out { font-size: 24px; }
+            .map-tool .icon { width: 20px; height: 20px; }
         }
 
-        /* --- Phone: the panel becomes a bottom sheet ----------------------- */
+        /* --- Phone: settings become a bottom sheet ------------------------- */
         @media (max-width: 640px) {
-            .panel {
-                top: auto; right: 0; left: 0; bottom: 0; width: auto;
+            .left-col { display: contents; }   /* panes position against the page */
+            #panel {
+                position: absolute; z-index: 1000;
+                left: 0; right: 0; bottom: 0; width: auto;
                 height: var(--sheet-h, 45vh); max-height: none;
                 border-radius: 14px 14px 0 0;
                 box-shadow: 0 -2px 6px rgba(16, 24, 32, .08), 0 -10px 30px rgba(16, 24, 32, .18);
                 transition: height .28s cubic-bezier(.22, 1, .36, 1);
             }
-            .panel.dragging { transition: none; }
+            #panel.dragging { transition: none; }
             .sheet-head { touch-action: none; cursor: grab; user-select: none; -webkit-user-select: none; }
             .grabber {
                 display: flex; justify-content: center; align-items: center;
                 width: 100%; height: 22px; padding: 0; border: none; background: none; cursor: inherit;
             }
             .grabber span { width: 40px; height: 5px; border-radius: 3px; background: var(--line-strong); }
-            .head-row { padding: 0 16px 10px; align-items: center; min-height: 32px; }
+            #panel .head-row { padding: 0 16px 10px; }
             #sheetSummary {
                 display: block; flex: 1; min-width: 0; text-align: right;
                 font-size: 14px; color: var(--ink-2);
@@ -265,35 +351,57 @@
                 font-variant-numeric: tabular-nums;
             }
             #sheetSummary b { color: var(--ink); font-weight: 600; }
-            .panel[data-sheet="peek"] .sheet-body { visibility: hidden; }
+            #panel[data-sheet="peek"] .sheet-body { visibility: hidden; }
             .download { padding-bottom: max(14px, env(safe-area-inset-bottom)); }
+
+            /* Route & precision opens as its own sheet over the settings */
+            #sharedPane {
+                position: absolute; z-index: 1002;
+                left: 0; right: 0; bottom: 0; width: auto;
+                height: auto; max-height: calc(100% - 72px);
+                border-radius: 14px 14px 0 0;
+                box-shadow: 0 -10px 30px rgba(16, 24, 32, .24);
+            }
+            #sharedPane .head-row { padding-top: 12px; }
+            #sharedPane .sheet-body { padding-bottom: env(safe-area-inset-bottom); }
+
+            .toast {
+                position: absolute; z-index: 1003;
+                top: var(--edge-t); left: var(--edge-l);
+                max-width: calc(100% - var(--edge-l) - var(--edge-r) - var(--tool) - 12px);
+            }
+
             .stack {
-                left: max(12px, env(safe-area-inset-left)); right: max(12px, env(safe-area-inset-right)); max-width: none;
+                left: var(--edge-l); right: var(--edge-r); max-width: none;
                 bottom: calc(var(--sheet-h, 45vh) + 8px);
                 transition: bottom .28s cubic-bezier(.22, 1, .36, 1);
             }
             .stack.dragging { transition: none; }
-            .panel:not([data-sheet="peek"]) ~ .stack .hint { display: none; }
+            body:has(#panel:not([data-sheet="peek"])) .hint { display: none; }
             /* Fully open: the map strip is too small for the map controls.
                The attribution stays: tiles are still on screen (CC BY 4.0). */
-            .panel[data-sheet="full"] ~ .map-tool,
-            body:has(.panel[data-sheet="full"]) .ol-zoom { display: none; }
-            .panel[data-sheet="full"] ~ .stack #attribution { padding: 0 4px; }
+            body:has(#panel[data-sheet="full"]) .map-tool,
+            body:has(#panel[data-sheet="full"]) .ol-zoom,
+            body:has(#sharedPane:not([hidden])) .map-tool,
+            body:has(#sharedPane:not([hidden])) .ol-zoom { display: none; }
+            body:has(#panel[data-sheet="full"]) #attribution { padding: 0 4px; }
         }
         @media (max-width: 640px) and (prefers-reduced-motion: reduce) {
-            .panel, .stack { transition: none; }
+            #panel, .stack { transition: none; }
         }
     </style>
 </head>
 <body>
 <div id="map"></div>
 
-<div class="panel" id="panel">
+<div class="left-col" id="leftCol">
+<div class="pane" id="panel">
     <div class="sheet-head" id="sheetHead">
         <button class="grabber" id="grabber" type="button" aria-controls="sheetBody" aria-expanded="true" aria-label="Laajenna tai pienennä paneeli"><span></span></button>
         <div class="head-row">
             <h1>FastMap</h1>
             <span id="sheetSummary" aria-hidden="true"></span>
+            <button id="collapseBtn" class="icon-btn" type="button" aria-controls="panel" aria-expanded="true" aria-label="Pienennä asetukset sivupalkiksi" title="Pienennä asetukset" data-icon="collapse"></button>
         </div>
     </div>
 
@@ -374,47 +482,12 @@
         <input id="title" type="text" maxlength="120" placeholder="esim. Kilpisjärvi itä">
     </section>
 
-    <section class="section" aria-labelledby="sharedHeading">
-        <h2 id="sharedHeading">Yhteiset asetukset</h2>
-        <p class="section-note">Koskevat kaikkia karttoja.</p>
-
-        <h3>GPX-reitti</h3>
-        <button id="gpxBtn" class="btn btn-secondary" type="button"></button>
-        <input type="file" id="gpxInput" accept=".gpx" hidden>
-        <div id="gpxInfo"></div>
-
-        <details id="advSection">
-            <summary><span data-icon="chevron"></span>Lisäasetukset</summary>
-
-            <h3>Tarkkuus</h3>
-            <label for="dpi">Tulostus-DPI</label>
-            <select id="dpi">
-                <option value="" selected>Automaattinen (300)</option>
-                <option value="150">150</option>
-                <option value="200">200</option>
-                <option value="250">250</option>
-                <option value="300">300</option>
-            </select>
-            <label for="zoomLevel">Karttataso</label>
-            <select id="zoomLevel">
-                <option value="" selected>Automaattinen</option>
-                <option value="10">Nopea (8 m/px)</option>
-                <option value="11">Normaali (4 m/px)</option>
-                <option value="12">Tarkka (2 m/px)</option>
-                <option value="13">Tarkin (1 m/px)</option>
-            </select>
-
-            <h3>GPX-reitin ulkoasu</h3>
-            <label for="gpxColor">Reitin väri</label>
-            <input id="gpxColor" type="color" value="#ff00ff">
-            <label for="gpxWidth">Reitin leveys (pt)</label>
-            <input id="gpxWidth" type="number" value="5" step="1" min="1" max="20">
-            <label for="gpxOpacity">Reitin peittävyys</label>
-            <div class="range-row">
-                <input id="gpxOpacity" type="range" value="60" min="10" max="100" step="5">
-                <output id="gpxOpacityVal" for="gpxOpacity">60 %</output>
-            </div>
-        </details>
+    <section class="section" aria-label="Yhteiset asetukset">
+        <button id="sharedBtn" class="nav-row" type="button" aria-controls="sharedPane" aria-expanded="false">
+            <span data-icon="sliders"></span>
+            <span class="nav-text"><b>Reitti ja tarkkuus</b><small id="sharedSummary">GPX-reitti, DPI ja karttataso</small></span>
+            <span data-icon="chevron"></span>
+        </button>
     </section>
     </div>
 
@@ -432,18 +505,76 @@
     </section>
 </div>
 
-<button id="centerBtn" class="map-tool" type="button"></button>
+<nav class="rail" id="rail" aria-label="Kartat (pienennetty)" hidden>
+    <button id="expandBtn" class="icon-btn" type="button" aria-controls="panel" aria-expanded="false" aria-label="Näytä asetukset" title="Näytä asetukset" data-icon="expand"></button>
+    <hr>
+    <ul id="railMaps"></ul>
+    <button id="railNew" class="icon-btn" type="button" aria-label="Uusi kartta" title="Uusi kartta" data-icon="plus"></button>
+    <hr>
+    <button id="railShared" class="icon-btn" type="button" aria-controls="sharedPane" aria-expanded="false" aria-label="Reitti ja tarkkuus" title="Reitti ja tarkkuus" data-icon="sliders"></button>
+    <button id="railDownload" class="icon-btn" type="button" aria-label="Lataa kaikki kartat" title="Lataa kaikki" data-icon="download"></button>
+</nav>
+
+<aside class="pane" id="sharedPane" aria-labelledby="sharedHeading" hidden>
+    <div class="head-row">
+        <h2 class="pane-title" id="sharedHeading">Reitti ja tarkkuus</h2>
+        <button id="sharedClose" class="icon-btn" type="button" aria-label="Sulje" title="Sulje" data-icon="x"></button>
+    </div>
+    <div class="sheet-body">
+    <section class="section">
+        <p class="section-note">Koskevat kaikkia karttoja.</p>
+
+        <h3>GPX-reitti</h3>
+        <button id="gpxBtn" class="btn btn-secondary" type="button"></button>
+        <input type="file" id="gpxInput" accept=".gpx" hidden>
+        <div id="gpxInfo"></div>
+
+        <h3>Reitin ulkoasu</h3>
+        <label for="gpxColor">Väri</label>
+        <input id="gpxColor" type="color" value="#ff00ff">
+        <label for="gpxWidth">Leveys (pt)</label>
+        <input id="gpxWidth" type="number" value="5" step="1" min="1" max="20">
+        <label for="gpxOpacity">Peittävyys</label>
+        <div class="range-row">
+            <input id="gpxOpacity" type="range" value="60" min="10" max="100" step="5">
+            <output id="gpxOpacityVal" for="gpxOpacity">60 %</output>
+        </div>
+
+        <h3>Tarkkuus</h3>
+        <label for="dpi">Tulostus-DPI</label>
+        <select id="dpi">
+            <option value="" selected>Automaattinen (300)</option>
+            <option value="150">150</option>
+            <option value="200">200</option>
+            <option value="250">250</option>
+            <option value="300">300</option>
+        </select>
+        <label for="zoomLevel">Karttataso</label>
+        <select id="zoomLevel">
+            <option value="" selected>Automaattinen</option>
+            <option value="10">Nopea (8 m/px)</option>
+            <option value="11">Normaali (4 m/px)</option>
+            <option value="12">Tarkka (2 m/px)</option>
+            <option value="13">Tarkin (1 m/px)</option>
+        </select>
+    </section>
+    </div>
+</aside>
+
+<div id="toast" class="toast" role="status" aria-live="polite" hidden>
+    <span id="toastMsg"></span>
+    <button id="undoBtn" type="button">Kumoa</button>
+</div>
+</div>
+
+<button id="centerBtn" class="map-tool" type="button" aria-label="Siirrä valittu kartta näkyvän alueen keskelle" title="Siirrä valittu kartta tähän" data-icon="target"></button>
 
 <div class="stack">
-    <div id="toast" class="toast" role="status" aria-live="polite" hidden>
-        <span id="toastMsg"></span>
-        <button id="undoBtn" type="button">Kumoa</button>
-    </div>
     <div id="hint" class="hint">
-        <span>Siirrä aluetta raahaamalla tai ”Siirrä kartta tähän” -painikkeella<span class="hint-dblclick"> (myös kaksoisklikkaus)</span> · muokkaa edellisiä valitsemalla listasta</span>
+        <span>Siirrä aluetta raahaamalla tai <span class="kbd-icon" data-icon="target" aria-label="keskitys"></span>-painikkeella<span class="hint-dblclick"> (myös kaksoisklikkaus)</span> · valitse aiempi kartta listasta</span>
         <button id="hintClose" class="icon-btn" type="button" aria-label="Piilota ohje" data-icon="x"></button>
     </div>
-    <div id="attribution">© Maanmittauslaitos, CC BY 4.0</div>
+    <div id="attribution">© Maanmittauslaitos</div>
 </div>
 
 <script type="importmap">
@@ -489,6 +620,9 @@
         upload: '<path d="M12 20V9"/><path d="m7 14 5-5 5 5"/><path d="M5 4h14"/>',
         chevron: '<path d="m9 6 6 6-6 6"/>',
         target: '<circle cx="12" cy="12" r="7"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/>',
+        collapse: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16"/><path d="m16 10-2 2 2 2"/>',
+        expand: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16"/><path d="m14 10 2 2-2 2"/>',
+        sliders: '<path d="M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1"/><circle cx="15" cy="6" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="17" cy="18" r="2"/>',
     };
     function icon(name) {
         return `<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICON_PATHS[name]}</svg>`;
@@ -801,7 +935,33 @@
     const generatingIds = new Set();
     const downloadedIds = new Set();
 
+    // Collapsed rail: one numbered tile per map, same order as the list
+    function renderRail(focusKey) {
+        const ul = el('railMaps');
+        ul.innerHTML = '';
+        maps.forEach((e, i) => {
+            const li = document.createElement('li');
+            const b = document.createElement('button');
+            b.type = 'button';
+            b.className = 'rail-map';
+            b.dataset.key = `rail-${e.id}`;
+            b.textContent = String(i + 1);
+            if (generatingIds.has(e.id)) b.classList.add('generating');
+            else if (downloadedIds.has(e.id)) b.classList.add('done');
+            const label = `${displayName(e)} · ${e.paperSize} · 1:${e.scale.toLocaleString('fi-FI')}`;
+            b.setAttribute('aria-label', label);
+            b.title = label;
+            b.setAttribute('aria-pressed', String(e.id === activeId));
+            b.addEventListener('click', () => { setActive(e.id); revealEntry(e); });
+            li.append(b);
+            ul.append(li);
+        });
+        if (focusKey) ul.querySelector(`[data-key="${focusKey}"]`)?.focus();
+    }
+
     function renderList() {
+        const railFocusKey = el('railMaps').contains(document.activeElement)
+            ? document.activeElement.dataset.key : null;
         const ul = el('mapList');
         // The list is rebuilt on every change: remember keyboard focus
         const focusKey = ul.contains(document.activeElement) ? document.activeElement.dataset.key : null;
@@ -872,6 +1032,7 @@
         }
         const cur = active();
         el('activeName').textContent = cur ? displayName(cur) : '';
+        renderRail(railFocusKey);
         const summary = el('sheetSummary');
         summary.textContent = '';
         if (cur) {
@@ -1042,11 +1203,14 @@
         return phone.matches ? panel.getBoundingClientRect().height : 0;
     }
 
-    // Pixel width of map hidden behind the floating side panel (0 on phones)
-    function coveredRight() {
+    // Pixel width of map hidden behind the left column's panes (0 on phones)
+    function coveredLeft() {
         if (phone.matches) return 0;
-        const [w] = map.getSize() ?? [window.innerWidth];
-        return Math.max(0, w - panel.getBoundingClientRect().left);
+        let right = 0;
+        for (const p of [panel, el('rail'), el('sharedPane')]) {
+            if (p.offsetParent !== null) right = Math.max(right, p.getBoundingClientRect().right);
+        }
+        return right;
     }
 
     sheetHead.addEventListener('pointerdown', ev => {
@@ -1117,27 +1281,25 @@
     function visibleCenter() {
         const [cx, cy] = view.getCenter();
         const res = view.getResolution();
-        return [cx - (coveredRight() / 2) * res, cy + (coveredBottom() / 2) * res];
+        return [cx + (coveredLeft() / 2) * res, cy + (coveredBottom() / 2) * res];
     }
 
     // Pan so the entry sits in the visible area, if it is not there already
     function revealEntry(e) {
         const [w, h] = map.getSize() ?? [0, 0];
         const bottom = coveredBottom();
-        const right = coveredRight();
-        if (h - bottom < 120 || w - right < 120) return;
+        const left = coveredLeft();
+        if (h - bottom < 120 || w - left < 120) return;
         const res = view.getResolution();
         const [vx, vy] = view.getCenter();
-        const visible = [vx - (w / 2) * res, vy - (h / 2 - bottom) * res,
-                         vx + (w / 2 - right) * res, vy + (h / 2) * res];
+        const visible = [vx - (w / 2 - left) * res, vy - (h / 2 - bottom) * res,
+                         vx + (w / 2) * res, vy + (h / 2) * res];
         if (containsExtent(visible, e.feature.getGeometry().getExtent())) return;
         const [cx, cy] = entryCenter(e);
-        view.animate({ center: [cx + (right / 2) * res, cy - (bottom / 2) * res], duration: 300 });
+        view.animate({ center: [cx - (left / 2) * res, cy - (bottom / 2) * res], duration: 300 });
     }
 
     // "Siirrä tähän": move the selected map to the centre of the visible map
-    setButton(el('centerBtn'), 'target', 'Siirrä kartta tähän');
-    el('centerBtn').title = 'Siirrä valittu kartta näkyvän alueen keskelle';
     el('centerBtn').addEventListener('click', () => {
         const cur = active();
         if (!cur) return;
@@ -1175,6 +1337,52 @@
     el('clearAllBtn').addEventListener('click', clearAll);
     el('undoBtn').addEventListener('click', undo);
 
+    // --- Collapse to rail (desktop) and the route & precision pane ----------
+    const UI_KEY = 'fastmap.ui.v1';
+    const ui = (() => { try { return JSON.parse(localStorage.getItem(UI_KEY)) || {}; } catch { return {}; } })();
+    function saveUi() {
+        try { localStorage.setItem(UI_KEY, JSON.stringify(ui)); } catch { /* ignore */ }
+    }
+
+    function setCollapsed(collapsed, { focus = false } = {}) {
+        ui.collapsed = collapsed;
+        saveUi();
+        el('leftCol').toggleAttribute('data-collapsed', collapsed);
+        el('rail').hidden = !collapsed;
+        el('collapseBtn').setAttribute('aria-expanded', String(!collapsed));
+        el('expandBtn').setAttribute('aria-expanded', String(!collapsed));
+        if (focus) el(collapsed ? 'expandBtn' : 'collapseBtn').focus();
+    }
+
+    let sharedOpener = null;
+    function setShared(open, { focus = false } = {}) {
+        const pane = el('sharedPane');
+        if (open && !pane.hidden) return;
+        if (!phone.matches) { ui.shared = open; saveUi(); }
+        pane.hidden = !open;
+        for (const id of ['sharedBtn', 'railShared']) el(id).setAttribute('aria-expanded', String(open));
+        if (open) {
+            sharedOpener = document.activeElement;
+            if (focus) el('sharedClose').focus();
+        } else if (focus) {
+            (sharedOpener && sharedOpener.offsetParent !== null ? sharedOpener : el('sharedBtn')).focus();
+        }
+    }
+
+    el('collapseBtn').addEventListener('click', () => setCollapsed(true, { focus: true }));
+    el('expandBtn').addEventListener('click', () => setCollapsed(false, { focus: true }));
+    el('railNew').addEventListener('click', newMap);
+    el('railDownload').addEventListener('click', () => el('downloadAllBtn').click());
+    for (const id of ['sharedBtn', 'railShared']) {
+        el(id).addEventListener('click', () => setShared(el('sharedPane').hidden, { focus: true }));
+    }
+    el('sharedClose').addEventListener('click', () => setShared(false, { focus: true }));
+    el('sharedPane').addEventListener('keydown', ev => {
+        if (ev.key === 'Escape') setShared(false, { focus: true });
+    });
+    setCollapsed(!!ui.collapsed);
+    if (ui.shared && !phone.matches) setShared(true);
+
     // Usage hint: dismissible, remembered per browser
     try { if (localStorage.getItem(HINT_KEY)) el('hint').hidden = true; } catch { /* ignore */ }
     el('hintClose').addEventListener('click', () => {
@@ -1196,6 +1404,7 @@
             gpxName = '';
             setButton(gpxBtn, 'upload', 'Lataa GPX-tiedosto');
             gpxInfo.textContent = '';
+            el('sharedSummary').textContent = 'GPX-reitti, DPI ja karttataso';
         } else {
             gpxInput.click();
         }
@@ -1227,6 +1436,7 @@
             gpxName = line?.get('name') || file.name.replace(/\.gpx$/i, '');
             setButton(gpxBtn, 'x', 'Poista reitti');
             gpxInfo.textContent = gpxName;
+            el('sharedSummary').textContent = `Reitti: ${gpxName}`;
             view.fit(gpxLayer.getSource().getExtent(), { padding: [50, 50, 50, 50] });
         };
         reader.readAsText(file);
@@ -1243,7 +1453,14 @@
     // Same licence line as the PDFs (server builds it, dated in Finnish time)
     fetch('/api/attribution')
         .then(r => (r.ok ? r.json() : Promise.reject(r.status)))
-        .then(d => { el('attribution').textContent = d.text; })
+        .then(d => {
+            // The server's date is in Finnish time; fall back to today if absent
+            const month = /(\d{2}\/\d{4})/.exec(d.text)?.[1];
+            const now = new Date();
+            const fallback = `${String(now.getMonth() + 1).padStart(2, '0')}/${now.getFullYear()}`;
+            el('attribution').textContent = `© Maanmittauslaitos ${month ?? fallback}`;
+            el('attribution').title = d.text;
+        })
         .catch(() => {});
 
     function setStatus(msg, kind = '') {
@@ -1383,6 +1600,7 @@
             return true;
         } catch (err) {
             setStatus(`Virhe: ${err.message}. Yritä uudelleen.`, 'error');
+            if (ui.collapsed && !phone.matches) setCollapsed(false);
             return false;
         } finally {
             jobFinished();
@@ -1405,6 +1623,9 @@
         btn.classList.add('loading');
         btn.disabled = true;
         btn.setAttribute('aria-busy', 'true');
+        el('railDownload').classList.add('loading');
+        el('railDownload').setAttribute('aria-busy', 'true');
+        el('railDownload').innerHTML = icon('loader');
         await trackJob('/generate-maps-batch-async', {
             output: el('batchFormat').value,
             maps: maps.map(requestPayload),
@@ -1412,6 +1633,9 @@
         btn.classList.remove('loading');
         btn.disabled = false;
         btn.removeAttribute('aria-busy');
+        el('railDownload').classList.remove('loading');
+        el('railDownload').removeAttribute('aria-busy');
+        el('railDownload').innerHTML = icon('download');
     });
 </script>
 </body>
