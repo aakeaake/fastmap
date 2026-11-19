@@ -24,7 +24,7 @@ MM_PER_INCH = 25.4
 # The map keeps its full width (so its scale is unchanged) and loses this
 # much height. Mirrored as FOOTER_MM in frontend/index.html so the on-screen
 # rectangle still shows exactly what prints.
-FOOTER_MM = 4.0
+FOOTER_MM = 3.0  # 7 pt text + ~1 mm gap to the map
 
 
 @dataclass(frozen=True)

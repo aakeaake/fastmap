@@ -126,7 +126,7 @@ MML requests are retried up to 3 attempts (not read timeouts). See
 Each generated PDF contains:
 
 * The map raster filling the area inside the margins exactly, except for a
-  4 mm band at the bottom (no frame or border).
+  3 mm band at the bottom (no frame or border).
 * **Footer line** in that band, below the map, in Courier: `title · scale`
   on the left (just the scale without a title; a long title is shortened
   with "…") and `© Maanmittauslaitos MM/YYYY` on the right.
