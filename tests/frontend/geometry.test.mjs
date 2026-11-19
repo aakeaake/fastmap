@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-    centerToShow, containsExtent, contentMeters, extentCenter, ring, visibleCenter, visibleExtent,
+    centerToShow, containsExtent, contentMeters, extentCenter, ring, ringCenter, visibleCenter, visibleExtent,
 } from '../../frontend/js/geometry.js';
 
 const a4 = { paperSize: 'A4', orientation: 'portrait', margin: 7, scale: 20000 };
@@ -12,17 +12,18 @@ function assertClose(actual, expected) {
     actual.forEach((v, i) => assert.ok(Math.abs(v - expected[i]) < 1e-6, `${actual} != ${expected}`));
 }
 
-test('contentMeters: A4 portrait minus margins, in metres', () => {
-    // (210 - 2*7) mm and (297 - 2*7) mm at 1:20 000
-    assertClose(contentMeters(a4), [3920, 5660]);
+test('contentMeters: A4 portrait minus margins and footer, in metres', () => {
+    // (210 - 2*7) mm wide, (297 - 2*7 - 4) mm tall at 1:20 000
+    assertClose(contentMeters(a4), [3920, 5580]);
 });
 
-test('contentMeters: landscape swaps the sides', () => {
-    assertClose(contentMeters({ ...a4, orientation: 'landscape' }), [5660, 3920]);
+test('contentMeters: landscape swaps the sides; the footer stays at the bottom', () => {
+    // (297 - 2*7) mm wide, (210 - 2*7 - 4) mm tall
+    assertClose(contentMeters({ ...a4, orientation: 'landscape' }), [5660, 3840]);
 });
 
 test('contentMeters: A3 and scale', () => {
-    assertClose(contentMeters({ ...a4, paperSize: 'A3', scale: 10000 }), [2830, 4060]);
+    assertClose(contentMeters({ ...a4, paperSize: 'A3', scale: 10000 }), [2830, 4020]);
 });
 
 test('contentMeters: margin is capped so content never vanishes', () => {
@@ -43,6 +44,7 @@ test('ring is a closed rectangle around the centre', () => {
     assert.deepEqual(r[0], [90, 195]);
     assert.deepEqual(r[2], [110, 205]);
     assert.deepEqual(extentCenter([90, 195, 110, 205]), [100, 200]);
+    assert.deepEqual(ringCenter(r), [100, 200]);
 });
 
 test('containsExtent', () => {

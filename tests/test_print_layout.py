@@ -1,6 +1,9 @@
+import re
+
 import pytest
 
 from fastmap.services.print_layout import (
+    FOOTER_MM,
     Extent,
     actual_scale,
     clamp_extent_to_finland,
@@ -22,19 +25,33 @@ def test_oriented_page_sizes():
 
 
 def test_content_area_mm():
-    assert content_area_mm("A4", "portrait", 10) == (190.0, 277.0)
+    assert content_area_mm("A4", "portrait", 10) == (190.0, 277.0 - FOOTER_MM)
+
+
+def test_footer_band_keeps_width_and_scale():
+    w, _ = content_area_mm("A3", "landscape", 7)
+    assert w == 420.0 - 14
+
+
+def test_frontend_mirrors_footer_height():
+    """The on-screen rectangle must shrink exactly like the printed map."""
+    from pathlib import Path
+
+    js = (Path(__file__).resolve().parents[1] / "frontend" / "js" / "constants.js").read_text()
+    m = re.search(r"export const FOOTER_MM = ([\d.]+);", js)
+    assert m and float(m.group(1)) == FOOTER_MM
 
 
 def test_content_pixels_a4_300dpi():
     w, h = content_pixels("A4", "portrait", 300, 10)
-    assert (w, h) == (2244, 3272)  # 190mm & 277mm at 300 dpi
+    assert (w, h) == (2244, 3224)  # 190mm & (277 - 4)mm at 300 dpi
 
 
 def test_extent_for_center_round_trip_scale():
     ext = extent_for_center(430000, 6668000, 20000, "A4", "portrait", 10)
     cw, _ = content_area_mm("A4", "portrait", 10)
     assert ext.width_m == pytest.approx(3800.0)
-    assert ext.height_m == pytest.approx(5540.0)
+    assert ext.height_m == pytest.approx(5460.0)  # (277 - 4) mm at 1:20000
     assert actual_scale(ext, cw) == 20000
 
 
@@ -42,9 +59,9 @@ def test_snap_extent_to_scale_keeps_center():
     raw = Extent(400000, 6600000, 410000, 6620000)
     snapped = snap_extent_to_scale(raw, 25000, "A4", "landscape", 10)
     assert snapped.center == pytest.approx(raw.center)
-    # A4 landscape content: 277 x 190 mm -> 6925 x 4750 m at 1:25000
+    # A4 landscape map: 277 x (190 - 4) mm -> 6925 x 4650 m at 1:25000
     assert snapped.width_m == pytest.approx(6925.0)
-    assert snapped.height_m == pytest.approx(4750.0)
+    assert snapped.height_m == pytest.approx(4650.0)
 
 
 def test_with_aspect_keeps_width_and_center():

@@ -1,14 +1,15 @@
 // Paper footprints and visible-area maths. Pure functions, map units in
 // metres (EPSG:3067), screen sizes in CSS pixels.
-import { PAPER_MM } from './constants.js';
+import { FOOTER_MM, PAPER_MM } from './constants.js';
 
 // Printable content size in metres for a map's settings.
-// Mirrors the backend's content_area_mm(): paper minus equal margins.
+// Mirrors the backend's content_area_mm(): paper minus equal margins,
+// minus the footer band.
 export function contentMeters({ paperSize, orientation, margin, scale }) {
     let [wmm, hmm] = PAPER_MM[paperSize] || PAPER_MM.A4;
     if (orientation === 'landscape') [wmm, hmm] = [hmm, wmm];
     const m = Math.max(0, Math.min(margin, Math.min(wmm, hmm) / 2 - 0.5));
-    return [(wmm - 2 * m) / 1000 * scale, (hmm - 2 * m) / 1000 * scale];
+    return [(wmm - 2 * m) / 1000 * scale, (hmm - 2 * m - FOOTER_MM) / 1000 * scale];
 }
 
 // Closed rectangle ring centred on (cx, cy)
@@ -22,6 +23,13 @@ export function ring(cx, cy, w, h) {
 
 export function extentCenter([minx, miny, maxx, maxy]) {
     return [(minx + maxx) / 2, (miny + maxy) / 2];
+}
+
+// Centre of a ring's bounding box
+export function ringCenter(coords) {
+    const xs = coords.map(p => p[0]);
+    const ys = coords.map(p => p[1]);
+    return [(Math.min(...xs) + Math.max(...xs)) / 2, (Math.min(...ys) + Math.max(...ys)) / 2];
 }
 
 export function containsExtent(outer, inner) {

@@ -2,7 +2,7 @@
 // plus its OpenLayers features: { id, title, paperSize, orientation, scale,
 // layer, margin, gridMode, gridSpacing, feature, labelFeature }.
 import { DEFAULTS } from './constants.js';
-import { contentMeters, extentCenter, ring } from './geometry.js';
+import { contentMeters, extentCenter, ring, ringCenter } from './geometry.js';
 import { makeFeatures } from './map.js';
 import { sanitizeSavedMap } from './saved.js';
 
@@ -65,7 +65,11 @@ export function restoreFrom(data) {
     const created = [];
     for (const m of data.maps) {
         const saved = sanitizeSavedMap(m);
-        if (saved) created.push(createEntry([0, 0], saved.settings, saved.coords));
+        // Rebuild the rectangle from its saved centre with the current
+        // contentMeters(), rather than reusing the saved corners: maps
+        // saved before a layout change (e.g. the PDF footer band) would
+        // otherwise keep a size that no longer matches the print.
+        if (saved) created.push(createEntry(ringCenter(saved.coords), saved.settings));
     }
     if (created.length && Number.isFinite(data.nextId)) {
         state.nextId = Math.max(state.nextId, data.nextId, 1);
