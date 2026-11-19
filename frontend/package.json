@@ -1,0 +1,5 @@
+{
+  "private": true,
+  "description": "Marks frontend/js/*.js as ES modules for the Node unit tests in tests/frontend. Nothing to install.",
+  "type": "module"
+}

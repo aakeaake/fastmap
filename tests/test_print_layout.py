@@ -37,8 +37,8 @@ def test_frontend_mirrors_footer_height():
     """The on-screen rectangle must shrink exactly like the printed map."""
     from pathlib import Path
 
-    html = (Path(__file__).resolve().parents[1] / "frontend" / "index.html").read_text()
-    m = re.search(r"const FOOTER_MM = ([\d.]+);", html)
+    js = (Path(__file__).resolve().parents[1] / "frontend" / "js" / "constants.js").read_text()
+    m = re.search(r"export const FOOTER_MM = ([\d.]+);", js)
     assert m and float(m.group(1)) == FOOTER_MM
 
 

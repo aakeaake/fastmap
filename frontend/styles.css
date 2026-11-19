@@ -1,0 +1,385 @@
+/* FastMap UI styles. Tokens first, then components, then touch and phone layers. */
+
+:root {
+    --ink: #1d2329;
+    --ink-2: #47505a;          /* secondary text, 8.3:1 on white */
+    --ink-3: #5c6670;          /* tertiary text, 5.8:1 on white */
+    --line: #c6cdd4;
+    --line-strong: #8f99a3;
+    --surface: #ffffff;
+    --surface-2: #eef1f4;
+    --surface-3: #e2e7eb;
+    --accent: #245c85;
+    --accent-strong: #1c4a6c;
+    --accent-soft: #e4edf4;
+    --active: #0050e6;         /* matches the selected rectangle on the map, 6.2:1 on white */
+    --active-soft: #e6eeff;
+    --danger: #b00020;
+    --success: #1a6b3c;
+    --radius: 6px;
+    --radius-sm: 4px;
+    --shadow: 0 2px 4px rgba(16, 24, 32, .08), 0 8px 24px rgba(16, 24, 32, .16);
+    --shadow-sm: 0 1px 3px rgba(16, 24, 32, .25);
+    --font: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    /* map edge offsets, clear of notches and rounded corners */
+    --edge-t: max(12px, env(safe-area-inset-top));
+    --edge-r: max(12px, env(safe-area-inset-right));
+    --edge-b: max(8px, env(safe-area-inset-bottom));
+    --edge-l: max(12px, env(safe-area-inset-left));
+    --tool: 32px;              /* map control size; 44px on touch */
+    accent-color: var(--accent);
+}
+
+html, body { height: 100%; margin: 0; overflow: hidden; font-family: var(--font); color: var(--ink); background: var(--surface-2); }
+::selection { background: var(--accent-soft); color: var(--ink); }
+#map { position: absolute; inset: 0; }
+
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+button { font: inherit; color: inherit; }
+.icon { width: 16px; height: 16px; flex: 0 0 auto; display: block; }
+.visually-hidden {
+    position: absolute; width: 1px; height: 1px; overflow: hidden;
+    clip: rect(0 0 0 0); white-space: nowrap;
+}
+
+/* --- Left column: settings pane | rail, route pane, undo ----------- */
+.left-col {
+    position: absolute; z-index: 1000;
+    top: var(--edge-t); left: var(--edge-l);
+    height: calc(100vh - var(--edge-t) - 12px);
+    display: flex; align-items: flex-start; gap: 10px;
+    pointer-events: none;           /* the gaps keep panning the map */
+}
+.left-col > * { pointer-events: auto; }
+
+.pane {
+    width: 288px; box-sizing: border-box; max-height: 100%;
+    display: flex; flex-direction: column; overflow: hidden;
+    background: var(--surface); border-radius: 8px; box-shadow: var(--shadow);
+}
+.pane[hidden] { display: none; }
+#sharedPane { width: 264px; }
+.sheet-head { flex: 0 0 auto; }
+.grabber, #sheetSummary { display: none; }
+.head-row { display: flex; align-items: center; gap: 10px; padding: 10px 8px 2px 16px; min-height: 32px; }
+.head-row .icon-btn { margin-left: auto; }
+.pane h1 { font-size: 17px; font-weight: 700; margin: 0; letter-spacing: -.01em; }
+.pane-title { font-size: 15px; font-weight: 650; margin: 0; }
+.sheet-body {
+    flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain;
+    scrollbar-width: thin; scrollbar-color: var(--line) transparent;
+}
+
+.section { padding: 12px 16px 14px; }
+.section + .section { border-top: 1px solid var(--surface-3); }
+.section-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 6px; }
+.section h2 { font-size: 14px; font-weight: 650; margin: 0; }
+.section-note { font-size: 12px; color: var(--ink-3); margin: 2px 0 0; }
+.section h3 { font-size: 13px; font-weight: 650; margin: 16px 0 0; }
+.section h3:first-of-type { margin-top: 12px; }
+
+.pane label { display: block; font-size: 13px; color: var(--ink-2); margin: 10px 0 3px; }
+.pane select, .pane input[type=number], .pane input[type=text] {
+    width: 100%; box-sizing: border-box; height: 32px; padding: 4px 8px;
+    border: 1px solid var(--line-strong); border-radius: var(--radius-sm);
+    font: inherit; font-size: 14px; color: var(--ink); background: var(--surface);
+}
+.pane select:disabled { color: var(--ink-3); background: var(--surface-2); border-color: var(--line); }
+.pane input::placeholder { color: var(--ink-3); }
+.row { display: flex; gap: 10px; }
+.row > div { flex: 1; min-width: 0; }
+
+/* --- Buttons ------------------------------------------------------- */
+.btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+    width: 100%; min-height: 36px; padding: 6px 12px; box-sizing: border-box;
+    border: none; border-radius: var(--radius);
+    font-size: 14px; font-weight: 600; cursor: pointer;
+    transition: background-color .15s ease-out;
+}
+.btn-secondary { background: var(--surface-2); color: var(--ink); }
+.btn-secondary:hover { background: var(--surface-3); }
+.btn-primary { background: var(--accent); color: #fff; position: relative; }
+.btn-primary:hover { background: var(--accent-strong); }
+.btn-primary:disabled { background: #7f9db3; cursor: wait; }
+.btn-primary.loading { color: transparent; pointer-events: none; }
+.btn-primary.loading::after {
+    content: ''; position: absolute; top: 50%; left: 50%;
+    width: 14px; height: 14px; margin: -9px 0 0 -9px;
+    border: 2px solid rgba(255,255,255,.35); border-top-color: #fff; border-radius: 50%;
+    animation: spin .7s linear infinite;
+}
+.btn-text {
+    min-height: 28px; padding: 0 6px; margin-right: -6px;
+    border: none; background: none; border-radius: var(--radius-sm);
+    font-size: 13px; color: var(--ink-2); cursor: pointer;
+    text-decoration: underline; text-underline-offset: 2px;
+}
+.btn-text:hover { color: var(--danger); }
+.icon-btn {
+    width: 28px; height: 28px; padding: 0; flex: 0 0 auto;
+    display: inline-flex; align-items: center; justify-content: center;
+    border: none; background: none; border-radius: var(--radius-sm);
+    color: var(--ink-2); cursor: pointer;
+}
+.icon-btn:hover { background: var(--surface-3); color: var(--ink); }
+
+/* Row that opens the route & precision pane */
+.nav-row {
+    display: flex; align-items: center; gap: 10px; width: 100%; box-sizing: border-box;
+    min-height: 44px; padding: 6px 8px 6px 10px; margin: 0;
+    border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface);
+    text-align: left; cursor: pointer;
+}
+.nav-row:hover { background: var(--surface-2); }
+.nav-row[aria-expanded="true"] { border-color: var(--accent); background: var(--accent-soft); }
+.nav-row .nav-text { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.nav-row b { font-size: 14px; font-weight: 600; }
+.nav-row small { font-size: 12px; color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.nav-row > .icon:last-child { color: var(--ink-2); }
+
+/* --- Map list ------------------------------------------------------ */
+#mapList { list-style: none; margin: 0 0 10px; padding: 0; max-height: 212px; overflow-y: auto; }
+#mapList li {
+    display: flex; align-items: center; gap: 2px;
+    border: 1px solid var(--line); border-radius: var(--radius);
+    padding: 2px 4px 2px 0; margin-bottom: 6px;
+}
+#mapList li:hover { background: var(--surface-2); }
+#mapList li.active { border-color: var(--active); background: var(--active-soft); }
+#mapList .m-select {
+    flex: 1; min-width: 0; min-height: 32px; display: flex; align-items: center; gap: 8px;
+    padding: 0 6px 0 9px; border: none; background: none; border-radius: var(--radius-sm);
+    text-align: left; cursor: pointer; font-size: 13px;
+}
+#mapList .chip {
+    width: 10px; height: 10px; border-radius: 3px; flex: 0 0 auto;
+    border: 1px solid rgba(0,0,0,.18); background: var(--ink);
+}
+#mapList .chip.chip-active { background: var(--active); }
+#mapList .m-name { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#mapList .m-sum {
+    color: var(--ink-2); flex: 1; text-align: right; white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+}
+#mapList .dl-btn.generating { color: var(--accent); cursor: wait; }
+#mapList .dl-btn.generating .icon { animation: spin 1s linear infinite; }
+#mapList .dl-btn.done { color: var(--success); }
+#mapList .del:hover { color: var(--danger); }
+@keyframes spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+    #mapList .dl-btn.generating .icon, .btn-primary.loading::after { animation-duration: 3s; }
+    .btn { transition: none; }
+}
+
+/* --- Collapsed rail: one numbered tile per map --------------------- */
+.rail {
+    box-sizing: border-box; width: 52px; max-height: 100%; padding: 6px;
+    display: flex; flex-direction: column; align-items: center; gap: 4px;
+    background: var(--surface); border-radius: 8px; box-shadow: var(--shadow);
+}
+.rail[hidden] { display: none; }
+.rail .icon-btn { width: 40px; height: 40px; }
+.rail hr { width: 28px; border: 0; border-top: 1px solid var(--surface-3); margin: 4px 0; }
+#railMaps {
+    list-style: none; margin: 0; padding: 0; min-height: 0; overflow-y: auto;
+    display: flex; flex-direction: column; gap: 4px; scrollbar-width: none;
+}
+.rail-map {
+    width: 40px; height: 40px; padding: 0; box-sizing: border-box;
+    display: grid; place-items: center;
+    border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface);
+    font-size: 14px; font-weight: 650; font-variant-numeric: tabular-nums; color: var(--ink-2);
+    cursor: pointer; position: relative;
+}
+.rail-map:hover { background: var(--surface-2); color: var(--ink); }
+.rail-map[aria-pressed="true"] { border: 2px solid var(--active); background: var(--active-soft); color: var(--active); }
+.rail-map.done::after {           /* downloaded and unchanged */
+    content: ''; position: absolute; right: 3px; bottom: 3px;
+    width: 6px; height: 6px; border-radius: 50%; background: var(--success);
+}
+.rail-map.generating { border-style: dashed; }
+#railDownload { background: var(--accent); color: #fff; margin-top: 2px; }
+#railDownload:hover { background: var(--accent-strong); }
+#railDownload.loading .icon { animation: spin 1s linear infinite; }
+#railShared[aria-expanded="true"] { background: var(--accent-soft); color: var(--accent); }
+
+/* --- Route & precision pane ---------------------------------------- */
+#gpxBtn { margin-top: 6px; }
+#gpxInfo { font-size: 13px; color: var(--ink-2); margin-top: 6px; overflow-wrap: anywhere; }
+#gpxInfo:empty { display: none; }
+#gpxColor { width: 100%; height: 32px; padding: 2px; box-sizing: border-box; border: 1px solid var(--line-strong); border-radius: var(--radius-sm); background: var(--surface); }
+.range-row { display: flex; align-items: center; gap: 10px; }
+.range-row input { flex: 1; margin: 0; }
+.range-row output { font-size: 13px; color: var(--ink-2); min-width: 4ch; text-align: right; font-variant-numeric: tabular-nums; }
+
+/* --- Download footer ----------------------------------------------- */
+.download { flex: 0 0 auto; background: var(--surface); border-top: 1px solid var(--surface-3); }
+.dl-row { display: flex; gap: 8px; }
+.dl-row select { flex: 0 0 112px; height: 36px !important; }
+.dl-row .btn { flex: 1; }
+#status { font-size: 13px; margin-top: 8px; line-height: 1.4; }
+#status:empty { display: none; }
+#status.error { color: var(--danger); font-weight: 600; }
+#status.success { color: var(--success); }
+#progress { font-size: 13px; color: var(--ink-2); margin-top: 8px; font-variant-numeric: tabular-nums; }
+#progress:empty { display: none; }
+
+/* --- Undo message: beside the open panes --------------------------- */
+.toast {
+    display: flex; align-items: center; gap: 12px; flex: 0 0 auto;
+    background: var(--ink); color: #fff; border-radius: var(--radius);
+    padding: 6px 6px 6px 12px; font-size: 13px; box-shadow: var(--shadow);
+}
+.toast[hidden] { display: none; }
+.toast button {
+    min-height: 28px; padding: 0 10px; border: none; border-radius: var(--radius-sm);
+    background: rgba(255,255,255,.14); color: #fff; font-weight: 600; cursor: pointer;
+}
+.toast button:hover { background: rgba(255,255,255,.24); }
+.toast button:focus-visible { outline-color: #fff; }
+
+/* --- Bottom-right stack: hint, attribution ------------------------- */
+.stack {
+    position: absolute; z-index: 1000;
+    right: var(--edge-r); bottom: var(--edge-b);
+    max-width: min(520px, calc(100% - 360px));
+    display: flex; flex-direction: column; align-items: flex-end; gap: 6px;
+}
+.hint {
+    display: flex; align-items: center; gap: 4px;
+    background: rgba(255,255,255,.94); border-radius: var(--radius);
+    padding: 4px 4px 4px 12px; font-size: 13px; line-height: 1.45; color: var(--ink-2);
+    box-shadow: 0 1px 3px rgba(16, 24, 32, .18);
+}
+.hint[hidden] { display: none; }
+/* Short screens (landscape phones): the panes fill the height, so
+   the hint would sit on top of them. It is optional help: drop it. */
+@media (min-width: 641px) and (max-height: 500px) { .hint { display: none; } }
+.hint .kbd-icon {
+    display: inline-grid; place-items: center; vertical-align: -5px;
+    width: 20px; height: 20px; margin: 0 2px 0 1px; border-radius: var(--radius-sm);
+    background: var(--surface); box-shadow: var(--shadow-sm); color: var(--ink);
+}
+.hint .kbd-icon .icon { width: 13px; height: 13px; }
+@media (pointer: coarse) { .hint-dblclick { display: none; } }
+#attribution {
+    font-size: 12px; color: var(--ink-2);
+    background: rgba(255,255,255,.8); border-radius: var(--radius-sm); padding: 1px 6px;
+}
+
+/* --- Map controls, right edge: zoom, then move-here ---------------- */
+.ol-zoom {
+    top: var(--edge-t); right: var(--edge-r); left: auto;
+    padding: 0; background: none; border-radius: var(--radius);
+    box-shadow: var(--shadow-sm); overflow: hidden;
+    display: flex; flex-direction: column; gap: 1px;
+}
+.ol-zoom:hover { background: none; }
+.ol-zoom .ol-zoom-in, .ol-zoom .ol-zoom-out {
+    width: var(--tool); height: var(--tool); margin: 0; border-radius: 0;
+    background: var(--surface); color: var(--ink); font-size: 20px; font-weight: 500;
+}
+.ol-zoom .ol-zoom-in:hover, .ol-zoom .ol-zoom-out:hover,
+.ol-zoom .ol-zoom-in:focus, .ol-zoom .ol-zoom-out:focus { background: var(--surface-2); outline: none; }
+.ol-zoom button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.map-tool {
+    position: absolute; z-index: 900;
+    top: calc(var(--edge-t) + 2 * var(--tool) + 1px + 8px); right: var(--edge-r);
+    width: var(--tool); height: var(--tool); padding: 0;
+    display: grid; place-items: center;
+    border: none; border-radius: var(--radius);
+    background: var(--surface); color: var(--ink); box-shadow: var(--shadow-sm); cursor: pointer;
+}
+.map-tool .icon { width: 18px; height: 18px; }
+.map-tool:hover { background: var(--surface-2); }
+
+/* --- Collapsed (desktop): the rail replaces the settings pane ------ */
+@media (min-width: 641px) {
+    .left-col[data-collapsed] #panel { display: none; }
+}
+@media (max-width: 640px) {
+    .rail { display: none !important; }
+    #collapseBtn { display: none; }
+}
+
+/* --- Touch: 44px targets, 16px form text (no iOS focus zoom) ------- */
+@media (pointer: coarse) {
+    :root { --tool: 44px; }
+    .pane select, .pane input[type=number], .pane input[type=text], #gpxColor { height: 44px; font-size: 16px; }
+    .dl-row select { height: 44px !important; flex-basis: 120px; }
+    .btn { min-height: 44px; font-size: 15px; }
+    .btn-text, .toast button { min-height: 44px; }
+    .icon-btn { width: 44px; height: 44px; }
+    .rail { width: 56px; }
+    .rail .icon-btn, .rail-map { width: 44px; height: 44px; }
+    #mapList .m-select { min-height: 44px; font-size: 14px; }
+    .pane label { font-size: 14px; }
+    .ol-zoom .ol-zoom-in, .ol-zoom .ol-zoom-out { font-size: 24px; }
+    .map-tool .icon { width: 20px; height: 20px; }
+}
+
+/* --- Phone: settings become a bottom sheet ------------------------- */
+@media (max-width: 640px) {
+    .left-col { display: contents; }   /* panes position against the page */
+    #panel {
+        position: absolute; z-index: 1000;
+        left: 0; right: 0; bottom: 0; width: auto;
+        height: var(--sheet-h, 45vh); max-height: none;
+        border-radius: 14px 14px 0 0;
+        box-shadow: 0 -2px 6px rgba(16, 24, 32, .08), 0 -10px 30px rgba(16, 24, 32, .18);
+        transition: height .28s cubic-bezier(.22, 1, .36, 1);
+    }
+    #panel.dragging { transition: none; }
+    .sheet-head { touch-action: none; cursor: grab; user-select: none; -webkit-user-select: none; }
+    .grabber {
+        display: flex; justify-content: center; align-items: center;
+        width: 100%; height: 22px; padding: 0; border: none; background: none; cursor: inherit;
+    }
+    .grabber span { width: 40px; height: 5px; border-radius: 3px; background: var(--line-strong); }
+    #panel .head-row { padding: 0 16px 10px; }
+    #sheetSummary {
+        display: block; flex: 1; min-width: 0; text-align: right;
+        font-size: 14px; color: var(--ink-2);
+        white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        font-variant-numeric: tabular-nums;
+    }
+    #sheetSummary b { color: var(--ink); font-weight: 600; }
+    #panel[data-sheet="peek"] .sheet-body { visibility: hidden; }
+    .download { padding-bottom: max(14px, env(safe-area-inset-bottom)); }
+
+    /* Route & precision opens as its own sheet over the settings */
+    #sharedPane {
+        position: absolute; z-index: 1002;
+        left: 0; right: 0; bottom: 0; width: auto;
+        height: auto; max-height: calc(100% - 72px);
+        border-radius: 14px 14px 0 0;
+        box-shadow: 0 -10px 30px rgba(16, 24, 32, .24);
+    }
+    #sharedPane .head-row { padding-top: 12px; }
+    #sharedPane .sheet-body { padding-bottom: env(safe-area-inset-bottom); }
+
+    .toast {
+        position: absolute; z-index: 1003;
+        top: var(--edge-t); left: var(--edge-l);
+        max-width: calc(100% - var(--edge-l) - var(--edge-r) - var(--tool) - 12px);
+    }
+
+    .stack {
+        left: var(--edge-l); right: var(--edge-r); max-width: none;
+        bottom: calc(var(--sheet-h, 45vh) + 8px);
+        transition: bottom .28s cubic-bezier(.22, 1, .36, 1);
+    }
+    .stack.dragging { transition: none; }
+    body:has(#panel:not([data-sheet="peek"])) .hint { display: none; }
+    /* Fully open: the map strip is too small for the map controls.
+       The attribution stays: tiles are still on screen (CC BY 4.0). */
+    body:has(#panel[data-sheet="full"]) .map-tool,
+    body:has(#panel[data-sheet="full"]) .ol-zoom,
+    body:has(#sharedPane:not([hidden])) .map-tool,
+    body:has(#sharedPane:not([hidden])) .ol-zoom { display: none; }
+    body:has(#panel[data-sheet="full"]) #attribution { padding: 0 4px; }
+}
+@media (max-width: 640px) and (prefers-reduced-motion: reduce) {
+    #panel, .stack { transition: none; }
+}
