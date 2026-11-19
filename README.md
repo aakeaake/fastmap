@@ -131,7 +131,10 @@ Each generated PDF contains:
   on the left (just the scale without a title; a long title is shortened
   with "…") and `© Maanmittauslaitos MM/YYYY` on the right.
 * **Grid lines** (optional) — thin grey lines at the selected spacing, with
-  optional coordinate labels at content-area edges.
+  optional coordinate labels in TM35FIN metres ÷ 100 (E 385 500 → `3855`,
+  N 6 672 500 → `66725`). Labels sit outside the map, in the margin: east
+  labels above the top edge, north labels left of the map, rotated 90°
+  anticlockwise. In a margin under 3 mm they go inside the map edges.
 * **GPX route** (optional) — coloured polyline clipped to the content area,
   with configurable colour, width, and opacity.
 

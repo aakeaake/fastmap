@@ -209,14 +209,14 @@ def _page_content(data: bytes) -> bytes:
     return b"\n".join(out)
 
 
-def _grid_pdf(tmp_path, monkeypatch, spacing):
+def _grid_pdf(tmp_path, monkeypatch, spacing, margin=10):
     monkeypatch.setattr(pdf_generator, "render_extent_image", _fake_render)
     out = tmp_path / f"grid_{spacing}.pdf"
     pdf_generator.generate_pdf(
         Extent(428100, 6665230, 431900, 6670770),
         paper_size="A4",
         orientation="portrait",
-        margin_mm=10,
+        margin_mm=margin,
         grid_mode="full_coords",
         grid_spacing_m=spacing,
         out_pdf_path=str(out),
@@ -224,17 +224,18 @@ def _grid_pdf(tmp_path, monkeypatch, spacing):
     return _page_content(out.read_bytes())
 
 
+@pytest.mark.parametrize(
+    ("value", "label"), [(385500, "3855"), (6672500, "66725"), (429000, "4290")]
+)
+def test_grid_label_is_coordinate_over_100(value, label):
+    assert pdf_generator._grid_label(value) == label
+
+
 def test_grid_labels_distinct_at_500m(tmp_path, monkeypatch):
-    """Half-km lines need a decimal, or 428 000 and 428 500 both read '428'."""
+    """Half-km lines must differ from whole-km ones, without decimals."""
     data = _grid_pdf(tmp_path, monkeypatch, 500)
-    assert b"(428.5)" in data
-    assert b"(6665.5)" in data
-
-
-def test_grid_labels_whole_km_have_no_decimal(tmp_path, monkeypatch):
-    data = _grid_pdf(tmp_path, monkeypatch, 1000)
-    assert b"(429)" in data
-    assert b"(429.0)" not in data
+    assert b"(4285)" in data and b"(4290)" in data
+    assert b"." not in b"".join(re.findall(rb"\((\d[\d.]*)\) Tj", data))
 
 
 def test_attribution_uses_render_date(tmp_path, monkeypatch):
@@ -339,8 +340,8 @@ def test_dense_half_km_grid_labels_only_whole_km(tmp_path, monkeypatch):
         out_pdf_path=str(out),
     )
     data = _page_content(out.read_bytes())
-    assert b"(430)" in data
-    assert b"(430.5)" not in data
+    assert b"(4300)" in data
+    assert b"(4305)" not in data
 
 
 def test_stream_length_regex_is_direct_only():
@@ -501,3 +502,47 @@ def test_every_batch_page_has_a_footer(tmp_path, monkeypatch):
     pdf_generator.generate_multi_pdf([(ext, page), (ext, a3)], str(out))
     content = _page_content(out.read_bytes())
     assert content.count(b"Maanmittauslaitos") == 2
+
+
+# --- Grid labels outside the map ----------------------------------------------
+
+
+def _label_ops(content: bytes):
+    """Grid label ops: (x, y, text, rotated) for all-digit strings."""
+    return [op for op in _text_ops(content) if op[2].isdigit()]
+
+
+def test_grid_labels_outside_the_map(tmp_path, monkeypatch):
+    content = _grid_pdf(tmp_path, monkeypatch, 500)
+    mx, my, mw, mh = _image_box(content)
+    ops = _label_ops(content)
+    east = [op for op in ops if not op[3]]
+    north = [op for op in ops if op[3]]
+    assert east and north
+    for _x, y, text, _ in east:
+        assert y > my + mh, text  # above the map's top edge
+    for x, _y, text, _ in north:
+        # rotated 90° anticlockwise, in the left margin: the baseline is left
+        # of the map edge and the glyphs (5.5 pt tall) still end on the page
+        assert 0 <= x - 5.5 and x < mx, text
+    assert {t for *_, t, _ in north} >= {"66655", "66660"}
+
+
+def test_grid_labels_fall_back_inside_with_small_margin(tmp_path, monkeypatch):
+    content = _grid_pdf(tmp_path, monkeypatch, 500, margin=2)
+    mx, my, mw, mh = _image_box(content)
+    ops = _label_ops(content)
+    assert ops and not any(rotated for *_, rotated in ops)
+    for x, y, text, _ in ops:
+        assert mx <= x <= mx + mw and my <= y <= my + mh, text
+
+
+def test_grid_labels_skip_corners(tmp_path, monkeypatch):
+    content = _grid_pdf(tmp_path, monkeypatch, 500)
+    mx, my, mw, mh = _image_box(content)
+    for x, y, text, rotated in _label_ops(content):
+        width = stringWidth(text, "Courier", 5.5)
+        if rotated:  # x, y is the label's start; it runs upward along the edge
+            assert my <= y and y + width <= my + mh + 0.01, text
+        else:
+            assert mx <= x and x + width <= mx + mw + 0.01, text
