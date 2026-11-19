@@ -19,8 +19,8 @@
             --accent: #245c85;
             --accent-strong: #1c4a6c;
             --accent-soft: #e4edf4;
-            --active: #d40000;         /* matches the active rectangle on the map */
-            --active-soft: #fdeaea;
+            --active: #0050e6;         /* matches the selected rectangle on the map, 6.2:1 on white */
+            --active-soft: #e6eeff;
             --danger: #b00020;
             --success: #1a6b3c;
             --radius: 6px;
@@ -666,8 +666,13 @@
     const GRID_MODES = ['off', 'vertical', 'vertical_coords', 'full', 'full_coords'];
     const STORAGE_KEY = 'fastmap.maps.v1';
     const HINT_KEY = 'fastmap.hintHidden';
-    const PALETTE = ['#888888'];
-    const ACTIVE_COLOR = '#d40000';
+    // Rectangle colours. The topographic map is full of red roads, pink
+    // built-up areas and grey detail, so the selected map is a vivid blue and
+    // the others are dark ink; both sit on a white casing that keeps them
+    // visible over any background.
+    const PALETTE = ['#1d2329'];
+    const ACTIVE_COLOR = '#0050e6';
+    const CASING = 'rgba(255, 255, 255, 0.95)';
     const DEFAULTS = {
         paperSize: 'A4',
         orientation: 'portrait',
@@ -690,13 +695,28 @@
         return PALETTE[((e.colorIdx ?? e.id) % PALETTE.length + PALETTE.length) % PALETTE.length];
     }
 
+    const ACTIVE_STYLE = [
+        new Style({
+            stroke: new Stroke({ color: CASING, width: 7 }),
+            fill: new Fill({ color: 'rgba(0, 80, 230, 0.14)' }),
+        }),
+        new Style({ stroke: new Stroke({ color: ACTIVE_COLOR, width: 3 }) }),
+    ];
+    const LOCKED_STYLE = [
+        new Style({
+            stroke: new Stroke({ color: CASING, width: 5 }),
+            fill: new Fill({ color: 'rgba(255, 255, 255, 0.22)' }),
+        }),
+        new Style({ stroke: new Stroke({ color: PALETTE[0], width: 2, lineDash: [7, 5] }) }),
+    ];
+
     function styleFor(feature) {
         const e = getEntry(feature.get('mapId'));
         if (feature.get('label')) {
             return new Style({
                 text: new Text({
                     text: feature.get('labelText') || '',
-                    font: 'bold 11px system-ui, sans-serif',
+                    font: 'bold 12px system-ui, sans-serif',
                     fill: new Fill({ color: entryColor(e) }),
                     stroke: new Stroke({ color: '#ffffff', width: 3 }),
                     offsetX: -5,
@@ -707,12 +727,7 @@
             });
         }
         const isActive = !!e && e.id === activeId;
-        return new Style({
-            stroke: new Stroke({ color: entryColor(e), width: 2 }),
-            fill: new Fill({
-                color: isActive ? 'rgba(255, 60, 60, 0.18)' : 'rgba(120, 120, 120, 0.14)',
-            }),
-        });
+        return isActive ? ACTIVE_STYLE : LOCKED_STYLE;
     }
 
     function moveFeature(entry, layer) {
