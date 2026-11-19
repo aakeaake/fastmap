@@ -13,17 +13,17 @@ function assertClose(actual, expected) {
 }
 
 test('contentMeters: A4 portrait minus margins and footer, in metres', () => {
-    // (210 - 2*7) mm wide, (297 - 2*7 - 4) mm tall at 1:20 000
-    assertClose(contentMeters(a4), [3920, 5580]);
+    // (210 - 2*7) mm wide, (297 - 2*7 - 3) mm tall at 1:20 000
+    assertClose(contentMeters(a4), [3920, 5600]);
 });
 
 test('contentMeters: landscape swaps the sides; the footer stays at the bottom', () => {
-    // (297 - 2*7) mm wide, (210 - 2*7 - 4) mm tall
-    assertClose(contentMeters({ ...a4, orientation: 'landscape' }), [5660, 3840]);
+    // (297 - 2*7) mm wide, (210 - 2*7 - 3) mm tall
+    assertClose(contentMeters({ ...a4, orientation: 'landscape' }), [5660, 3860]);
 });
 
 test('contentMeters: A3 and scale', () => {
-    assertClose(contentMeters({ ...a4, paperSize: 'A3', scale: 10000 }), [2830, 4020]);
+    assertClose(contentMeters({ ...a4, paperSize: 'A3', scale: 10000 }), [2830, 4030]);
 });
 
 test('contentMeters: margin is capped so content never vanishes', () => {

@@ -44,14 +44,14 @@ def test_frontend_mirrors_footer_height():
 
 def test_content_pixels_a4_300dpi():
     w, h = content_pixels("A4", "portrait", 300, 10)
-    assert (w, h) == (2244, 3224)  # 190mm & (277 - 4)mm at 300 dpi
+    assert (w, h) == (2244, round((277 - FOOTER_MM) / 25.4 * 300))  # 190 mm wide at 300 dpi
 
 
 def test_extent_for_center_round_trip_scale():
     ext = extent_for_center(430000, 6668000, 20000, "A4", "portrait", 10)
     cw, _ = content_area_mm("A4", "portrait", 10)
     assert ext.width_m == pytest.approx(3800.0)
-    assert ext.height_m == pytest.approx(5460.0)  # (277 - 4) mm at 1:20000
+    assert ext.height_m == pytest.approx((277 - FOOTER_MM) * 20)  # mm at 1:20000 -> m
     assert actual_scale(ext, cw) == 20000
 
 
@@ -59,9 +59,9 @@ def test_snap_extent_to_scale_keeps_center():
     raw = Extent(400000, 6600000, 410000, 6620000)
     snapped = snap_extent_to_scale(raw, 25000, "A4", "landscape", 10)
     assert snapped.center == pytest.approx(raw.center)
-    # A4 landscape map: 277 x (190 - 4) mm -> 6925 x 4650 m at 1:25000
+    # A4 landscape map: 277 x (190 - FOOTER_MM) mm at 1:25000
     assert snapped.width_m == pytest.approx(6925.0)
-    assert snapped.height_m == pytest.approx(4650.0)
+    assert snapped.height_m == pytest.approx((190 - FOOTER_MM) * 25)
 
 
 def test_with_aspect_keeps_width_and_center():

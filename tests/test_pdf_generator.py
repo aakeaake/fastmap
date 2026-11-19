@@ -546,3 +546,15 @@ def test_grid_labels_skip_corners(tmp_path, monkeypatch):
             assert my <= y and y + width <= my + mh + 0.01, text
         else:
             assert mx <= x and x + width <= mx + mw + 0.01, text
+
+
+def test_footer_text_sits_1mm_below_the_map(tmp_path, monkeypatch):
+    """Little wasted space: ~1 mm between the map edge and the footer text."""
+    from reportlab.pdfbase.pdfmetrics import getAscent
+
+    _, content = _footer_pdf(tmp_path, monkeypatch)
+    _, map_bottom, _, _ = _image_box(content)
+    right = pdf_generator.attribution()
+    baseline = next(y for _, y, t, _ in _text_ops(content) if t == right)
+    text_top = baseline + getAscent("Courier", 7)
+    assert map_bottom - text_top == pytest.approx(1 * mm, abs=0.25 * mm)

@@ -19,7 +19,7 @@ export const GRID_SPACINGS = [500, 1000, 2000, 5000];
 export const MARGIN_MAX_MM = 30;
 // Mirrors FOOTER_MM in print_layout.py: space under the map for the PDF
 // footer line. The map keeps its width (and scale), loses this height.
-export const FOOTER_MM = 4;
+export const FOOTER_MM = 3;
 export const DEFAULTS = {
     paperSize: 'A4',
     orientation: 'portrait',
