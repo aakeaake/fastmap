@@ -43,6 +43,17 @@ jobs:
       - run: uv run ruff check .
       - run: uv run ruff format --check .
 
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      # Pure modules only (geometry, saved data, payloads, jobs, text, sheet
+      # snapping); no npm install needed
+      - run: node --test "tests/frontend/*.test.mjs"
+
   docker:
     runs-on: ubuntu-latest
     steps:

@@ -20,9 +20,17 @@ A map labelled 1 : 20 000 measures exactly 1 : 20 000 on paper.
 ## Architecture
 
 ```
-frontend/index.html        Single-file UI (OpenLayers v10 via CDN, EPSG:3067,
-                           draggable paper-footprint rectangle, scale presets,
-                           optional grid overlay selector)
+frontend/                  Static UI, no build step (OpenLayers v10 via CDN)
+├── index.html             Markup and the CDN import map
+├── styles.css             Tokens, components, touch and phone layers
+└── js/
+    ├── main.js            Wiring: map list, selection, undo, downloads
+    ├── map.js             OpenLayers: EPSG:3067 tiles, layers, rectangle styles
+    ├── state.js           Maps, selection, save / restore
+    ├── sheet.js, panes.js Phone bottom sheet; desktop rail and route pane
+    └── geometry.js, saved.js, payload.js, jobs.js, text.js, sheet-math.js
+                           Pure logic, unit-tested in tests/frontend with
+                           `node --test "tests/frontend/*.test.mjs"`
 src/fastmap/
 ├── api/routes.py          POST /generate-map, POST /generate-maps-batch,
 │                          GET /api/nls-tiles proxy, GET /api/attribution,
@@ -181,6 +189,14 @@ Unit tests cover the scale/pixel maths, WMTS tile-index geometry, WMS URL
 building and offline PDF generation; no network access is needed for the test
 suite. The GPX test uses `pdftoppm` (`poppler-utils`).
 
+Frontend logic that needs no browser (paper geometry, saved-data checks,
+request payloads, job polling, labels, sheet snapping) is tested with Node's
+built-in runner (Node 22+, nothing to install):
+
+```bash
+node --test "tests/frontend/*.test.mjs"
+```
+
 ## Development workflow
 
 FastMap uses [GitHub Flow](https://docs.github.com/en/get-started/using-github/github-flow):
@@ -191,8 +207,8 @@ FastMap uses [GitHub Flow](https://docs.github.com/en/get-started/using-github/g
    ```bash
    uv run ruff check . && uv run ruff format --check . && uv run pytest
    ```
-3. Open a pull request to `main`. CI runs tests (Python 3.10 and 3.12), ruff
-   and a Docker build; all must pass before merging.
+3. Open a pull request to `main`. CI runs tests (Python 3.10 and 3.12), ruff,
+   the frontend unit tests and a Docker build; all must pass before merging.
 4. **Squash merge.** Render deploys `main` automatically once checks pass.
 
 **Releases:** in one PR, bump `version` in `pyproject.toml` (the only place it
