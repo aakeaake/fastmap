@@ -1,10 +1,11 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { errorDetail, JobError, pollDelay, runJob } from '../../frontend/js/jobs.js';
+import { errorDetail, JobError, pollDelay, runJob, stripPeriod } from '../../frontend/js/jobs.js';
 
-const response = (status, body, blob) => ({
+const response = (status, body, blob, headers = {}) => ({
     ok: status >= 200 && status < 300,
     status,
+    headers: { get: name => headers[name] ?? null },
     json: async () => { if (body === undefined) throw new SyntaxError('not JSON'); return body; },
     blob: async () => blob,
 });
@@ -91,4 +92,32 @@ test('errorDetail: string, structured and non-JSON bodies', async () => {
     assert.equal(await errorDetail(response(400, { detail: 'bad' })), 'bad');
     assert.equal(await errorDetail(response(422, { detail: [{ loc: ['scale'] }] })), '[{"loc":["scale"]}]');
     assert.equal(await errorDetail(response(502)), 'HTTP 502');
+});
+
+test('a busy server (503 + Retry-After) gives a translatable error', async () => {
+    const busy = fakeFetch({
+        '/x': [response(503, { detail: 'Palvelu on ruuhkautunut, yritä hetken kuluttua uudelleen.' },
+            undefined, { 'Retry-After': '30' })],
+    });
+    const e = await caught(runJob('/x', {}, { fetch: busy.fetch, sleep: async () => {} }));
+    assert.equal(e.key, 'job.busy');
+});
+
+test('a 503 without Retry-After keeps the server text', async () => {
+    const config = fakeFetch({ '/x': [response(503, { detail: 'Server is missing MML_API_KEY configuration.' })] });
+    const e = await caught(runJob('/x', {}, { fetch: config.fetch, sleep: async () => {} }));
+    assert.equal(e.key, null);
+    assert.equal(e.message, 'Server is missing MML_API_KEY configuration');
+});
+
+test('server messages lose their final full stop', async () => {
+    assert.equal(stripPeriod('Alue on Suomen ulkopuolella.'), 'Alue on Suomen ulkopuolella');
+    assert.equal(stripPeriod('Done...  '), 'Done');
+    assert.equal(stripPeriod('No stop'), 'No stop');
+    const failed = fakeFetch({
+        '/x': [response(200, { job_id: 'j' })],
+        '/map-status/j': [response(200, { status: 'error', error: 'Tile fetch failed.' })],
+    });
+    const e = await caught(runJob('/x', {}, { fetch: failed.fetch, sleep: async () => {} }));
+    assert.equal(e.message, 'Tile fetch failed');
 });

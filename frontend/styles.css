@@ -439,6 +439,19 @@ button { font: inherit; color: inherit; }
     body:has(#sharedPane:not([hidden])) .map-tool,
     body:has(#sharedPane:not([hidden])) .ol-zoom { display: none; }
     body:has(#panel[data-sheet="full"]) #attribution { padding: 0 4px; }
+
+    /* When a sheet covers (nearly) the whole map, there is no room above it:
+       move the stack to the top of the screen, above the sheets, flowing
+       down. It drops below the undo message when that is showing. The
+       credit moves up with it, onto the strip of map that is still visible. */
+    body:has(#panel[data-sheet="full"]) .stack,
+    body:has(#sharedPane:not([hidden])) .stack {
+        top: var(--edge-t); bottom: auto; z-index: 1003; transition: none;
+    }
+    body:has(#toast:not([hidden])):has(#panel[data-sheet="full"]) .stack,
+    body:has(#toast:not([hidden])):has(#sharedPane:not([hidden])) .stack {
+        top: calc(var(--edge-t) + var(--tool) + 20px);
+    }
 }
 @media (max-width: 640px) and (prefers-reduced-motion: reduce) {
     #panel, .stack { transition: none; }

@@ -433,9 +433,10 @@ gpxInput.addEventListener('change', () => {
         let features;
         try { features = readGpx(reader.result); } catch { features = []; }
         if (!gpxRoutes(features).length) {
-            notices.show('result', 'error', () => t('gpx.noRoute', { file: file.name }));
+            notices.show('gpx', 'error', () => t('gpx.noRoute', { file: file.name }));
             return;
         }
+        notices.close('gpx');
         gpxLayer.getSource().clear();
         gpxLayer.getSource().addFeatures(features);
         // Prefer the track/route name; waypoints (Points) also carry names
@@ -453,10 +454,14 @@ el('gpxOpacity').addEventListener('input', () => {
 });
 
 // --- PDF downloads -------------------------------------------------------------------
-const notices = createNotices(el('notices'), { closeLabel: () => t('close') });
+const notices = createNotices(el('notices'), {
+    closeLabel: () => t('close'),
+    politeRegion: el('livePolite'),
+    alertRegion: el('liveAlert'),
+});
 
-// Elapsed-time line while jobs run. Kept outside the live region so
-// screen readers hear start / done / error, not every tick.
+// One progress card for all running jobs, ticking every second. The ticks
+// are not announced: the live regions only hear start, done and error.
 let runningJobs = 0;
 let jobsStarted = 0;
 let progressTimer = null;
@@ -470,7 +475,8 @@ function jobStarted() {
         jobsStarted = Date.now();
         progressTimer = setInterval(tickProgress, 1000);
         notices.show('progress', 'progress',
-            () => progressLabel(runningJobs, Math.round((Date.now() - jobsStarted) / 1000), getLang()));
+            () => progressLabel(runningJobs, Math.round((Date.now() - jobsStarted) / 1000), getLang()),
+            { announcement: t('progress.start') });
     }
     tickProgress();
 }
@@ -507,17 +513,19 @@ function saveBlob(blob, filename) {
     URL.revokeObjectURL(url);
 }
 
-async function trackJob(url, body) {
-    notices.close('result');
+// `resultId` keeps each job's outcome separate: one map's error card is
+// not replaced by another job finishing, only by that same job running again.
+async function trackJob(url, body, resultId) {
+    notices.close(resultId);
     jobStarted();
     try {
         const { blob, filename } = await runJob(url, body);
         saveBlob(blob, filename);
-        notices.show('result', 'success', () => t('download.done', { file: filename }));
+        notices.show(resultId, 'success', () => t('download.done', { file: filename }));
         return true;
     } catch (err) {
         const message = () => (err instanceof JobError && err.key ? t(err.key, err.params) : err.message);
-        notices.show('result', 'error', () => t('download.error', { message: message() }));
+        notices.show(resultId, 'error', () => t('download.error', { message: message() }));
         return false;
     } finally {
         jobFinished();
@@ -528,7 +536,8 @@ async function downloadSingle(entry) {
     if (generatingIds.has(entry.id)) return;
     generatingIds.add(entry.id);
     renderList();
-    const ok = await trackJob('/generate-map-async', buildPayload(entry, entryExtent(entry), sharedSettings()));
+    const ok = await trackJob('/generate-map-async', buildPayload(entry, entryExtent(entry), sharedSettings()),
+        `result-${entry.id}`);
     generatingIds.delete(entry.id);
     if (ok) downloadedIds.add(entry.id);
     renderList();
@@ -553,7 +562,7 @@ el('downloadAllBtn').addEventListener('click', async () => {
     await trackJob('/generate-maps-batch-async', {
         output: el('batchFormat').value,
         maps: state.maps.map(e => buildPayload(e, entryExtent(e), shared)),
-    });
+    }, 'result-batch');
     setDownloadAllBusy(false);
 });
 

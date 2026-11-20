@@ -7,6 +7,8 @@
     <link rel="icon" type="image/png" href="favicon.png">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ol@10.11.0/ol.css">
     <link rel="stylesheet" href="styles.css">
+    <!-- Set the saved language before first paint (js/i18n.js does the rest) -->
+    <script>try { var l = localStorage.getItem('fastmap.lang'); if (l === 'en' || l === 'fi') document.documentElement.lang = l; } catch (e) {}</script>
 </head>
 <!-- Text is English in the markup; js/i18n.js swaps it using the data-i18n
      keys (js/strings.js) when Finnish is chosen. -->
@@ -189,7 +191,7 @@
 <!-- Language: globe button + small menu. Language names are written in their
      own language, so they are not translated. -->
 <div class="lang" id="lang">
-    <button id="langBtn" class="lang-btn" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="langMenu" aria-label="Language: English" title="Language" data-i18n-attr="aria-label:lang.button;title:lang.label"><span data-icon="globe"></span><span class="lang-code" data-i18n="lang.code" aria-hidden="true">EN</span><svg class="caret" viewBox="0 0 10 6" aria-hidden="true"><path d="M0 0h10L5 6z" fill="currentColor"/></svg></button>
+    <button id="langBtn" class="lang-btn" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="langMenu" aria-label="EN – Language: English" title="Language" data-i18n-attr="aria-label:lang.button;title:lang.label"><span data-icon="globe"></span><span class="lang-code" data-i18n="lang.code" aria-hidden="true">EN</span><svg class="caret" viewBox="0 0 10 6" aria-hidden="true"><path d="M0 0h10L5 6z" fill="currentColor"/></svg></button>
     <div id="langMenu" class="lang-menu" role="menu" aria-label="Language" data-i18n-attr="aria-label:lang.label" hidden>
         <button type="button" role="menuitemradio" data-lang="en" aria-checked="true" tabindex="-1"><span data-icon="check"></span>English</button>
         <button type="button" role="menuitemradio" data-lang="fi" aria-checked="false" tabindex="-1"><span data-icon="check"></span>Suomi</button>
@@ -204,6 +206,11 @@
     </div>
     <div id="attribution">© Maanmittauslaitos</div>
 </div>
+
+<!-- Screen-reader announcements for notices (js/notices.js). Always in the
+     page so text written into them is read out. -->
+<div id="livePolite" class="visually-hidden" aria-live="polite"></div>
+<div id="liveAlert" class="visually-hidden" aria-live="assertive"></div>
 
 <script type="importmap">
 {
