@@ -29,6 +29,9 @@ frontend/                  Static UI, no build step (OpenLayers v10 via CDN)
     ├── state.js           Maps, selection, save / restore
     ├── sheet.js, panes.js Phone bottom sheet; desktop rail and route pane
     ├── i18n.js            Current language; swaps data-i18n text in the markup
+    ├── lang-menu.js       Globe button and language menu
+    ├── notices.js         Pop-up cards for downloads and errors, plus the
+    │                      screen-reader live regions
     └── strings.js, geometry.js, saved.js, payload.js, jobs.js, text.js,
         sheet-math.js      Pure logic and the English / Finnish strings,
                            unit-tested in tests/frontend with
@@ -67,7 +70,7 @@ The browser never sees the MML API key: preview tiles are proxied through
 * **GPX track overlay** — upload a GPX file to display the track on the preview
   map and render it on exported PDFs. Customisable colour, width, and opacity.
 * **English and Finnish UI** — English by default; switch with the globe
-  button under the map controls.
+  button at the top right.
   The choice is remembered in the browser. PDFs are unaffected.
 * **Works on phones** — the settings become a bottom sheet; touch targets are
   44 px.
@@ -143,10 +146,10 @@ MML requests are retried up to 3 attempts (not read timeouts). See
   phones); errors stay until closed.
 * The collapse button in the pane header shrinks it to a **sidebar** with one
   numbered tile per map, plus new map, route pane and download buttons.
-* **Map controls (right):** zoom **+ / −**, the **centre** button (moves the
-  selected map to the middle of the visible area; double-clicking the map does
-  the same at the clicked spot), and the **globe** button, which opens a small
-  menu to pick English or Suomi.
+* **Map controls (right), top to bottom:** the **globe** button, which opens a
+  small menu to pick English or Suomi; zoom **+ / −**; and the **centre**
+  button (moves the selected map to the middle of the visible area;
+  double-clicking the map does the same at the clicked spot).
 * **On a phone** the settings become a bottom sheet: drag or tap its header to
   move between peek (selected map + download), half and full height.
 * Maps and layout choices are saved in your browser and restored on the next
@@ -212,7 +215,21 @@ UI text lives in `frontend/js/strings.js`, one table per language (`en`,
 `fi`). Markup elements name their key with `data-i18n="key"` (text) or
 `data-i18n-attr="aria-label:key;title:key"` (attributes); text built in
 scripts calls `t('key', { param })`. To add or change a string, edit both
-tables: a unit test fails if their keys or `{placeholders}` differ.
+tables: a unit test fails if their keys or `{placeholders}` differ, and
+another fails if `index.html` names a key that is missing.
+
+To add a language (say Swedish, `sv`):
+
+1. In `strings.js`, add `'sv'` to `LANGS`, its number-format locale to
+   `LOCALES` (`sv: 'sv-SE'`), and an `sv` table with every key. Include
+   `lang.code` (the code shown on the globe button, `SV`) and `lang.button`
+   (its accessible name, which must start with that code: `SV – Språk:
+   svenska`).
+2. In `index.html`, add a menu item to `#langMenu`, with the language's
+   name written in that language:
+   `<button type="button" role="menuitemradio" data-lang="sv" aria-checked="false" tabindex="-1"><span data-icon="check"></span>Svenska</button>`.
+3. In the inline script in `index.html`'s `<head>`, allow the new code so the
+   saved choice is applied before first paint.
 
 ## Tests
 

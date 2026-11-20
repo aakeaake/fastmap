@@ -485,3 +485,48 @@ def test_app_shutdown_stops_the_job_store(monkeypatch):
         store.submit(lambda: {"path": None, "filename": "x"})
     with pytest.raises(RuntimeError):  # queued tile downloads don't delay exit either
         tiles.submit(lambda: None)
+
+
+def _frontend_client(tmp_path):
+    from fastapi import FastAPI
+
+    from fastmap.main import FrontendFiles
+
+    (tmp_path / "index.html").write_text("<!doctype html>")
+    (tmp_path / "styles.css").write_text("body {}")
+    (tmp_path / "js").mkdir()
+    (tmp_path / "js" / "main.js").write_text("export {};")
+    (tmp_path / "favicon.png").write_bytes(b"\x89PNG")
+    frontend = FastAPI()
+    frontend.mount("/", FrontendFiles(directory=tmp_path, html=True), name="frontend")
+    return TestClient(frontend)
+
+
+@pytest.mark.parametrize("path", ["/", "/index.html", "/styles.css", "/js/main.js"])
+def test_frontend_code_is_revalidated(tmp_path, path):
+    """Unhashed ES modules must not be reused from cache without a check."""
+    resp = _frontend_client(tmp_path).get(path)
+    assert resp.status_code == 200
+    assert resp.headers["cache-control"] == "no-cache"
+    assert resp.headers.get("etag")  # so the check is a cheap 304
+
+
+def test_unchanged_frontend_file_is_a_304_with_no_cache(tmp_path):
+    client = _frontend_client(tmp_path)
+    etag = client.get("/js/main.js").headers["etag"]
+    resp = client.get("/js/main.js", headers={"If-None-Match": etag})
+    assert resp.status_code == 304
+    assert resp.content == b""
+    assert resp.headers["cache-control"] == "no-cache"
+
+
+def test_frontend_images_keep_default_caching(tmp_path):
+    resp = _frontend_client(tmp_path).get("/favicon.png")
+    assert resp.status_code == 200
+    assert "cache-control" not in resp.headers
+
+
+def test_app_serves_the_real_frontend_with_no_cache():
+    resp = client.get("/js/main.js")
+    assert resp.status_code == 200
+    assert resp.headers["cache-control"] == "no-cache"

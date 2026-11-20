@@ -75,7 +75,8 @@ export function createSheet({ panel, head, footer, grabber, stack }) {
     // so Tab reaches the grabber button, whose click opens the sheet.
     phone.addEventListener('change', () => setSheet(phone.matches ? 'peek' : current));
     window.addEventListener('resize', () => { if (!drag) setSheet(current); });
-    // Status / progress lines change the footer height, so peek follows it
+    // Peek is header + footer; if the footer's height changes (text zoom,
+    // touch sizing), peek follows it
     new ResizeObserver(() => { if (!drag && phone.matches) setSheet(current); }).observe(footer);
 
     return { phone, setSheet, coveredBottom, get state() { return current; } };

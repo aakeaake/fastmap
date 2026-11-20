@@ -16,6 +16,12 @@ export class JobError extends Error {
     }
 }
 
+// Server text fills "{message}." in the UI's error template: drop its own
+// final full stop so the sentence does not end in "..".
+export function stripPeriod(text) {
+    return String(text).trim().replace(/\.+$/, '');
+}
+
 // Poll quickly at first (small maps finish in seconds), then back off
 export function pollDelay(attempt) {
     return Math.min(1000 * (attempt + 1), 3000);
@@ -38,7 +44,15 @@ export async function runJob(url, body, { fetch = defaultFetch, sleep = defaultS
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
     });
-    if (!resp.ok) throw new JobError(await errorDetail(resp));
+    if (!resp.ok) {
+        // The render queue is full: the server's text is Finnish only, so use
+        // our own words. Only this 503 sends Retry-After; a 503 for missing
+        // server configuration keeps its own message.
+        if (resp.status === 503 && resp.headers?.get?.('Retry-After')) {
+            throw new JobError('The service is busy', 'job.busy');
+        }
+        throw new JobError(stripPeriod(await errorDetail(resp)));
+    }
     const { job_id } = await resp.json();
 
     let result;
@@ -52,7 +66,7 @@ export async function runJob(url, body, { fetch = defaultFetch, sleep = defaultS
         if (result.status === 'done') break;
         if (result.status === 'error') {
             throw result.error
-                ? new JobError(result.error)
+                ? new JobError(stripPeriod(result.error))
                 : new JobError('Creating the file failed', 'job.failed');
         }
     }
