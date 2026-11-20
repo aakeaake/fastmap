@@ -1,9 +1,12 @@
 // FastMap UI: wires the map, the map list, the panes and PDF downloads.
 import { GRID_MODES, HINT_KEY, PAPER_MM, STORAGE_KEY } from './constants.js';
 import { centerToShow, containsExtent, visibleCenter as visibleCenterOf, visibleExtent } from './geometry.js';
+import { applyTranslations, getLang, locale, onLangChange, setLang, t } from './i18n.js';
 import { hydrateIcons, icon, setButton } from './icons.js';
-import { runJob } from './jobs.js';
+import { JobError, runJob } from './jobs.js';
 import { addTranslate, createMap, makeBaseSource, readGpx } from './map.js';
+import { createLangMenu } from './lang-menu.js';
+import { createNotices } from './notices.js';
 import { createPanes } from './panes.js';
 import { buildPayload, gpxRoutes } from './payload.js';
 import { parseMargin } from './saved.js';
@@ -15,6 +18,7 @@ import { attributionLabel, deletedLabel, displayName, mapSummary, progressLabel,
 
 const el = id => document.getElementById(id);
 hydrateIcons();
+applyTranslations();
 
 const { map, view, baseLayer, gpxLayer, lockedLayer, activeLayer } =
     createMap('map', { isActive: id => id === state.activeId });
@@ -22,7 +26,8 @@ const { map, view, baseLayer, gpxLayer, lockedLayer, activeLayer } =
 const generatingIds = new Set();
 const downloadedIds = new Set();   // downloaded and unchanged since
 
-const nameOf = e => displayName(e, state.maps.indexOf(e));
+const nameOf = e => displayName(e, state.maps.indexOf(e), getLang());
+const summaryOf = e => mapSummary(e, getLang());
 
 // --- Selection and the map layers -------------------------------------------
 // The selected map lives on its own layer so only it can be dragged.
@@ -76,8 +81,8 @@ function deleteEntry(id) {
     const i = state.maps.findIndex(m => m.id === id);
     if (i === -1) return;
     const snapshot = serialize();
-    const name = nameOf(state.maps[i]);
-    moveFeature(state.maps[i], null);
+    const gone = state.maps[i];
+    moveFeature(gone, null);
     state.maps.splice(i, 1);
     if (id === state.activeId) {
         if (state.maps.length) setActive(state.maps[Math.max(0, i - 1)].id);
@@ -86,7 +91,8 @@ function deleteEntry(id) {
         renderList();
         persist();
     }
-    offerUndo(`${name} poistettu`, snapshot);
+    // Name it in whatever language is showing when the message is drawn
+    offerUndo(() => t('map.deleted', { name: displayName(gone, i, getLang()) }), snapshot);
 }
 
 function removeAll() {
@@ -101,7 +107,7 @@ function clearAll() {
     removeAll();
     try { localStorage.removeItem(STORAGE_KEY); } catch { /* ignore */ }
     newMap();
-    offerUndo(deletedLabel(count), snapshot);
+    offerUndo(() => deletedLabel(count, getLang()), snapshot);
 }
 
 // Restore a snapshot onto an empty map list; false if nothing in it was valid
@@ -116,10 +122,12 @@ function loadSnapshot(data) {
 // --- Undo -------------------------------------------------------------------
 let undoSnapshot = null;
 let toastTimer = null;
+let toastText = () => '';   // re-run on a language change
 
-function offerUndo(message, snapshot) {
+function offerUndo(text, snapshot) {
     undoSnapshot = snapshot;
-    el('toastMsg').textContent = message;
+    toastText = text;
+    el('toastMsg').textContent = text();
     el('toast').hidden = false;
     clearTimeout(toastTimer);
     toastTimer = setTimeout(hideToast, 8000);
@@ -195,7 +203,7 @@ function renderRail(focusKey) {
         b.textContent = String(i + 1);
         if (generatingIds.has(e.id)) b.classList.add('generating');
         else if (downloadedIds.has(e.id)) b.classList.add('done');
-        const label = `${nameOf(e)} · ${mapSummary(e)}`;
+        const label = `${nameOf(e)} · ${summaryOf(e)}`;
         b.setAttribute('aria-label', label);
         b.title = label;
         b.setAttribute('aria-pressed', String(e.id === state.activeId));
@@ -230,7 +238,7 @@ function listRow(e) {
 
     const sum = document.createElement('span');
     sum.className = 'm-sum';
-    sum.textContent = mapSummary(e);
+    sum.textContent = summaryOf(e);
 
     select.append(chip, nameEl, sum);
 
@@ -241,15 +249,15 @@ function listRow(e) {
     if (generatingIds.has(e.id)) {
         dlBtn.classList.add('generating');
         dlBtn.innerHTML = icon('loader');
-        dlBtn.setAttribute('aria-label', `Luodaan PDF: ${name}`);
+        dlBtn.setAttribute('aria-label', t('map.generating', { name }));
         dlBtn.setAttribute('aria-disabled', 'true');
     } else if (downloadedIds.has(e.id)) {
         dlBtn.classList.add('done');
         dlBtn.innerHTML = icon('check');
-        dlBtn.setAttribute('aria-label', `Ladattu – lataa uudelleen: ${name}`);
+        dlBtn.setAttribute('aria-label', t('map.downloadAgain', { name }));
     } else {
         dlBtn.innerHTML = icon('download');
-        dlBtn.setAttribute('aria-label', `Lataa PDF: ${name}`);
+        dlBtn.setAttribute('aria-label', t('map.download', { name }));
     }
     dlBtn.title = dlBtn.getAttribute('aria-label');
     dlBtn.addEventListener('click', () => downloadSingle(e));
@@ -259,8 +267,8 @@ function listRow(e) {
     del.className = 'icon-btn del';
     del.dataset.key = `del-${e.id}`;
     del.innerHTML = icon('x');
-    del.setAttribute('aria-label', `Poista kartta: ${name}`);
-    del.title = 'Poista kartta';
+    del.setAttribute('aria-label', t('map.delete', { name }));
+    del.title = t('map.deleteShort');
     del.addEventListener('click', () => deleteEntry(e.id));
 
     li.append(select, dlBtn, del);
@@ -288,9 +296,10 @@ function renderList() {
     if (cur) {
         const b = document.createElement('b');
         b.textContent = nameOf(cur);
-        summary.append(b, ` · ${mapSummary(cur)}`);
+        summary.append(b, ` · ${summaryOf(cur)}`);
     }
-    el('downloadAllBtn').textContent = state.maps.length > 1 ? `Lataa kaikki (${state.maps.length})` : 'Lataa';
+    el('downloadAllBtn').textContent = state.maps.length > 1
+        ? t('download.allCount', { count: state.maps.length }) : t('download.one');
     refreshLabels();
 }
 
@@ -353,7 +362,7 @@ map.on('dblclick', ev => {
     areaChanged(cur);
 });
 
-// "Siirrä tähän": move the selected map to the centre of the visible map
+// Move-here button: put the selected map in the centre of the visible map
 el('centerBtn').addEventListener('click', () => {
     const cur = active();
     if (!cur) return;
@@ -377,7 +386,6 @@ el('title').addEventListener('input', () => {
     renderList();
     persist();
 });
-setButton(el('newBtn'), 'plus', 'Uusi kartta');
 el('newBtn').addEventListener('click', newMap);
 el('clearAllBtn').addEventListener('click', clearAll);
 el('undoBtn').addEventListener('click', undo);
@@ -401,15 +409,20 @@ fetch('/api/attribution')
 // --- GPX route -------------------------------------------------------------------
 const gpxBtn = el('gpxBtn');
 const gpxInput = el('gpxInput');
-const SHARED_SUMMARY = 'GPX-reitti, DPI ja karttataso';
-setButton(gpxBtn, 'upload', 'Lataa GPX-tiedosto');
+let gpxName = '';   // name of the loaded route, '' when none
+
+function renderGpx() {
+    if (gpxName) setButton(gpxBtn, 'x', t('gpx.remove'));
+    else setButton(gpxBtn, 'upload', t('gpx.load'));
+    el('gpxInfo').textContent = gpxName;
+    el('sharedSummary').textContent = gpxName ? t('shared.summaryRoute', { name: gpxName }) : t('shared.summary');
+}
 
 gpxBtn.addEventListener('click', () => {
     if (!gpxLayer.getSource().getFeatures().length) { gpxInput.click(); return; }
     gpxLayer.getSource().clear();
-    setButton(gpxBtn, 'upload', 'Lataa GPX-tiedosto');
-    el('gpxInfo').textContent = '';
-    el('sharedSummary').textContent = SHARED_SUMMARY;
+    gpxName = '';
+    renderGpx();
 });
 
 gpxInput.addEventListener('change', () => {
@@ -420,17 +433,15 @@ gpxInput.addEventListener('change', () => {
         let features;
         try { features = readGpx(reader.result); } catch { features = []; }
         if (!gpxRoutes(features).length) {
-            setStatus(`Tiedostosta ${file.name} ei löytynyt reittiä. Valitse GPX-tiedosto, jossa on reitti tai jälki.`, 'error');
+            notices.show('result', 'error', () => t('gpx.noRoute', { file: file.name }));
             return;
         }
         gpxLayer.getSource().clear();
         gpxLayer.getSource().addFeatures(features);
         // Prefer the track/route name; waypoints (Points) also carry names
         const line = features.find(f => f.getGeometry()?.getType() !== 'Point' && f.get('name'));
-        const name = line?.get('name') || file.name.replace(/\.gpx$/i, '');
-        setButton(gpxBtn, 'x', 'Poista reitti');
-        el('gpxInfo').textContent = name;
-        el('sharedSummary').textContent = `Reitti: ${name}`;
+        gpxName = line?.get('name') || file.name.replace(/\.gpx$/i, '');
+        renderGpx();
         view.fit(gpxLayer.getSource().getExtent(), { padding: [50, 50, 50, 50] });
     };
     reader.readAsText(file);
@@ -442,10 +453,7 @@ el('gpxOpacity').addEventListener('input', () => {
 });
 
 // --- PDF downloads -------------------------------------------------------------------
-function setStatus(msg, kind = '') {
-    el('status').textContent = msg;
-    el('status').className = kind;
-}
+const notices = createNotices(el('notices'), { closeLabel: () => t('close') });
 
 // Elapsed-time line while jobs run. Kept outside the live region so
 // screen readers hear start / done / error, not every tick.
@@ -454,13 +462,15 @@ let jobsStarted = 0;
 let progressTimer = null;
 
 function tickProgress() {
-    el('progress').textContent = progressLabel(runningJobs, Math.round((Date.now() - jobsStarted) / 1000));
+    notices.refresh('progress');
 }
 
 function jobStarted() {
     if (runningJobs++ === 0) {
         jobsStarted = Date.now();
         progressTimer = setInterval(tickProgress, 1000);
+        notices.show('progress', 'progress',
+            () => progressLabel(runningJobs, Math.round((Date.now() - jobsStarted) / 1000), getLang()));
     }
     tickProgress();
 }
@@ -468,7 +478,7 @@ function jobStarted() {
 function jobFinished() {
     if (--runningJobs === 0) {
         clearInterval(progressTimer);
-        el('progress').textContent = '';
+        notices.close('progress');
     } else {
         tickProgress();
     }
@@ -498,17 +508,16 @@ function saveBlob(blob, filename) {
 }
 
 async function trackJob(url, body) {
-    setStatus('');
+    notices.close('result');
     jobStarted();
     try {
         const { blob, filename } = await runJob(url, body);
         saveBlob(blob, filename);
-        setStatus(`Ladattu: ${filename}`, 'success');
+        notices.show('result', 'success', () => t('download.done', { file: filename }));
         return true;
     } catch (err) {
-        setStatus(`Virhe: ${err.message}. Yritä uudelleen.`, 'error');
-        // the message lives in the settings pane: show it
-        if (panes.isCollapsed() && !sheet.phone.matches) panes.setCollapsed(false);
+        const message = () => (err instanceof JobError && err.key ? t(err.key, err.params) : err.message);
+        notices.show('result', 'error', () => t('download.error', { message: message() }));
         return false;
     } finally {
         jobFinished();
@@ -547,3 +556,31 @@ el('downloadAllBtn').addEventListener('click', async () => {
     });
     setDownloadAllBusy(false);
 });
+
+// --- Language -------------------------------------------------------------------------
+// Option labels with numbers follow the language's digit grouping
+function formatOptions() {
+    for (const o of el('scale').options) o.textContent = `1:${Number(o.value).toLocaleString(locale())}`;
+    for (const o of el('gridSpacing').options) o.textContent = `${Number(o.value).toLocaleString(locale())} m`;
+}
+
+// Globe button + menu; the current language is checked
+const langMenu = createLangMenu({
+    button: el('langBtn'),
+    menu: el('langMenu'),
+    current: getLang,
+    onPick: setLang,
+});
+
+function renderScriptText() {
+    setButton(el('newBtn'), 'plus', t('maps.new'));
+    if (!el('toast').hidden) el('toastMsg').textContent = toastText();
+    notices.refresh();
+    formatOptions();
+    renderGpx();
+    langMenu.sync();
+    renderList();
+}
+
+onLangChange(renderScriptText);
+renderScriptText();

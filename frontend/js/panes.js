@@ -60,5 +60,5 @@ export function createPanes({ phone, onNewMap, onDownloadAll }) {
     setCollapsed(!!ui.collapsed);
     if (ui.shared && !phone.matches) setShared(true);
 
-    return { setCollapsed, setShared, coveredLeft, isCollapsed: () => !!ui.collapsed };
+    return { setCollapsed, setShared, coveredLeft };
 }

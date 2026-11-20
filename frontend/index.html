@@ -1,24 +1,26 @@
 <!DOCTYPE html>
-<html lang="fi">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <title>FastMap – tulostuskelpoiset kartat</title>
+    <title>FastMap – printable maps</title>
     <link rel="icon" type="image/png" href="favicon.png">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ol@10.11.0/ol.css">
     <link rel="stylesheet" href="styles.css">
 </head>
+<!-- Text is English in the markup; js/i18n.js swaps it using the data-i18n
+     keys (js/strings.js) when Finnish is chosen. -->
 <body>
 <div id="map"></div>
 
 <div class="left-col" id="leftCol">
 <div class="pane" id="panel">
     <div class="sheet-head" id="sheetHead">
-        <button class="grabber" id="grabber" type="button" aria-controls="sheetBody" aria-expanded="true" aria-label="Laajenna tai pienennä paneeli"><span></span></button>
+        <button class="grabber" id="grabber" type="button" aria-controls="sheetBody" aria-expanded="true" aria-label="Expand or shrink the panel" data-i18n-attr="aria-label:sheet.toggle"><span></span></button>
         <div class="head-row">
             <h1>FastMap</h1>
             <span id="sheetSummary" aria-hidden="true"></span>
-            <button id="collapseBtn" class="icon-btn" type="button" aria-controls="panel" aria-expanded="true" aria-label="Pienennä asetukset sivupalkiksi" title="Pienennä asetukset" data-icon="collapse"></button>
+            <button id="collapseBtn" class="icon-btn" type="button" aria-controls="panel" aria-expanded="true" aria-label="Collapse the settings to a sidebar" title="Collapse settings" data-i18n-attr="aria-label:pane.collapse;title:pane.collapseShort" data-icon="collapse"></button>
         </div>
     </div>
 
@@ -26,153 +28,152 @@
 
     <section class="section" aria-labelledby="mapsHeading">
         <div class="section-head">
-            <h2 id="mapsHeading">Kartat</h2>
-            <button id="clearAllBtn" class="btn-text" type="button">Tyhjennä kaikki</button>
+            <h2 id="mapsHeading" data-i18n="maps.heading">Maps</h2>
+            <button id="clearAllBtn" class="btn-text" type="button" data-i18n="maps.clearAll">Clear all</button>
         </div>
-        <ul id="mapList" aria-label="Kartat"></ul>
+        <ul id="mapList" aria-label="Maps" data-i18n-attr="aria-label:maps.heading"></ul>
         <button id="newBtn" class="btn btn-secondary" type="button"></button>
     </section>
 
     <section class="section" aria-labelledby="mapSettingsHeading">
-        <h2 id="mapSettingsHeading">Valitun kartan asetukset</h2>
+        <h2 id="mapSettingsHeading" data-i18n="selected.heading">Selected map settings</h2>
         <p class="section-note" id="activeName"></p>
 
         <div class="row">
             <div>
-                <label for="paperSize">Paperi</label>
+                <label for="paperSize" data-i18n="field.paper">Paper</label>
                 <select id="paperSize">
                     <option value="A4" selected>A4</option>
                     <option value="A3">A3</option>
                 </select>
             </div>
             <div>
-                <label for="orientation">Asento</label>
+                <label for="orientation" data-i18n="field.orientation">Orientation</label>
                 <select id="orientation">
-                    <option value="portrait" selected>Pysty</option>
-                    <option value="landscape">Vaaka</option>
+                    <option value="portrait" selected data-i18n="orientation.portrait">Portrait</option>
+                    <option value="landscape" data-i18n="orientation.landscape">Landscape</option>
                 </select>
             </div>
         </div>
 
         <div class="row">
             <div>
-                <label for="scale">Mittakaava</label>
+                <label for="scale" data-i18n="field.scale">Scale</label>
+                <!-- option text is formatted for the language in main.js -->
                 <select id="scale">
-                    <option value="10000">1:10 000</option>
-                    <option value="15000">1:15 000</option>
-                    <option value="20000" selected>1:20 000</option>
-                    <option value="25000">1:25 000</option>
-                    <option value="30000">1:30 000</option>
-                    <option value="40000">1:40 000</option>
-                    <option value="50000">1:50 000</option>
+                    <option value="10000">1:10,000</option>
+                    <option value="15000">1:15,000</option>
+                    <option value="20000" selected>1:20,000</option>
+                    <option value="25000">1:25,000</option>
+                    <option value="30000">1:30,000</option>
+                    <option value="40000">1:40,000</option>
+                    <option value="50000">1:50,000</option>
                 </select>
             </div>
             <div>
-                <label for="margin">Marginaali (mm)</label>
+                <label for="margin" data-i18n="field.margin">Margin (mm)</label>
                 <input id="margin" type="number" value="7" step="1" min="0" max="30">
             </div>
         </div>
 
         <div class="row">
             <div>
-                <label for="gridMode">Ruudukko</label>
+                <label for="gridMode" data-i18n="field.grid">Grid</label>
                 <select id="gridMode">
-                    <option value="off" selected>Ei</option>
-                    <option value="vertical">Pystyviivat</option>
-                    <option value="vertical_coords">Pystyviivat + koordinaatit</option>
-                    <option value="full">Täysi</option>
-                    <option value="full_coords">Täysi + koordinaatit</option>
+                    <option value="off" selected data-i18n="grid.off">None</option>
+                    <option value="vertical" data-i18n="grid.vertical">Vertical lines</option>
+                    <option value="vertical_coords" data-i18n="grid.verticalCoords">Vertical lines + coordinates</option>
+                    <option value="full" data-i18n="grid.full">Full</option>
+                    <option value="full_coords" data-i18n="grid.fullCoords">Full + coordinates</option>
                 </select>
             </div>
             <div>
-                <label for="gridSpacing">Ruudukon väli</label>
+                <label for="gridSpacing" data-i18n="field.gridSpacing">Grid spacing</label>
                 <select id="gridSpacing" disabled>
                     <option value="500">500 m</option>
-                    <option value="1000" selected>1 000 m</option>
-                    <option value="2000">2 000 m</option>
-                    <option value="5000">5 000 m</option>
+                    <option value="1000" selected>1,000 m</option>
+                    <option value="2000">2,000 m</option>
+                    <option value="5000">5,000 m</option>
                 </select>
             </div>
         </div>
 
-        <label for="title">Otsikko (valinnainen)</label>
-        <input id="title" type="text" maxlength="120" placeholder="esim. Kilpisjärvi itä">
+        <label for="title" data-i18n="field.title">Title (optional)</label>
+        <input id="title" type="text" maxlength="120" placeholder="e.g. Kilpisjärvi east" data-i18n-attr="placeholder:field.titlePlaceholder">
     </section>
 
-    <section class="section" aria-label="Yhteiset asetukset">
+    <section class="section" aria-label="Shared settings" data-i18n-attr="aria-label:shared.section">
         <button id="sharedBtn" class="nav-row" type="button" aria-controls="sharedPane" aria-expanded="false">
             <span data-icon="sliders"></span>
-            <span class="nav-text"><b>Reitti ja tarkkuus</b><small id="sharedSummary">GPX-reitti, DPI ja karttataso</small></span>
+            <span class="nav-text"><b data-i18n="shared.heading">Route and precision</b><small id="sharedSummary">GPX route, DPI and map level</small></span>
             <span data-icon="chevron"></span>
         </button>
     </section>
     </div>
 
-    <section class="section download" aria-label="Lataus">
+    <section class="section download" aria-label="Download" data-i18n-attr="aria-label:download.section">
         <div class="dl-row">
-            <label for="batchFormat" class="visually-hidden">Tiedostomuoto</label>
+            <label for="batchFormat" class="visually-hidden" data-i18n="download.format">File format</label>
             <select id="batchFormat">
-                <option value="pdf" selected>Yksi PDF</option>
-                <option value="zip">ZIP</option>
+                <option value="pdf" selected data-i18n="download.onePdf">One PDF</option>
+                <option value="zip" data-i18n="download.zip">ZIP</option>
             </select>
-            <button id="downloadAllBtn" class="btn btn-primary" type="button">Lataa kaikki</button>
+            <button id="downloadAllBtn" class="btn btn-primary" type="button">Download</button>
         </div>
-        <div id="progress" aria-hidden="true"></div>
-        <div id="status" role="status" aria-live="polite"></div>
     </section>
 </div>
 
-<nav class="rail" id="rail" aria-label="Kartat (pienennetty)" hidden>
-    <button id="expandBtn" class="icon-btn" type="button" aria-controls="panel" aria-expanded="false" aria-label="Näytä asetukset" title="Näytä asetukset" data-icon="expand"></button>
+<nav class="rail" id="rail" aria-label="Maps (collapsed)" data-i18n-attr="aria-label:rail.label" hidden>
+    <button id="expandBtn" class="icon-btn" type="button" aria-controls="panel" aria-expanded="false" aria-label="Show settings" title="Show settings" data-i18n-attr="aria-label:rail.expand;title:rail.expand" data-icon="expand"></button>
     <hr>
     <ul id="railMaps"></ul>
-    <button id="railNew" class="icon-btn" type="button" aria-label="Uusi kartta" title="Uusi kartta" data-icon="plus"></button>
+    <button id="railNew" class="icon-btn" type="button" aria-label="New map" title="New map" data-i18n-attr="aria-label:maps.new;title:maps.new" data-icon="plus"></button>
     <hr>
-    <button id="railShared" class="icon-btn" type="button" aria-controls="sharedPane" aria-expanded="false" aria-label="Reitti ja tarkkuus" title="Reitti ja tarkkuus" data-icon="sliders"></button>
-    <button id="railDownload" class="icon-btn" type="button" aria-label="Lataa kaikki kartat" title="Lataa kaikki" data-icon="download"></button>
+    <button id="railShared" class="icon-btn" type="button" aria-controls="sharedPane" aria-expanded="false" aria-label="Route and precision" title="Route and precision" data-i18n-attr="aria-label:shared.heading;title:shared.heading" data-icon="sliders"></button>
+    <button id="railDownload" class="icon-btn" type="button" aria-label="Download all maps" title="Download all" data-i18n-attr="aria-label:download.allMaps;title:download.all" data-icon="download"></button>
 </nav>
 
 <aside class="pane" id="sharedPane" aria-labelledby="sharedHeading" hidden>
     <div class="head-row">
-        <h2 class="pane-title" id="sharedHeading">Reitti ja tarkkuus</h2>
-        <button id="sharedClose" class="icon-btn" type="button" aria-label="Sulje" title="Sulje" data-icon="x"></button>
+        <h2 class="pane-title" id="sharedHeading" data-i18n="shared.heading">Route and precision</h2>
+        <button id="sharedClose" class="icon-btn" type="button" aria-label="Close" title="Close" data-i18n-attr="aria-label:close;title:close" data-icon="x"></button>
     </div>
     <div class="sheet-body">
     <section class="section">
-        <p class="section-note">Koskevat kaikkia karttoja.</p>
+        <p class="section-note" data-i18n="shared.note">Apply to all maps.</p>
 
-        <h3>GPX-reitti</h3>
+        <h3 data-i18n="gpx.heading">GPX route</h3>
         <button id="gpxBtn" class="btn btn-secondary" type="button"></button>
         <input type="file" id="gpxInput" accept=".gpx" hidden>
         <div id="gpxInfo"></div>
 
-        <h3>Reitin ulkoasu</h3>
-        <label for="gpxColor">Väri</label>
+        <h3 data-i18n="gpx.style">Route style</h3>
+        <label for="gpxColor" data-i18n="gpx.color">Colour</label>
         <input id="gpxColor" type="color" value="#ff00ff">
-        <label for="gpxWidth">Leveys (pt)</label>
+        <label for="gpxWidth" data-i18n="gpx.width">Width (pt)</label>
         <input id="gpxWidth" type="number" value="5" step="1" min="1" max="20">
-        <label for="gpxOpacity">Peittävyys</label>
+        <label for="gpxOpacity" data-i18n="gpx.opacity">Opacity</label>
         <div class="range-row">
             <input id="gpxOpacity" type="range" value="60" min="10" max="100" step="5">
             <output id="gpxOpacityVal" for="gpxOpacity">60 %</output>
         </div>
 
-        <h3>Tarkkuus</h3>
-        <label for="dpi">Tulostus-DPI</label>
+        <h3 data-i18n="precision.heading">Precision</h3>
+        <label for="dpi" data-i18n="precision.dpi">Print DPI</label>
         <select id="dpi">
-            <option value="" selected>Automaattinen (300)</option>
+            <option value="" selected data-i18n="precision.dpiAuto">Automatic (300)</option>
             <option value="150">150</option>
             <option value="200">200</option>
             <option value="250">250</option>
             <option value="300">300</option>
         </select>
-        <label for="zoomLevel">Karttataso</label>
+        <label for="zoomLevel" data-i18n="precision.level">Map level</label>
         <select id="zoomLevel">
-            <option value="" selected>Automaattinen</option>
-            <option value="10">Nopea (8 m/px)</option>
-            <option value="11">Normaali (4 m/px)</option>
-            <option value="12">Tarkka (2 m/px)</option>
-            <option value="13">Tarkin (1 m/px)</option>
+            <option value="" selected data-i18n="precision.levelAuto">Automatic</option>
+            <option value="10" data-i18n="precision.fast">Fast (8 m/px)</option>
+            <option value="11" data-i18n="precision.normal">Normal (4 m/px)</option>
+            <option value="12" data-i18n="precision.fine">Fine (2 m/px)</option>
+            <option value="13" data-i18n="precision.finest">Finest (1 m/px)</option>
         </select>
     </section>
     </div>
@@ -180,16 +181,26 @@
 
 <div id="toast" class="toast" role="status" aria-live="polite" hidden>
     <span id="toastMsg"></span>
-    <button id="undoBtn" type="button">Kumoa</button>
+    <button id="undoBtn" type="button" data-i18n="undo">Undo</button>
 </div>
 </div>
 
-<button id="centerBtn" class="map-tool" type="button" aria-label="Siirrä valittu kartta näkyvän alueen keskelle" title="Siirrä valittu kartta tähän" data-icon="target"></button>
+<button id="centerBtn" class="map-tool" type="button" aria-label="Move the selected map to the centre of the visible area" title="Move the selected map here" data-i18n-attr="aria-label:center.label;title:center.title" data-icon="target"></button>
+<!-- Language: globe button + small menu. Language names are written in their
+     own language, so they are not translated. -->
+<div class="lang" id="lang">
+    <button id="langBtn" class="lang-btn" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="langMenu" aria-label="Language: English" title="Language" data-i18n-attr="aria-label:lang.button;title:lang.label"><span data-icon="globe"></span><span class="lang-code" data-i18n="lang.code" aria-hidden="true">EN</span><svg class="caret" viewBox="0 0 10 6" aria-hidden="true"><path d="M0 0h10L5 6z" fill="currentColor"/></svg></button>
+    <div id="langMenu" class="lang-menu" role="menu" aria-label="Language" data-i18n-attr="aria-label:lang.label" hidden>
+        <button type="button" role="menuitemradio" data-lang="en" aria-checked="true" tabindex="-1"><span data-icon="check"></span>English</button>
+        <button type="button" role="menuitemradio" data-lang="fi" aria-checked="false" tabindex="-1"><span data-icon="check"></span>Suomi</button>
+    </div>
+</div>
 
 <div class="stack">
+    <div id="notices" class="notices"></div>
     <div id="hint" class="hint">
-        <span>Siirrä aluetta raahaamalla, keskitä<span class="hint-dblclick"> kaksoisklikkaamalla tai</span> <span class="kbd-icon" data-icon="target" aria-label="keskitys"></span>-painikkeella · valitse aiempi kartta listasta</span>
-        <button id="hintClose" class="icon-btn" type="button" aria-label="Piilota ohje" data-icon="x"></button>
+        <span><span data-i18n="hint.before">Drag to move the area; centre it</span><span class="hint-dblclick" data-i18n="hint.dblclick"> by double-clicking or</span><span data-i18n="hint.mid"> with the</span> <span class="kbd-icon" data-icon="target" role="img" aria-label="centre" data-i18n-attr="aria-label:hint.icon"></span><span data-i18n="hint.after"> button · pick an earlier map from the list</span></span>
+        <button id="hintClose" class="icon-btn" type="button" aria-label="Hide tip" data-i18n-attr="aria-label:hint.close" data-icon="x"></button>
     </div>
     <div id="attribution">© Maanmittauslaitos</div>
 </div>

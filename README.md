@@ -28,8 +28,10 @@ frontend/                  Static UI, no build step (OpenLayers v10 via CDN)
     ├── map.js             OpenLayers: EPSG:3067 tiles, layers, rectangle styles
     ├── state.js           Maps, selection, save / restore
     ├── sheet.js, panes.js Phone bottom sheet; desktop rail and route pane
-    └── geometry.js, saved.js, payload.js, jobs.js, text.js, sheet-math.js
-                           Pure logic, unit-tested in tests/frontend with
+    ├── i18n.js            Current language; swaps data-i18n text in the markup
+    └── strings.js, geometry.js, saved.js, payload.js, jobs.js, text.js,
+        sheet-math.js      Pure logic and the English / Finnish strings,
+                           unit-tested in tests/frontend with
                            `node --test "tests/frontend/*.test.mjs"`
 src/fastmap/
 ├── api/routes.py          POST /generate-map, POST /generate-maps-batch,
@@ -51,18 +53,24 @@ The browser never sees the MML API key: preview tiles are proxied through
 * **True-to-scale PDFs** — content area matches the printed rectangle exactly.
 * **Multiple rectangles** — draw several maps on one session; click a list row
   to edit, drag to move, double-click to re-centre.
-* **Scale presets** — 10 000 / 15 000 / 20 000 / 25 000 / 30 000 / 50 000.
+* **Scale presets** — 10 000 / 15 000 / 20 000 / 25 000 / 30 000 / 40 000 / 50 000.
 * **Optional grid lines** — south-north (vertical) or full (vertical +
   horizontal), each with optional coordinate labels. Spacing selectable: 500 /
   1 000 / 2 000 / 5 000 m.
 * **Batch export** — download all rectangles as one multi-page PDF (mixed page
   sizes allowed) or a ZIP of individual files.
-* **Layer selection** — Maastokartta, Taustakartta, Selkokartta, Ortoilmakuva.
+* **Layers** — the UI prints Maastokartta (topographic); the API also accepts
+  Taustakartta, Selkokartta and Ortoilmakuva.
 * **Timestamped filenames** — downloads include date/time to avoid collisions.
 * **Persistent state** — rectangle list saved in your browser and restored on
   the next visit.
 * **GPX track overlay** — upload a GPX file to display the track on the preview
   map and render it on exported PDFs. Customisable colour, width, and opacity.
+* **English and Finnish UI** — English by default; switch with the globe
+  button under the map controls.
+  The choice is remembered in the browser. PDFs are unaffected.
+* **Works on phones** — the settings become a bottom sheet; touch targets are
+  44 px.
 
 ## MML open-data service notes
 
@@ -112,22 +120,37 @@ MML requests are retried up to 3 attempts (not read timeouts). See
 
 ## Usage
 
-* The panel lists your rectangles: **red = active** (drag it, double-click to
-  re-centre), **grey = locked**. Click a list row to edit or ✕ to delete.
-* **+ Uusi kartta** adds a rectangle at the view centre; settings
-  (paper, orientation, scale, margin, layer, title, grid mode/spacing) are
-  stored per rectangle.
-* The rectangle shows the printable *content area* (paper minus margins),
-  so what you see is exactly what prints.
-* **Ruudukko** selector toggles grid lines (Ei / Pystyviivat / Täysi) with
-  selectable spacing. Greys out when off.
-* **GPX-reitti** button uploads a GPX file; the track appears as a coloured
-  line on the preview map and is included in exported PDFs. Use
-  **GPX-lisäasetukset** to adjust colour, width, and opacity.
-* **Lataa aktiivinen PDF** downloads the current map;
-  **Lataa kaikki** renders every rectangle as either one multi-page PDF
-  (mixed page sizes allowed) or a ZIP of individual PDFs.
-* The rectangle list is saved in your browser and restored on the next visit.
+* **Settings pane (left).** The **Maps** list shows every map; click a row to
+  select it. The **selected map** is drawn as a solid blue frame (drag it to
+  move it); the others are dark dashed frames. Both sit on a white outline so
+  they stay visible over any part of the map. ✕ deletes a map, and **Undo**
+  brings it back for a few seconds; **Clear all** works the same way.
+* **New map** adds a map in the middle of the visible area, copying the
+  selected map's settings. Paper, orientation, scale, margin, grid and title
+  are stored per map.
+* The frame shows the printable *content area* (paper minus margins and the
+  footer line), so what you see is exactly what prints.
+* **Grid** turns on grid lines (vertical, or full, each with optional
+  coordinates) with a selectable spacing.
+* **Route and precision** opens a second pane with the settings shared by all
+  maps: load or remove a **GPX route** (shown on the preview and printed on
+  the PDFs) and its colour, width and opacity, plus print **DPI** and **map
+  level**.
+* **Download** at the bottom of the pane: the list's ↓ button downloads one
+  map; **Download all** renders every map as one multi-page PDF (mixed page
+  sizes allowed) or a ZIP of separate PDFs. Progress, the finished file and
+  any error pop up as cards in the bottom-right corner (above the sheet on
+  phones); errors stay until closed.
+* The collapse button in the pane header shrinks it to a **sidebar** with one
+  numbered tile per map, plus new map, route pane and download buttons.
+* **Map controls (right):** zoom **+ / −**, the **centre** button (moves the
+  selected map to the middle of the visible area; double-clicking the map does
+  the same at the clicked spot), and the **globe** button, which opens a small
+  menu to pick English or Suomi.
+* **On a phone** the settings become a bottom sheet: drag or tap its header to
+  move between peek (selected map + download), half and full height.
+* Maps and layout choices are saved in your browser and restored on the next
+  visit.
 
 ### PDF output
 
@@ -183,6 +206,14 @@ given per map. Optional fields: `dpi` (default 300), `margin_mm` (default 7),
 `gpx_width` (1–20 pt, default 5),
 `gpx_opacity` (0.1–1.0, default 0.6). See `/docs` for the interactive schema.
 
+## Translations
+
+UI text lives in `frontend/js/strings.js`, one table per language (`en`,
+`fi`). Markup elements name their key with `data-i18n="key"` (text) or
+`data-i18n-attr="aria-label:key;title:key"` (attributes); text built in
+scripts calls `t('key', { param })`. To add or change a string, edit both
+tables: a unit test fails if their keys or `{placeholders}` differ.
+
 ## Tests
 
 ```bash
@@ -194,7 +225,8 @@ building and offline PDF generation; no network access is needed for the test
 suite. The GPX test uses `pdftoppm` (`poppler-utils`).
 
 Frontend logic that needs no browser (paper geometry, saved-data checks,
-request payloads, job polling, labels, sheet snapping) is tested with Node's
+request payloads, job polling, labels, sheet snapping, and that English and
+Finnish have the same strings) is tested with Node's
 built-in runner (Node 22+, nothing to install):
 
 ```bash
