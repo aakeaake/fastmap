@@ -120,8 +120,6 @@
             </select>
             <button id="downloadAllBtn" class="btn btn-primary" type="button">Download</button>
         </div>
-        <div id="progress" aria-hidden="true"></div>
-        <div id="status" role="status" aria-live="polite"></div>
     </section>
 </div>
 
@@ -188,9 +186,15 @@
 </div>
 
 <button id="centerBtn" class="map-tool" type="button" aria-label="Move the selected map to the centre of the visible area" title="Move the selected map here" data-i18n-attr="aria-label:center.label;title:center.title" data-icon="target"></button>
-<button id="langBtn" class="map-tool lang-tool" type="button" aria-label="Language: English. Switch to Finnish" title="Suomeksi" data-i18n-attr="aria-label:lang.switch;title:lang.switchShort"></button>
+<!-- Language switch: both flags, the current one pressed. Language names
+     are written in their own language, so they are not translated. -->
+<div id="langSwitch" class="lang-switch" role="group" aria-label="Language" data-i18n-attr="aria-label:lang.label">
+    <button type="button" data-lang="en" aria-pressed="true" aria-label="English" title="English"></button>
+    <button type="button" data-lang="fi" aria-pressed="false" aria-label="Suomi" title="Suomi"></button>
+</div>
 
 <div class="stack">
+    <div id="notices" class="notices"></div>
     <div id="hint" class="hint">
         <span><span data-i18n="hint.before">Drag to move the area; centre it</span><span class="hint-dblclick" data-i18n="hint.dblclick"> by double-clicking or</span><span data-i18n="hint.mid"> with the</span> <span class="kbd-icon" data-icon="target" role="img" aria-label="centre" data-i18n-attr="aria-label:hint.icon"></span><span data-i18n="hint.after"> button · pick an earlier map from the list</span></span>
         <button id="hintClose" class="icon-btn" type="button" aria-label="Hide tip" data-i18n-attr="aria-label:hint.close" data-icon="x"></button>

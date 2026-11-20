@@ -218,12 +218,6 @@ button { font: inherit; color: inherit; }
 .dl-row { display: flex; gap: 8px; }
 .dl-row select { flex: 0 0 112px; height: 36px !important; }
 .dl-row .btn { flex: 1; }
-#status { font-size: 13px; margin-top: 8px; line-height: 1.4; }
-#status:empty { display: none; }
-#status.error { color: var(--danger); font-weight: 600; }
-#status.success { color: var(--success); }
-#progress { font-size: 13px; color: var(--ink-2); margin-top: 8px; font-variant-numeric: tabular-nums; }
-#progress:empty { display: none; }
 
 /* --- Undo message: beside the open panes --------------------------- */
 .toast {
@@ -253,6 +247,30 @@ button { font: inherit; color: inherit; }
     box-shadow: 0 1px 3px rgba(16, 24, 32, .18);
 }
 .hint[hidden] { display: none; }
+
+/* Pop-up notices: download progress, results and errors */
+.notices { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; max-width: 100%; }
+.notices:empty { display: none; }
+.notice {
+    display: flex; align-items: flex-start; gap: 8px; max-width: 100%; box-sizing: border-box;
+    background: rgba(255,255,255,.97); border-radius: var(--radius);
+    padding: 4px 4px 4px 10px; font-size: 13px; line-height: 1.45; color: var(--ink);
+    box-shadow: var(--shadow);
+    animation: notice-in .18s cubic-bezier(.22, 1, .36, 1);
+}
+.notice > .icon { margin-top: 6px; }
+.notice-text { min-width: 0; padding: 5px 0; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+.notice-close { margin-left: 4px; }
+.notice-progress { padding-right: 12px; }
+.notice-success > .icon { color: var(--success); }
+.notice-progress > .icon { color: var(--accent); animation: spin 1s linear infinite; }
+.notice-error { background: #fdf0f2; }
+.notice-error > .icon { color: var(--danger); }
+@keyframes notice-in { from { opacity: 0; transform: translateY(6px); } }
+@media (prefers-reduced-motion: reduce) {
+    .notice { animation: none; }
+    .notice-progress > .icon { animation-duration: 3s; }
+}
 /* Short screens (landscape phones): the panes fill the height, so
    the hint would sit on top of them. It is optional help: drop it. */
 @media (min-width: 641px) and (max-height: 500px) { .hint { display: none; } }
@@ -293,13 +311,32 @@ button { font: inherit; color: inherit; }
 }
 .map-tool .icon { width: 18px; height: 18px; }
 .map-tool:hover { background: var(--surface-2); }
-/* Language switch: under the move-here button, same size and look */
-.lang-tool { top: calc(var(--edge-t) + 3 * var(--tool) + 1px + 16px); }
-.lang-tool .flag {
+/* Language switch: both flags stacked under the move-here button, built like
+   the +/- pair. The current language is pressed; the other is dimmed. */
+.lang-switch {
+    position: absolute; z-index: 900;
+    top: calc(var(--edge-t) + 3 * var(--tool) + 1px + 16px); right: var(--edge-r);
+    display: flex; flex-direction: column; gap: 1px;
+    border-radius: var(--radius); overflow: hidden; box-shadow: var(--shadow-sm);
+}
+.lang-switch button {
+    width: var(--tool); height: var(--tool); padding: 0; border: none;
+    display: grid; place-items: center;
+    background: var(--surface); cursor: pointer;
+}
+.lang-switch button:hover { background: var(--surface-2); }
+.lang-switch button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.lang-switch button[aria-pressed="true"] {
+    background: var(--accent-soft); box-shadow: inset 3px 0 0 var(--accent);
+    cursor: default;
+}
+.lang-switch .flag {
     display: block; width: 20px; height: 14px; border-radius: 2px;
     box-shadow: 0 0 0 1px rgba(16, 24, 32, .2);
 }
-@media (pointer: coarse) { .lang-tool .flag { width: 24px; height: 16px; } }
+.lang-switch button[aria-pressed="false"] .flag { opacity: .55; filter: saturate(.4); }
+.lang-switch button[aria-pressed="false"]:hover .flag { opacity: 1; filter: none; }
+@media (pointer: coarse) { .lang-switch .flag { width: 24px; height: 16px; } }
 
 /* --- Collapsed (desktop): the rail replaces the settings pane ------ */
 @media (min-width: 641px) {
@@ -382,6 +419,8 @@ button { font: inherit; color: inherit; }
     /* Fully open: the map strip is too small for the map controls.
        The attribution stays: tiles are still on screen (CC BY 4.0). */
     body:has(#panel[data-sheet="full"]) .map-tool,
+    body:has(#panel[data-sheet="full"]) .lang-switch,
+    body:has(#sharedPane:not([hidden])) .lang-switch,
     body:has(#panel[data-sheet="full"]) .ol-zoom,
     body:has(#sharedPane:not([hidden])) .map-tool,
     body:has(#sharedPane:not([hidden])) .ol-zoom { display: none; }

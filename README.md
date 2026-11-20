@@ -66,7 +66,8 @@ The browser never sees the MML API key: preview tiles are proxied through
   the next visit.
 * **GPX track overlay** — upload a GPX file to display the track on the preview
   map and render it on exported PDFs. Customisable colour, width, and opacity.
-* **English and Finnish UI** — English by default; switch with the flag button.
+* **English and Finnish UI** — English by default; switch with the two flags
+  under the map controls.
   The choice is remembered in the browser. PDFs are unaffected.
 * **Works on phones** — the settings become a bottom sheet; touch targets are
   44 px.
@@ -137,12 +138,15 @@ MML requests are retried up to 3 attempts (not read timeouts). See
   level**.
 * **Download** at the bottom of the pane: the list's ↓ button downloads one
   map; **Download all** renders every map as one multi-page PDF (mixed page
-  sizes allowed) or a ZIP of separate PDFs.
+  sizes allowed) or a ZIP of separate PDFs. Progress, the finished file and
+  any error pop up as cards in the bottom-right corner (above the sheet on
+  phones); errors stay until closed.
 * The collapse button in the pane header shrinks it to a **sidebar** with one
   numbered tile per map, plus new map, route pane and download buttons.
 * **Map controls (right):** zoom **+ / −**, the **centre** button (moves the
   selected map to the middle of the visible area; double-clicking the map does
-  the same at the clicked spot), and the **language** flag (English / Finnish).
+  the same at the clicked spot), and the **language switch**: two flags,
+  English and Finnish, with the current one highlighted.
 * **On a phone** the settings become a bottom sheet: drag or tap its header to
   move between peek (selected map + download), half and full height.
 * Maps and layout choices are saved in your browser and restored on the next

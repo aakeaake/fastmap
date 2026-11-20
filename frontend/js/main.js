@@ -5,6 +5,7 @@ import { applyTranslations, getLang, locale, onLangChange, setLang, t } from './
 import { flag, hydrateIcons, icon, setButton } from './icons.js';
 import { JobError, runJob } from './jobs.js';
 import { addTranslate, createMap, makeBaseSource, readGpx } from './map.js';
+import { createNotices } from './notices.js';
 import { createPanes } from './panes.js';
 import { buildPayload, gpxRoutes } from './payload.js';
 import { parseMargin } from './saved.js';
@@ -431,7 +432,7 @@ gpxInput.addEventListener('change', () => {
         let features;
         try { features = readGpx(reader.result); } catch { features = []; }
         if (!gpxRoutes(features).length) {
-            setStatus(t('gpx.noRoute', { file: file.name }), 'error');
+            notices.show('result', 'error', () => t('gpx.noRoute', { file: file.name }));
             return;
         }
         gpxLayer.getSource().clear();
@@ -451,10 +452,7 @@ el('gpxOpacity').addEventListener('input', () => {
 });
 
 // --- PDF downloads -------------------------------------------------------------------
-function setStatus(msg, kind = '') {
-    el('status').textContent = msg;
-    el('status').className = kind;
-}
+const notices = createNotices(el('notices'), { closeLabel: () => t('close') });
 
 // Elapsed-time line while jobs run. Kept outside the live region so
 // screen readers hear start / done / error, not every tick.
@@ -463,13 +461,15 @@ let jobsStarted = 0;
 let progressTimer = null;
 
 function tickProgress() {
-    el('progress').textContent = progressLabel(runningJobs, Math.round((Date.now() - jobsStarted) / 1000), getLang());
+    notices.refresh('progress');
 }
 
 function jobStarted() {
     if (runningJobs++ === 0) {
         jobsStarted = Date.now();
         progressTimer = setInterval(tickProgress, 1000);
+        notices.show('progress', 'progress',
+            () => progressLabel(runningJobs, Math.round((Date.now() - jobsStarted) / 1000), getLang()));
     }
     tickProgress();
 }
@@ -477,7 +477,7 @@ function jobStarted() {
 function jobFinished() {
     if (--runningJobs === 0) {
         clearInterval(progressTimer);
-        el('progress').textContent = '';
+        notices.close('progress');
     } else {
         tickProgress();
     }
@@ -507,18 +507,16 @@ function saveBlob(blob, filename) {
 }
 
 async function trackJob(url, body) {
-    setStatus('');
+    notices.close('result');
     jobStarted();
     try {
         const { blob, filename } = await runJob(url, body);
         saveBlob(blob, filename);
-        setStatus(t('download.done', { file: filename }), 'success');
+        notices.show('result', 'success', () => t('download.done', { file: filename }));
         return true;
     } catch (err) {
-        const message = err instanceof JobError && err.key ? t(err.key, err.params) : err.message;
-        setStatus(t('download.error', { message }), 'error');
-        // the message lives in the settings pane: show it
-        if (panes.isCollapsed() && !sheet.phone.matches) panes.setCollapsed(false);
+        const message = () => (err instanceof JobError && err.key ? t(err.key, err.params) : err.message);
+        notices.show('result', 'error', () => t('download.error', { message: message() }));
         return false;
     } finally {
         jobFinished();
@@ -565,20 +563,24 @@ function formatOptions() {
     for (const o of el('gridSpacing').options) o.textContent = `${Number(o.value).toLocaleString(locale())} m`;
 }
 
-// The button shows the current language's flag; a click switches to the other
-function renderLangBtn() {
-    el('langBtn').innerHTML = flag(getLang());
+// Two-flag switch: the current language's flag is pressed
+const langButtons = [...el('langSwitch').querySelectorAll('button[data-lang]')];
+langButtons.forEach(b => { b.innerHTML = flag(b.dataset.lang); });
+
+function renderLangSwitch() {
+    for (const b of langButtons) b.setAttribute('aria-pressed', String(b.dataset.lang === getLang()));
 }
 
 function renderScriptText() {
     setButton(el('newBtn'), 'plus', t('maps.new'));
     if (!el('toast').hidden) el('toastMsg').textContent = toastText();
+    notices.refresh();
     formatOptions();
     renderGpx();
-    renderLangBtn();
+    renderLangSwitch();
     renderList();
 }
 
-el('langBtn').addEventListener('click', () => setLang(getLang() === 'en' ? 'fi' : 'en'));
+langButtons.forEach(b => b.addEventListener('click', () => setLang(b.dataset.lang)));
 onLangChange(renderScriptText);
 renderScriptText();

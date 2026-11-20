@@ -96,8 +96,7 @@ export const STRINGS = {
         // Map controls and overlays
         'center.label': 'Move the selected map to the centre of the visible area',
         'center.title': 'Move the selected map here',
-        'lang.switch': 'Language: English. Switch to Finnish',
-        'lang.switchShort': 'Suomeksi',
+        'lang.label': 'Language',
         'hint.before': 'Drag to move the area; centre it',
         'hint.dblclick': ' by double-clicking or',
         'hint.mid': ' with the',
@@ -188,8 +187,7 @@ export const STRINGS = {
 
         'center.label': 'Siirrä valittu kartta näkyvän alueen keskelle',
         'center.title': 'Siirrä valittu kartta tähän',
-        'lang.switch': 'Kieli: suomi. Vaihda englanniksi',
-        'lang.switchShort': 'In English',
+        'lang.label': 'Kieli',
         'hint.before': 'Siirrä aluetta raahaamalla, keskitä',
         'hint.dblclick': ' kaksoisklikkaamalla tai',
         'hint.mid': ' ',
