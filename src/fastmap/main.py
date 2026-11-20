@@ -55,9 +55,30 @@ async def log_requests(request: Request, call_next):
 
 app.include_router(router)
 
+
+class FrontendFiles(StaticFiles):
+    """Static frontend that browsers must revalidate before reusing.
+
+    The UI is plain ES modules with fixed URLs (no build step, no hashed file
+    names). Without a Cache-Control header browsers cache them heuristically,
+    so after a deploy a page could run a mix of old and new modules.
+    "no-cache" keeps the files cached but checks them on every load; with the
+    ETag / Last-Modified that StaticFiles already sends, an unchanged file
+    costs a 304 with no body. Other files (favicon) keep default caching.
+    """
+
+    REVALIDATE = (".html", ".css", ".js", ".mjs")
+
+    def file_response(self, full_path, *args, **kwargs):
+        response = super().file_response(full_path, *args, **kwargs)
+        if str(full_path).endswith(self.REVALIDATE):
+            response.headers["Cache-Control"] = "no-cache"
+        return response
+
+
 _FRONTEND_DIR = os.environ.get(
     "FRONTEND_DIR",
     os.path.normpath(os.path.join(os.path.dirname(__file__), "..", "..", "frontend")),
 )
 if os.path.isdir(_FRONTEND_DIR):
-    app.mount("/", StaticFiles(directory=_FRONTEND_DIR, html=True), name="frontend")
+    app.mount("/", FrontendFiles(directory=_FRONTEND_DIR, html=True), name="frontend")
