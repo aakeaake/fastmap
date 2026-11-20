@@ -2,9 +2,10 @@
 import { GRID_MODES, HINT_KEY, PAPER_MM, STORAGE_KEY } from './constants.js';
 import { centerToShow, containsExtent, visibleCenter as visibleCenterOf, visibleExtent } from './geometry.js';
 import { applyTranslations, getLang, locale, onLangChange, setLang, t } from './i18n.js';
-import { flag, hydrateIcons, icon, setButton } from './icons.js';
+import { hydrateIcons, icon, setButton } from './icons.js';
 import { JobError, runJob } from './jobs.js';
 import { addTranslate, createMap, makeBaseSource, readGpx } from './map.js';
+import { createLangMenu } from './lang-menu.js';
 import { createNotices } from './notices.js';
 import { createPanes } from './panes.js';
 import { buildPayload, gpxRoutes } from './payload.js';
@@ -563,13 +564,13 @@ function formatOptions() {
     for (const o of el('gridSpacing').options) o.textContent = `${Number(o.value).toLocaleString(locale())} m`;
 }
 
-// Two-flag switch: the current language's flag is pressed
-const langButtons = [...el('langSwitch').querySelectorAll('button[data-lang]')];
-langButtons.forEach(b => { b.innerHTML = flag(b.dataset.lang); });
-
-function renderLangSwitch() {
-    for (const b of langButtons) b.setAttribute('aria-pressed', String(b.dataset.lang === getLang()));
-}
+// Globe button + menu; the current language is checked
+const langMenu = createLangMenu({
+    button: el('langBtn'),
+    menu: el('langMenu'),
+    current: getLang,
+    onPick: setLang,
+});
 
 function renderScriptText() {
     setButton(el('newBtn'), 'plus', t('maps.new'));
@@ -577,10 +578,9 @@ function renderScriptText() {
     notices.refresh();
     formatOptions();
     renderGpx();
-    renderLangSwitch();
+    langMenu.sync();
     renderList();
 }
 
-langButtons.forEach(b => b.addEventListener('click', () => setLang(b.dataset.lang)));
 onLangChange(renderScriptText);
 renderScriptText();

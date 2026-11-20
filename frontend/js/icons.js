@@ -9,6 +9,7 @@ const ICON_PATHS = {
     upload: '<path d="M12 20V9"/><path d="m7 14 5-5 5 5"/><path d="M5 4h14"/>',
     chevron: '<path d="m9 6 6 6-6 6"/>',
     alert: '<circle cx="12" cy="12" r="9"/><path d="M12 7.5v5.5M12 16.5v.01"/>',
+    globe: '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.6 3.8 5.6 3.8 9s-1.3 6.4-3.8 9c-2.5-2.6-3.8-5.6-3.8-9S9.5 5.6 12 3z"/>',
     target: '<circle cx="12" cy="12" r="7"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/>',
     collapse: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16"/><path d="m16 10-2 2 2 2"/>',
     expand: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16"/><path d="m14 10 2 2-2 2"/>',
@@ -23,21 +24,6 @@ export function icon(name) {
 export function setButton(btn, iconName, text) {
     btn.innerHTML = `${icon(iconName)}<span></span>`;
     btn.lastChild.textContent = text;
-}
-
-// Flags for the language switch, drawn as SVG (emoji flags render as plain
-// letters on Windows). United Kingdom for English, Finland for Finnish.
-const FLAGS = {
-    en: '<svg class="flag" viewBox="0 0 60 30" aria-hidden="true"><clipPath id="flag-uk-c"><path d="M30 15h30v15zv15H0zH0V0zV0h30z"/></clipPath>'
-        + '<path d="M0 0v30h60V0z" fill="#012169"/><path d="M0 0l60 30m0-30L0 30" stroke="#fff" stroke-width="6"/>'
-        + '<path d="M0 0l60 30m0-30L0 30" clip-path="url(#flag-uk-c)" stroke="#c8102e" stroke-width="4"/>'
-        + '<path d="M30 0v30M0 15h60" stroke="#fff" stroke-width="10"/><path d="M30 0v30M0 15h60" stroke="#c8102e" stroke-width="6"/></svg>',
-    fi: '<svg class="flag" viewBox="0 0 18 11" aria-hidden="true"><path d="M0 0h18v11H0z" fill="#fff"/>'
-        + '<path d="M5 0h3v11H5zM0 4h18v3H0z" fill="#002f6c"/></svg>',
-};
-
-export function flag(lang) {
-    return FLAGS[lang] ?? '';
 }
 
 // Fill every [data-icon] placeholder in the markup

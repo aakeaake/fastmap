@@ -311,32 +311,46 @@ button { font: inherit; color: inherit; }
 }
 .map-tool .icon { width: 18px; height: 18px; }
 .map-tool:hover { background: var(--surface-2); }
-/* Language switch: both flags stacked under the move-here button, built like
-   the +/- pair. The current language is pressed; the other is dimmed. */
-.lang-switch {
-    position: absolute; z-index: 900;
+/* Language: globe + code + caret under the move-here button, right-aligned
+   with the map controls; the menu drops down below it */
+.lang {
+    position: absolute; z-index: 950;
     top: calc(var(--edge-t) + 3 * var(--tool) + 1px + 16px); right: var(--edge-r);
-    display: flex; flex-direction: column; gap: 1px;
-    border-radius: var(--radius); overflow: hidden; box-shadow: var(--shadow-sm);
 }
-.lang-switch button {
-    width: var(--tool); height: var(--tool); padding: 0; border: none;
-    display: grid; place-items: center;
-    background: var(--surface); cursor: pointer;
+.lang-btn {
+    display: flex; align-items: center; gap: 5px;
+    height: var(--tool); padding: 0 8px 0 7px; box-sizing: border-box;
+    border: none; border-radius: var(--radius);
+    background: var(--surface); color: var(--ink); box-shadow: var(--shadow-sm); cursor: pointer;
+    font-size: 13px; font-weight: 650; letter-spacing: .02em;
 }
-.lang-switch button:hover { background: var(--surface-2); }
-.lang-switch button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
-.lang-switch button[aria-pressed="true"] {
-    background: var(--accent-soft); box-shadow: inset 3px 0 0 var(--accent);
-    cursor: default;
+.lang-btn:hover { background: var(--surface-2); }
+.lang-btn .icon { width: 18px; height: 18px; }
+.lang-btn .caret { width: 8px; height: 5px; flex: 0 0 auto; transition: transform .15s ease-out; }
+.lang-btn[aria-expanded="true"] { background: var(--accent-soft); color: var(--accent); }
+.lang-btn[aria-expanded="true"] .caret { transform: rotate(180deg); }
+.lang-menu {
+    position: absolute; top: calc(100% + 6px); right: 0;
+    min-width: 132px; padding: 4px; box-sizing: border-box;
+    display: flex; flex-direction: column; gap: 2px;
+    background: var(--surface); border-radius: var(--radius); box-shadow: var(--shadow);
 }
-.lang-switch .flag {
-    display: block; width: 20px; height: 14px; border-radius: 2px;
-    box-shadow: 0 0 0 1px rgba(16, 24, 32, .2);
+.lang-menu[hidden] { display: none; }
+.lang-menu button {
+    display: flex; align-items: center; gap: 8px;
+    min-height: 32px; padding: 0 12px 0 8px; border: none; border-radius: var(--radius-sm);
+    background: none; font-size: 14px; color: var(--ink); text-align: left; cursor: pointer;
 }
-.lang-switch button[aria-pressed="false"] .flag { opacity: .55; filter: saturate(.4); }
-.lang-switch button[aria-pressed="false"]:hover .flag { opacity: 1; filter: none; }
-@media (pointer: coarse) { .lang-switch .flag { width: 24px; height: 16px; } }
+.lang-menu button:hover, .lang-menu button:focus-visible { background: var(--surface-2); }
+.lang-menu button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.lang-menu button[aria-checked="true"] { font-weight: 600; }
+.lang-menu button[aria-checked="false"] .icon { visibility: hidden; }
+.lang-menu .icon { color: var(--accent); }
+@media (pointer: coarse) {
+    .lang-menu button { min-height: 44px; font-size: 16px; }
+    .lang-btn { font-size: 15px; padding: 0 12px 0 10px; }
+    .lang-btn .icon { width: 20px; height: 20px; }
+}
 
 /* --- Collapsed (desktop): the rail replaces the settings pane ------ */
 @media (min-width: 641px) {
@@ -419,8 +433,8 @@ button { font: inherit; color: inherit; }
     /* Fully open: the map strip is too small for the map controls.
        The attribution stays: tiles are still on screen (CC BY 4.0). */
     body:has(#panel[data-sheet="full"]) .map-tool,
-    body:has(#panel[data-sheet="full"]) .lang-switch,
-    body:has(#sharedPane:not([hidden])) .lang-switch,
+    body:has(#panel[data-sheet="full"]) .lang,
+    body:has(#sharedPane:not([hidden])) .lang,
     body:has(#panel[data-sheet="full"]) .ol-zoom,
     body:has(#sharedPane:not([hidden])) .map-tool,
     body:has(#sharedPane:not([hidden])) .ol-zoom { display: none; }

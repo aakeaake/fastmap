@@ -186,11 +186,14 @@
 </div>
 
 <button id="centerBtn" class="map-tool" type="button" aria-label="Move the selected map to the centre of the visible area" title="Move the selected map here" data-i18n-attr="aria-label:center.label;title:center.title" data-icon="target"></button>
-<!-- Language switch: both flags, the current one pressed. Language names
-     are written in their own language, so they are not translated. -->
-<div id="langSwitch" class="lang-switch" role="group" aria-label="Language" data-i18n-attr="aria-label:lang.label">
-    <button type="button" data-lang="en" aria-pressed="true" aria-label="English" title="English"></button>
-    <button type="button" data-lang="fi" aria-pressed="false" aria-label="Suomi" title="Suomi"></button>
+<!-- Language: globe button + small menu. Language names are written in their
+     own language, so they are not translated. -->
+<div class="lang" id="lang">
+    <button id="langBtn" class="lang-btn" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="langMenu" aria-label="Language: English" title="Language" data-i18n-attr="aria-label:lang.button;title:lang.label"><span data-icon="globe"></span><span class="lang-code" data-i18n="lang.code" aria-hidden="true">EN</span><svg class="caret" viewBox="0 0 10 6" aria-hidden="true"><path d="M0 0h10L5 6z" fill="currentColor"/></svg></button>
+    <div id="langMenu" class="lang-menu" role="menu" aria-label="Language" data-i18n-attr="aria-label:lang.label" hidden>
+        <button type="button" role="menuitemradio" data-lang="en" aria-checked="true" tabindex="-1"><span data-icon="check"></span>English</button>
+        <button type="button" role="menuitemradio" data-lang="fi" aria-checked="false" tabindex="-1"><span data-icon="check"></span>Suomi</button>
+    </div>
 </div>
 
 <div class="stack">
