@@ -286,9 +286,10 @@ button { font: inherit; color: inherit; }
     background: rgba(255,255,255,.8); border-radius: var(--radius-sm); padding: 1px 6px;
 }
 
-/* --- Map controls, right edge: zoom, then move-here ---------------- */
+/* --- Map controls, right edge: language, zoom, then move-here ------ */
+/* Each step down: the control above's height + an 8px gap */
 .ol-zoom {
-    top: var(--edge-t); right: var(--edge-r); left: auto;
+    top: calc(var(--edge-t) + var(--tool) + 8px); right: var(--edge-r); left: auto;
     padding: 0; background: none; border-radius: var(--radius);
     box-shadow: var(--shadow-sm); overflow: hidden;
     display: flex; flex-direction: column; gap: 1px;
@@ -303,7 +304,7 @@ button { font: inherit; color: inherit; }
 .ol-zoom button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 .map-tool {
     position: absolute; z-index: 900;
-    top: calc(var(--edge-t) + 2 * var(--tool) + 1px + 8px); right: var(--edge-r);
+    top: calc(var(--edge-t) + 3 * var(--tool) + 1px + 16px); right: var(--edge-r);
     width: var(--tool); height: var(--tool); padding: 0;
     display: grid; place-items: center;
     border: none; border-radius: var(--radius);
@@ -311,11 +312,11 @@ button { font: inherit; color: inherit; }
 }
 .map-tool .icon { width: 18px; height: 18px; }
 .map-tool:hover { background: var(--surface-2); }
-/* Language: globe + code + caret under the move-here button, right-aligned
-   with the map controls; the menu drops down below it */
+/* Language: globe + code + caret at the top of the column, right-aligned
+   with the map controls (it is the widest); the menu drops down over them */
 .lang {
     position: absolute; z-index: 950;
-    top: calc(var(--edge-t) + 3 * var(--tool) + 1px + 16px); right: var(--edge-r);
+    top: var(--edge-t); right: var(--edge-r);
 }
 .lang-btn {
     display: flex; align-items: center; gap: 5px;
