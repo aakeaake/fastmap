@@ -62,6 +62,8 @@ def render_vector_map(
         c, frame, style, by_layer, zoom, profile.px_mm, symbols, tile_size_m(profile.tile_level)
     )
     draw_icon_layers(c, frame, style, by_layer, zoom, profile.px_mm, symbols)
-    candidates = collect_candidates(style, by_layer, zoom, frame, profile.px_mm)
+    candidates = collect_candidates(
+        style, by_layer, zoom, frame, profile.px_mm, profile.text_scale, profile.halo_scale
+    )
     draw_labels(c, place(candidates, frame))
     c.restoreState()

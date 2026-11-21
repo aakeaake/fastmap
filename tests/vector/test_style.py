@@ -63,3 +63,23 @@ def test_get_literal_arrays_and_expressions():
 def test_profiles_and_style_for():
     assert set(PROFILES) == {25000, 50000}
     assert style_for(PROFILES[25000]) is style_for(PROFILES[25000])
+
+
+@pytest.mark.parametrize("scale", [25000, 50000])
+@pytest.mark.parametrize("northing", [6_630_000, 7_780_000])  # south coast, far north
+def test_profiles_draw_contours_and_label_only_drawn_ones(scale, northing):
+    from fastmap.vector.style import scale_to_zoom
+
+    profile = PROFILES[scale]
+    zoom = scale_to_zoom(scale, northing) + profile.zoom_offset
+    layers = {ly.id: ly for ly in style_for(profile).layers}
+    assert layers["korkeus_viiva"].visible_at(zoom)
+    assert layers["korkeus-label"].visible_at(zoom)
+    assert layers["korkeus_apuviiva"].visible_at(zoom) == (scale == 25000)
+
+
+@pytest.mark.parametrize("scale", [25000, 50000])
+def test_profiles_thin_halo_and_lighter_lines(scale):
+    profile = PROFILES[scale]
+    assert 2 * profile.px_mm * profile.halo_scale <= 0.1  # widest style halo, mm
+    assert profile.px_mm < 0.28

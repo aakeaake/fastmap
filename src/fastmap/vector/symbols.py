@@ -177,7 +177,8 @@ _ICONS: dict[str, _Icon] = {
     "mmlhc_sym_34600": _icon(
         14, 14, (_K, (_seg((7, 2), (7, 12), _THIN), _seg((1.5, 12), (12.5, 12), _THIN)))
     ),
-    "mmlhc_sym_34100": _icon(10, 10, ((168, 150, 160), (("disc", 5, 5, 3.4),))),
+    # small open rock: the colour of the large open-rock fill (#d1c7d1), small dot
+    "mmlhc_sym_34100": _icon(10, 10, ((209, 199, 209), (("disc", 5, 5, 2.6),))),
     "mmlhc_sym_12200": _icon(
         20, 20, (_K, (_seg((3, 3), (17, 17), _THIN), _seg((17, 3), (3, 17), _THIN)))
     ),

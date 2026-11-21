@@ -243,3 +243,21 @@ def test_line_label_rejected_when_colliding_with_placed_box():
     other = _cand("678", line=LineString([(10, 150), (190, 150)]), spacing_pt=1000, priority=(1,))
     placed = place([line, other, blocker], FRAME)
     assert sorted(p.candidate.text for p in placed) == ["678", "Name"]
+
+
+def test_collect_applies_text_and_halo_scale():
+    style = _style(
+        {
+            "id": "names",
+            "type": "symbol",
+            "source-layer": "n",
+            "layout": {"text-field": "{a}", "text-size": 10, "text-padding": 2},
+            "paint": {"text-halo-width": 2},
+        }
+    )
+    feats = {"n": [Feature("n", "Point", Point(100, 100), {"a": "Nimi"})]}
+    (c,) = collect_candidates(style, feats, 14, FRAME, 0.5, text_scale=0.6, halo_scale=0.25)
+    px_pt = 0.5 * 72 / 25.4
+    assert c.size_pt == pytest.approx(10 * px_pt * 0.6)
+    assert c.halo_pt == pytest.approx(2 * px_pt * 0.25)
+    assert c.padding_pt == pytest.approx(2 * px_pt)  # collision padding is not text size

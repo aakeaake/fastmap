@@ -177,7 +177,9 @@ def _icon_fields(layer: StyleLayer, ctx: EvalContext, px_pt: float) -> dict:
     }
 
 
-def _layer_candidates(layer, index, features, zoom, frame, px_mm, with_icons):
+def _layer_candidates(
+    layer, index, features, zoom, frame, px_mm, with_icons, text_scale=1.0, halo_scale=1.0
+):
     px_pt = px_mm * mm
     for f, ctx in _matching(layer, features, zoom, ("Point", "LineString", "Polygon")):
         line_placement = layer.get("symbol-placement", ctx, "point") != "point"
@@ -185,7 +187,7 @@ def _layer_candidates(layer, index, features, zoom, frame, px_mm, with_icons):
             continue  # point placement needs points, line placement needs lines/rings
         icon = _icon_fields(layer, ctx, px_pt) if with_icons and not line_placement else {}
         text = _text(layer, ctx)
-        size_pt = float(layer.get("text-size", ctx, 16)) * px_pt
+        size_pt = float(layer.get("text-size", ctx, 16)) * px_pt * text_scale
         opacity = float(layer.get("text-opacity", ctx, 1.0))
         if size_pt <= 0 or opacity <= 0:
             text = ""
@@ -204,7 +206,7 @@ def _layer_candidates(layer, index, features, zoom, frame, px_mm, with_icons):
             halo_color=_alpha(
                 parse_color(layer.get("text-halo-color", ctx, "rgba(0,0,0,0)")), opacity
             ),
-            halo_pt=float(layer.get("text-halo-width", ctx, 0.0)) * px_pt,
+            halo_pt=float(layer.get("text-halo-width", ctx, 0.0)) * px_pt * halo_scale,
             priority=_priority(layer, ctx, index),
             icon=None,
             allow_overlap=bool(layer.get("text-allow-overlap", ctx, False)),
@@ -232,8 +234,14 @@ def collect_candidates(
     zoom: float,
     frame: MapFrame,
     px_mm: float,
+    text_scale: float = 1.0,
+    halo_scale: float = 1.0,
 ) -> list[Candidate]:
-    """Label (and placed-icon) candidates of every visible symbol layer."""
+    """Label (and placed-icon) candidates of every visible symbol layer.
+
+    ``text_scale`` and ``halo_scale`` multiply text sizes and halo widths on top of
+    ``px_mm`` (see :class:`fastmap.vector.profiles.ScaleProfile`).
+    """
     register_fonts()
     out: list[Candidate] = []
     for index, layer in enumerate(style.layers):
@@ -243,7 +251,11 @@ def collect_candidates(
         if "text-field" not in layer.layout and not with_icons:
             continue
         features = features_by_layer.get(layer.source_layer or "", [])
-        out.extend(_layer_candidates(layer, index, features, zoom, frame, px_mm, with_icons))
+        out.extend(
+            _layer_candidates(
+                layer, index, features, zoom, frame, px_mm, with_icons, text_scale, halo_scale
+            )
+        )
     return out
 
 

@@ -66,3 +66,17 @@ def test_pattern_clipped_to_path(tmp_path):
 def test_render_with_symbols_still_vector(tmp_path, offline_tiles):
     _, data = _render(tmp_path / "v.pdf", offline_tiles)
     assert b"/Subtype /Image" not in data
+
+
+def test_small_open_rock_dot_matches_open_rock_fill():
+    """F4: the 34100 point symbol uses the large open-rock area colour, small."""
+    from fastmap.vector.colors import parse_color
+    from fastmap.vector.expressions import EvalContext
+    from fastmap.vector.symbols import _ICONS
+
+    layer = next(ly for ly in load_style().layers if ly.id == "maasto_alue-kallio")
+    fill = layer.get("fill-color", EvalContext({"kohdeluokka": 34100}, 13, "Polygon"))
+    ((rgb, ops),) = _ICONS["mmlhc_sym_34100"].layers
+    assert tuple(v / 255 for v in rgb) == parse_color(fill)[:3]
+    ((kind, _, _, radius),) = ops
+    assert kind == "disc" and radius <= 3.0
