@@ -1,9 +1,10 @@
 """Collision-aware placement of map labels and placed icons (simplified MapLibre).
 
-Candidates are collected from the style's symbol layers, sorted by priority and placed
-greedily: a candidate is kept only if its collision boxes stay inside the map frame and
-do not overlap boxes already placed. Point labels try their variable anchors in order;
-line labels are laid out glyph by glyph along the line every ``symbol-spacing``.
+Candidates are collected from the style's symbol layers, sorted by priority (top style
+layers first, as in MapLibre) and placed greedily: a candidate is kept only if its
+collision boxes stay inside the map frame and do not overlap boxes already placed.
+Point labels try their variable anchors in order; line labels are laid out glyph by
+glyph along the line every ``symbol-spacing``.
 """
 
 from __future__ import annotations
@@ -137,11 +138,21 @@ def _number(value: Any) -> float | None:
 
 
 def _priority(layer: StyleLayer, ctx: EvalContext, index: int) -> tuple:
+    """Placement order key, lowest first (MapLibre-like cross-layer order).
+
+    Layers later in the style are placed first (top-most layer wins); within a layer by
+    ``symbol-sort-key`` (missing -> 0), then ``prioriteetti`` (missing -> last), then
+    larger ``mittakaavarelevanssi`` first; ties keep feature order (stable sort).
+    """
     key = _number(layer.get("symbol-sort-key", ctx))
-    if key is None:
-        key = _number(ctx.props.get("prioriteetti")) or 0.0
+    prio = _number(ctx.props.get("prioriteetti"))
     relevance = _number(ctx.props.get("mittakaavarelevanssi")) or 0.0
-    return (key, -relevance, index)
+    return (
+        -index,
+        0.0 if key is None else key,
+        math.inf if prio is None else prio,
+        -relevance,
+    )
 
 
 def _alpha(color: tuple[float, float, float, float], opacity: float):

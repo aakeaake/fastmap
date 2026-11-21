@@ -133,7 +133,7 @@ def test_collect_text_field_tokens_transform_and_wrap():
     assert c.size_pt == pytest.approx(10 * 0.5 * 72 / 25.4)
     assert c.halo_pt == pytest.approx(2 * 0.5 * 72 / 25.4)
     assert c.color[:3] == (1.0, 0.0, 0.0)
-    assert c.priority[0] == 7
+    assert c.priority == (0, 0.0, 7, -0.0)  # layer 0, no sort key, prioriteetti 7
 
 
 def test_icon_routing_no_double_drawing(tmp_path):
@@ -182,3 +182,32 @@ def test_offline_render_has_labels(tmp_path, offline_tiles):
         ["pdftotext", str(tmp_path / "v.pdf"), "-"], capture_output=True, check=True, text=True
     ).stdout
     assert "Alkulla" in text
+    # dropped while contour labels were placed before names (now top layers go first)
+    assert "Hjortronmossen" in text and "Storkärr" in text
+
+
+def test_later_layer_name_beats_earlier_contour_label():
+    style = _style(
+        {
+            "id": "contour-label",
+            "type": "symbol",
+            "source-layer": "korkeus",
+            "layout": {"symbol-placement": "line", "text-field": "{h}", "text-size": 20},
+        },
+        {
+            "id": "names",
+            "type": "symbol",
+            "source-layer": "nimisto",
+            "layout": {"text-field": "{nimi}", "text-size": 20},
+        },
+    )
+    feats = {
+        "korkeus": [
+            Feature("korkeus", "LineString", LineString([(20, 100), (180, 100)]), {"h": 60})
+        ],
+        "nimisto": [Feature("nimisto", "Point", Point(100, 100), {"nimi": "Kaurasuo"})],
+    }
+    cands = collect_candidates(style, feats, 14, FRAME, 0.28)
+    assert len(cands) == 2
+    placed = place(cands, FRAME)
+    assert [p.candidate.text for p in placed] == ["Kaurasuo"]
