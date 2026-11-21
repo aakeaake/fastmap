@@ -5,7 +5,8 @@
 
 export const LANGS = ['en', 'fi'];
 export const DEFAULT_LANG = 'en';
-// Locale for number formatting ("1:20,000" / "1:20 000")
+// Locale for number formatting: decimal mark ("2.5" / "2,5"); thousands are
+// always grouped with a space (format.js)
 export const LOCALES = { en: 'en-GB', fi: 'fi-FI' };
 
 export const STRINGS = {
