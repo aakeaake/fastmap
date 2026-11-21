@@ -20,7 +20,7 @@ dependencies = [
     "tzdata>=2024.1",
     "rl_accel>=0.9",
     "mapbox-vector-tile>=2.1",
-    "shapely>=2.0",
+    "shapely>=2.1",
 ]
 
 [project.optional-dependencies]

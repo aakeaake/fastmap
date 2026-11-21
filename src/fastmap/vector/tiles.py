@@ -6,9 +6,9 @@ from concurrent.futures import as_completed
 
 import mapbox_vector_tile
 import requests
+import shapely
 from shapely.affinity import affine_transform
-from shapely.geometry import MultiPolygon, box, shape
-from shapely.validation import make_valid
+from shapely.geometry import box, shape
 
 from fastmap.core.config import MML_VECTOR_URL
 from fastmap.services import mml_source
@@ -43,6 +43,11 @@ def tile_range(extent: Extent, level: int, pad: int = 1) -> tuple[int, int, int,
     return col_min - pad, row_min - pad, col_max + pad, row_max + pad
 
 
+def tile_size_m(level: int) -> float:
+    """Ground size of one tile cell at ``level`` in metres."""
+    return WMTS_TILE_SIZE * 8192.0 / 2**level
+
+
 def fetch_tile(level: int, row: int, col: int) -> bytes | None:
     """Fetch one vector tile; ``None`` when MML has no data there (404)."""
     key = _require_api_key()
@@ -65,7 +70,7 @@ def fetch_tile(level: int, row: int, col: int) -> bytes | None:
 
 def decode_tile(data: bytes, level: int, row: int, col: int) -> list[Feature]:
     """Decode a tile into features with geometry in EPSG:3067 metres."""
-    tile_m = WMTS_TILE_SIZE * 8192.0 / 2**level
+    tile_m = tile_size_m(level)
     ox, oy = WMTS_ORIGIN
     minx = ox + col * tile_m
     miny = oy - (row + 1) * tile_m
@@ -92,13 +97,14 @@ def decode_tile(data: bytes, level: int, row: int, col: int) -> list[Feature]:
                 continue
             g = _to_metres(g, minx, miny, scale)
             if gtype == "Polygon" and not g.is_valid:
-                g = make_valid(g)
-                if g.geom_type not in ("Polygon", "MultiPolygon"):
-                    # make_valid may yield a collection; keep only the areal parts
-                    parts = [p for p in getattr(g, "geoms", []) if p.geom_type == "Polygon"]
-                    if not parts:
-                        continue
-                    g = MultiPolygon(parts)
+                # Tiles hold rings that run back over themselves along the
+                # buffer line, and holes touching the exterior there. The
+                # 'structure' repair keeps exteriors as area and holes as
+                # holes (linework fills such holes); its areal parts may come
+                # as a MultiPolygon inside a collection.
+                g = _only_type(shapely.make_valid(g, method="structure"), gtype)
+                if g is None:
+                    continue
             g = _only_type(g.intersection(cell), gtype)
             if g is None:
                 continue

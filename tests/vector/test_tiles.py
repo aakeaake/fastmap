@@ -2,6 +2,7 @@ from unittest.mock import MagicMock
 
 import mapbox_vector_tile
 import pytest
+from shapely.geometry import Point
 
 from fastmap.services import mml_source
 from fastmap.services.mml_source import MMLError
@@ -93,3 +94,48 @@ def test_decode_garbage_is_mml_error():
     with pytest.raises(MMLError) as err:
         tiles.decode_tile(b"\xff\xfe not a tile", 12, 3322, 1797)
     assert "12/3322/1797" in str(err.value)
+
+
+def _decode_one(wkt, level=12, row=3322, col=1797):
+    """Encode one polygon (tile units, y up) and decode it; also return a tile->metres map."""
+    data = mapbox_vector_tile.encode(
+        [{"name": "a", "features": [{"geometry": wkt, "properties": {"mtk_id": 1}}]}],
+        default_options={"extents": 4096},
+    )
+    tile_m = 256 * 8192 / 2**level
+    minx = -548576 + col * tile_m
+    miny = 8388608 - (row + 1) * tile_m
+    k = tile_m / 4096
+
+    def at(x, y):
+        return Point(minx + x * k, miny + y * k)
+
+    return tiles.decode_tile(data, level, row, col), at
+
+
+def test_decode_keeps_lobes_joined_along_the_buffer():
+    # Real MML pattern: a lake reaching into this tile in two lobes, written as
+    # one ring that runs back over itself along the bottom buffer line (y=-16).
+    # make_valid turns it into MultiPolygon + LineString; dropping that left
+    # straight, outlined lake edges at the tile seam.
+    ring = "POLYGON((-16 300, 600 -16, 2300 -16, 2300 300, 3990 300, 3990 -16, -16 -16, -16 300))"
+    feats, at = _decode_one(ring)
+    assert len(feats) == 1
+    g = feats[0].geometry
+    assert g.contains(at(100, 100))  # left lobe
+    assert g.contains(at(3000, 150))  # right lobe
+    assert not g.contains(at(1500, 100))  # land between the lobes
+
+
+def test_decode_keeps_hole_touching_the_buffer():
+    # A hole sharing a stretch of the exterior's buffer edge is invalid; the
+    # repair must keep it a hole (linework repair filled it in).
+    poly = (
+        "POLYGON((-16 -16, 2000 -16, 2000 2000, -16 2000, -16 -16),"
+        " (500 -16, 500 1000, 1500 1000, 1500 -16, 500 -16))"
+    )
+    feats, at = _decode_one(poly)
+    assert len(feats) == 1
+    g = feats[0].geometry
+    assert g.contains(at(200, 500))
+    assert not g.contains(at(1000, 500))

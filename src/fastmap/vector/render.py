@@ -16,7 +16,7 @@ from .model import Feature
 from .profiles import PROFILES
 from .style import scale_to_zoom, style_for
 from .symbols import Symbols, draw_icon_layers
-from .tiles import load_tiles
+from .tiles import load_tiles, tile_size_m
 
 CLIP_BUFFER_FRACTION = 0.02
 
@@ -58,7 +58,9 @@ def render_vector_map(
         c.rect(x, y, w, h, stroke=0, fill=1)
         c.setFillAlpha(1)
     symbols = Symbols()
-    draw_fill_line_layers(c, frame, style, by_layer, zoom, profile.px_mm, symbols)
+    draw_fill_line_layers(
+        c, frame, style, by_layer, zoom, profile.px_mm, symbols, tile_size_m(profile.tile_level)
+    )
     draw_icon_layers(c, frame, style, by_layer, zoom, profile.px_mm, symbols)
     candidates = collect_candidates(style, by_layer, zoom, frame, profile.px_mm)
     draw_labels(c, place(candidates, frame))

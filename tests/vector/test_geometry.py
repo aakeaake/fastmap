@@ -1,5 +1,6 @@
 from collections import Counter
 
+import pytest
 import shapely
 from shapely.geometry import LineString, Point, box
 
@@ -163,3 +164,31 @@ def test_line_pieces_dissolving_into_one_linestring():
     assert len(out) == 1
     assert out[0].geometry.geom_type == "LineString"
     assert out[0].geometry.length == 10
+
+
+def test_seam_pieces_leave_no_gap_or_sliver():
+    # One object clipped into two tile cells, cut vertices a few cm apart.
+    from shapely.geometry import Polygon
+
+    x = -548576 + 1800 * 512
+    left = Polygon([(x - 150, 100), (x, 100.0), (x, 300.02), (x - 150, 300)])
+    right = Polygon([(x, 99.97), (x + 150, 100), (x + 150, 300), (x, 299.99)])
+    merged = merge_by_mtk_id([_f("l", "Polygon", g, mtk_id=1) for g in (left, right)])
+    assert len(merged) == 1
+    g = merged[0].geometry
+    assert g.geom_type == "Polygon" and not g.interiors
+    assert g.area == pytest.approx(left.area + right.area)
+    assert g.contains(box(x - 0.5, 101, x + 0.5, 299))  # nothing open along the seam
+
+
+def test_outline_leaves_out_cell_edges_and_keeps_the_rest_joined():
+    from fastmap.vector.geometry import outline
+
+    x = -548576 + 1800 * 512
+    # ring starts mid-way along the real edges; its east side is the cell edge
+    ring = shapely.Polygon([(x - 50, 10), (x, 10), (x, 110), (x - 100, 110), (x - 100, 10)])
+    lines = outline(ring, 512)
+    assert lines.geom_type == "MultiLineString" and len(lines.geoms) == 1
+    assert lines.length == pytest.approx(300)  # the 100 m cell-edge side is gone
+    assert outline(ring, None).length == pytest.approx(400)
+    assert outline(box(x - 100, 10, x - 10, 60), 512).length == pytest.approx(280)

@@ -2,15 +2,18 @@
 
 from __future__ import annotations
 
+import numpy as np
 import shapely
-from shapely.geometry import LineString, box
+from shapely.geometry import LineString, MultiLineString, box
 from shapely.ops import linemerge
 
+from fastmap.services.mml_source import WMTS_ORIGIN
 from fastmap.services.print_layout import Extent
 
 from .model import Feature
 
 SNAP_TOLERANCE_M = 1.0
+CUT_TOLERANCE_M = 0.01  # cut vertices sit exactly on the cell edge
 
 _FAMILY = {
     "Point": ("Point", "MultiPoint"),
@@ -113,3 +116,50 @@ def clip_features(features: list[Feature], extent: Extent, buffer_m: float) -> l
         if g is not None:
             out.append(Feature(f.layer, f.geom_type, g, f.props))
     return out
+
+
+def _cut_segments(coords: np.ndarray, tile_m: float) -> np.ndarray:
+    """Per segment: True when both ends lie on the same tile-cell edge."""
+    cut = np.zeros(len(coords) - 1, dtype=bool)
+    for axis, origin in enumerate(WMTS_ORIGIN):
+        f = (coords[:, axis] - origin) / tile_m
+        k = np.round(f)
+        on = np.abs(f - k) * tile_m <= CUT_TOLERANCE_M
+        cut |= on[:-1] & on[1:] & (k[:-1] == k[1:])
+    return cut
+
+
+def outline(geom, tile_m: float | None):
+    """A polygon's boundary as lines, minus the stretches along tile-cell edges.
+
+    Tiles are clipped to their cells, so a boundary runs along a cell edge
+    where the object goes on in the next tile, or where merged pieces' cut
+    vertices differ by a few cm. Those stretches are clipping artefacts, not
+    edges of the object, and are left out. ``tile_m`` None keeps everything.
+    """
+    boundary = geom.boundary
+    if tile_m is None:
+        return boundary
+    out: list[LineString] = []
+    for line in getattr(boundary, "geoms", [boundary]):
+        a = np.asarray(line.coords)[:, :2]
+        if len(a) < 2:
+            continue
+        cut = _cut_segments(a, tile_m)
+        if not cut.any():
+            out.append(line)
+            continue
+        if line.is_closed and not cut.all():
+            # start the ring just after a cut so no kept run wraps around
+            r = int(np.argmax(cut)) + 1
+            a = np.roll(a[:-1], -r, axis=0)
+            a = np.vstack([a, a[:1]])
+            cut = np.roll(cut, -r)
+        start = None
+        for i, is_cut in enumerate([*cut, True]):
+            if not is_cut and start is None:
+                start = i
+            elif is_cut and start is not None:
+                out.append(LineString(a[start : i + 1]))
+                start = None
+    return MultiLineString(out)

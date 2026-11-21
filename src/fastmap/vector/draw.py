@@ -15,6 +15,7 @@ from fastmap.services.print_layout import Extent
 
 from .colors import parse_color
 from .expressions import EvalContext, filter_matches
+from .geometry import outline as polygon_outline
 from .model import Feature
 from .style import Style, StyleLayer
 
@@ -115,10 +116,10 @@ def _line_path(c: Canvas, geoms):
     return path
 
 
-def _as_lines(geom):
-    """Polygon rings as lines (line layers on polygon sources draw outlines)."""
+def _as_lines(geom, tile_m: float | None):
+    """Polygon outlines as lines (line layers on polygon sources draw outlines)."""
     if geom.geom_type in ("Polygon", "MultiPolygon"):
-        return geom.boundary
+        return polygon_outline(geom, tile_m)
     return geom
 
 
@@ -141,7 +142,7 @@ def _sort_key(layer: StyleLayer, prop: str, ctx: EvalContext) -> float:
     return float(value) if isinstance(value, (int, float)) else 0.0
 
 
-def _draw_fill_layer(c, frame, layer, features, zoom, px_mm, symbols) -> None:
+def _draw_fill_layer(c, frame, layer, features, zoom, px_mm, symbols, tile_m) -> None:
     pattern = "fill-pattern" in layer.paint
     if pattern and symbols is None:
         return
@@ -166,14 +167,15 @@ def _draw_fill_layer(c, frame, layer, features, zoom, px_mm, symbols) -> None:
             if fill[3] <= 0 and outline is None:
                 continue
             key = (sort_key, fill, outline, opacity)
-        groups.setdefault(key, []).append(frame.geom_to_pt(f.geometry))
+        groups.setdefault(key, []).append(f.geometry)
 
     for key, geoms in _sorted_groups(groups):
-        path = _polygon_path(c, geoms)
+        geoms_pt = [frame.geom_to_pt(g) for g in geoms]
+        path = _polygon_path(c, geoms_pt)
         c.saveState()
         if pattern:
             _, name, opacity = key
-            minx, miny, maxx, maxy = shapely.total_bounds(geoms)
+            minx, miny, maxx, maxy = shapely.total_bounds(geoms_pt)
             c.setFillAlpha(opacity)
             c.setStrokeAlpha(opacity)
             symbols.draw_pattern(c, name, path, (minx, miny, maxx, maxy), px_mm)
@@ -187,11 +189,12 @@ def _draw_fill_layer(c, frame, layer, features, zoom, px_mm, symbols) -> None:
                 c.setStrokeColorRGB(*outline[:3])
                 c.setStrokeAlpha(outline[3] * opacity)
                 c.setLineWidth(OUTLINE_PX * px_mm * mm)
-                c.drawPath(path, stroke=1, fill=0)
+                lines = [frame.geom_to_pt(polygon_outline(g, tile_m)) for g in geoms]
+                c.drawPath(_line_path(c, lines), stroke=1, fill=0)
         c.restoreState()
 
 
-def _draw_line_layer(c, frame, layer, features, zoom, px_mm) -> None:
+def _draw_line_layer(c, frame, layer, features, zoom, px_mm, tile_m) -> None:
     px_pt = px_mm * mm
     groups: dict[tuple, list] = {}
     for f, ctx in _matching(layer, features, zoom, ("LineString", "Polygon")):
@@ -208,7 +211,10 @@ def _draw_line_layer(c, frame, layer, features, zoom, px_mm) -> None:
         cap = _CAPS.get(layer.get("line-cap", ctx, "butt"), 0)
         join = _JOINS.get(layer.get("line-join", ctx, "miter"), 0)
         offset = float(layer.get("line-offset", ctx, 0.0)) * px_pt
-        geom = frame.geom_to_pt(_as_lines(f.geometry))
+        lines = _as_lines(f.geometry, tile_m)
+        if lines.is_empty:
+            continue
+        geom = frame.geom_to_pt(lines)
         if offset:
             # MapLibre: positive offset is to the right; shapely: positive is left.
             geom = shapely.offset_curve(geom, -offset)
@@ -240,12 +246,14 @@ def draw_fill_line_layers(
     zoom: float,
     px_mm: float,
     symbols: PatternDrawer | None = None,
+    tile_m: float | None = None,
 ) -> None:
     """Draw every visible fill and line layer of ``style`` in style order.
 
     Features sharing the same evaluated paint are batched into one path.
     Fill-pattern layers go to ``symbols`` (skipped when it is None); symbol,
-    background and raster layers are not drawn here.
+    background and raster layers are not drawn here. Polygon outlines leave
+    out stretches along the edges of ``tile_m`` tile cells (clipping seams).
     """
     for layer in style.layers:
         if layer.type not in ("fill", "line") or not layer.visible_at(zoom):
@@ -254,6 +262,6 @@ def draw_fill_line_layers(
         if not features:
             continue
         if layer.type == "fill":
-            _draw_fill_layer(c, frame, layer, features, zoom, px_mm, symbols)
+            _draw_fill_layer(c, frame, layer, features, zoom, px_mm, symbols, tile_m)
         else:
-            _draw_line_layer(c, frame, layer, features, zoom, px_mm)
+            _draw_line_layer(c, frame, layer, features, zoom, px_mm, tile_m)

@@ -169,3 +169,85 @@ def test_fill_pattern_delegated_or_skipped(tmp_path):
         lambda c: draw_fill_line_layers(c, frame, style, feats, 14, 0.28, FakeSymbols()),
     )
     assert calls == [("dots", pytest.approx((10, 10, 20, 20)), 0.28)]
+
+
+def _stroked_segments(content: bytes) -> list[tuple[tuple[float, float], tuple[float, float]]]:
+    """Every straight segment the page strokes (m/l/h paths ended by S, s, B or b)."""
+    segs, path, nums = [], [], []
+    start = cur = None
+    for tok in content.split():
+        try:
+            nums.append(float(tok))
+            continue
+        except ValueError:
+            pass
+        if tok == b"m":
+            start = cur = (nums[-2], nums[-1])
+        elif tok == b"l":
+            nxt = (nums[-2], nums[-1])
+            path.append((cur, nxt))
+            cur = nxt
+        elif tok == b"h" and start is not None:
+            path.append((cur, start))
+            cur = start
+        elif tok == b"re":
+            x, y, w, h = nums[-4:]
+            pts = [(x, y), (x + w, y), (x + w, y + h), (x, y + h)]
+            path.extend(zip(pts, pts[1:] + pts[:1], strict=True))
+        elif tok in (b"S", b"s", b"B", b"b", b"B*", b"b*"):
+            segs.extend(path)
+            path = []
+        elif tok in (b"f", b"F", b"f*", b"n"):
+            path = []
+        nums = []
+    return segs
+
+
+# A vertical level-12 (and level-11) tile edge, and the same object clipped into
+# the two cells on either side of it. Their cut vertices differ by a few cm, as
+# in real MML tiles.
+_SEAM_X = -548576 + 1800 * 512
+_SEAM_Y = 6688000
+
+
+def _seam_pieces(layer, kohdeluokka, mtk_id):
+    from shapely.geometry import Polygon
+
+    from fastmap.vector.model import Feature
+
+    x, y = _SEAM_X, _SEAM_Y
+    left = Polygon([(x - 150, y + 100), (x, y + 100.0), (x, y + 300.02), (x - 150, y + 300)])
+    right = Polygon([(x, y + 99.97), (x + 150, y + 100), (x + 150, y + 300), (x, y + 299.99)])
+    props = {"kohdeluokka": kohdeluokka}
+    if mtk_id is not None:
+        props["mtk_id"] = mtk_id
+    return [Feature(layer, "Polygon", g, dict(props)) for g in (left, right)]
+
+
+@pytest.mark.parametrize("mtk_id", [7, None])
+@pytest.mark.parametrize(
+    "layer, kohdeluokka",
+    [
+        ("vesisto_alue", 36200),  # lake: line layer stroking the polygon boundary
+        ("maasto_alue", 33000),  # fill-outline-color
+    ],
+)
+def test_no_outline_along_tile_seam(tmp_path, monkeypatch, layer, kohdeluokka, mtk_id):
+    from fastmap.vector import render
+
+    pieces = _seam_pieces(layer, kohdeluokka, mtk_id)
+    monkeypatch.setattr(render, "load_tiles", lambda extent, level: list(pieces))
+    extent = Extent(_SEAM_X - 200, _SEAM_Y, _SEAM_X + 200, _SEAM_Y + 400)
+    c = Canvas(str(tmp_path / "seam.pdf"), pagesize=(400, 400))
+    render_vector_map(c, extent, (0, 0, 400, 400), 25000)  # 1 pt per metre
+    c.showPage()
+    c.save()
+    segs = _stroked_segments(_page_content((tmp_path / "seam.pdf").read_bytes()))
+
+    def on_x(seg, x):
+        return all(abs(p[0] - x) < 0.01 for p in seg)
+
+    assert any(on_x(s, 50) for s in segs), "the object's real west edge is outlined"
+    assert any(on_x(s, 350) for s in segs), "the object's real east edge is outlined"
+    seam = [s for s in segs if on_x(s, 200)]
+    assert seam == [], f"outline stroked along the tile seam: {seam}"
