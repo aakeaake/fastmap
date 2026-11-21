@@ -119,7 +119,7 @@ test('degenerate input terminates', () => {
 test('a 500 km zig-zag at 1:10 000 finishes quickly', () => {
     const line = [];
     for (let i = 0; i <= 100; i++) line.push([i * 3000, (i % 2) * 4000]);   // 100 legs of 5 km
-    const settings = { paperSize: 'A4', scale: 10000, margin: 7, overlapPct: 10, sameOrientation: false };
+    const settings = { paperSize: 'A4', scale: 10000, margin: 7, overlapPct: 10, orientation: 'auto' };
     const t0 = performance.now();
     const s = planCover([line], settings);
     assert.ok(performance.now() - t0 < 500);
@@ -139,7 +139,7 @@ test('coverParams turns paper settings into ground metres', () => {
 test('same orientation for all picks the run with fewer sheets', () => {
     const lines = [[[0, 0], [0, 20000]]];
     const base = { paperSize: 'A4', scale: 20000, margin: 7, overlapPct: 10 };
-    const s = planCover(lines, { ...base, sameOrientation: true });
+    const s = planCover(lines, { ...base, orientation: 'same' });
     assert.equal(new Set(s.map(x => x.orientation)).size, 1);
     const p = coverParams(base);
     const fixed = o => coverRoute(lines, { ...p, orientation: o }).length;
@@ -172,10 +172,22 @@ function assertHandovers(lines, sheets, { sizes, clearanceM, overlapM }) {
 
 test('every handover shares at least the chosen overlap, also on diagonals and revisits', () => {
     for (const overlapPct of [5, 20]) {
-    const settings = { paperSize: 'A4', scale: 20000, margin: 7, overlapPct, sameOrientation: false };
+    const settings = { paperSize: 'A4', scale: 20000, margin: 7, overlapPct, orientation: 'auto' };
     const params = coverParams(settings);
     const diagonal = [[[0, 0], [7000, 5300], [15000, 6100], [21000, 13000]]];
     const outAndBack = [[[0, 0], [9000, 6800], [17000, 7700], [17150, 7900], [9150, 7000], [150, 200]]];
     for (const lines of [diagonal, outAndBack]) assertHandovers(lines, planCover(lines, settings), params);
     }
+});
+
+test('planCover orientation: auto per sheet, same = the fewer-sheets choice', () => {
+    const lines = [[[0, 0], [0, 20000]]];
+    const base = { paperSize: 'A4', scale: 20000, margin: 7, overlapPct: 10 };
+    const same = planCover(lines, { ...base, orientation: 'same' });
+    assert.equal(new Set(same.map(x => x.orientation)).size, 1);
+    const auto = planCover([[[0, 0], [9000, 0], [9000, 9000]]], { ...base, orientation: 'auto' });
+    assert.deepEqual(auto, coverRoute([[[0, 0], [9000, 0], [9000, 9000]]], coverParams(base)));
+    assert.equal(new Set(auto.map(x => x.orientation)).size, 2);   // mixed when best per sheet
+    const sameL = planCover([[[0, 0], [9000, 0], [9000, 9000]]], { ...base, orientation: 'same' });
+    assert.equal(new Set(sameL.map(x => x.orientation)).size, 1);
 });

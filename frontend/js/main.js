@@ -1,6 +1,6 @@
 // FastMap UI: wires the map, the map list, the panes and PDF downloads.
 import {
-    DEFAULTS, GRID_MODES, HINT_KEY, PAPER_MM, STORAGE_KEY, VECTOR_LAYER, VECTOR_SCALES,
+    GRID_MODES, HINT_KEY, PAPER_MM, STORAGE_KEY, VECTOR_LAYER, VECTOR_SCALES,
 } from './constants.js';
 import { centerToShow, containsExtent, visibleCenter as visibleCenterOf, visibleExtent } from './geometry.js';
 import { applyTranslations, getLang, locale, onLangChange, setLang, t } from './i18n.js';
@@ -11,12 +11,13 @@ import {
     routeFeature, toWgs84,
 } from './map.js';
 import { AREA_KEY, formatKm2, ringAreaM2, sanitizeSavedArea, serializeArea } from './area.js';
-import { ATLAS_DEFAULT_OVERLAP, ATLAS_MAX, ATLAS_OVERLAP_OPTIONS, atlasTitle, planAtlas } from './atlas.js';
+import { ATLAS_MAX, atlasTitle, planAtlas } from './atlas.js';
 import { effectiveLayer } from './layer.js';
 import { createLangMenu } from './lang-menu.js';
 import { createNotices } from './notices.js';
 import { createPanes } from './panes.js';
-import { DEFAULT_OVERLAP, MAX_BATCH, OVERLAP_OPTIONS, coverTitle, planCover } from './cover.js';
+import { MAX_BATCH, coverTitle, planCover } from './cover.js';
+import { sanitizeSetSettings, settingsChanged } from './modes.js';
 import { buildPayload, gpxRoutes } from './payload.js';
 import { ROUTE_KEY, formatKm, routeLengthM, sanitizeSavedRoute, serializeRoute, toGpx } from './route.js';
 import { parseMargin } from './saved.js';
@@ -178,22 +179,29 @@ function undo() {
     hideToast();
     removeMode(mode);
     restoreFrom(data, { mode });
-    showMode();
-    if (mode === state.mode) {
+    if (mode !== state.mode) {
+        setMode(mode);   // show the set that came back
+    } else {
+        showMode();
         if (!modeMaps().length && mode === 'maps') newMap();
         else selectInMode();
-    } else {
-        persist();
     }
+    renderCover();
+    renderAtlas();
+    persist();
     el(LISTS[state.mode]).querySelector(`[data-key="select-${active()?.id}"]`)?.focus();
 }
 
 // --- Settings form <-> selected map -------------------------------------------
 function syncPanel() {
+    if (state.mode !== 'maps') {     // route and atlas sheets have no form of their own
+        const { layer, scale } = readBlock(state.mode);
+        baseLayer.setSource(makeBaseSource(effectiveLayer(layer, scale)));
+        return;
+    }
     const e = active();
     if (!e) return;
     baseLayer.setSource(makeBaseSource(e.layer));
-    if (e.mode !== 'maps') return;   // route and atlas sheets have no form of their own
     el('paperSize').value = e.paperSize;
     el('orientation').value = e.orientation;
     el('scale').value = e.scale;
@@ -359,8 +367,11 @@ function renderList() {
     refreshLabels();
 }
 
-// The list each mode's maps are shown in
+// The list each mode's maps are shown in, and the id prefix of the Route and
+// Atlas print blocks (saved under SETS_KEY)
 const LISTS = { maps: 'mapList', route: 'routeList', atlas: 'atlasList' };
+const BLOCK_PREFIX = { route: 'cover', atlas: 'atlas' };
+const SETS_KEY = 'fastmap.sets.v1';
 
 // --- Persistence ----------------------------------------------------------------
 function persist() {
@@ -434,6 +445,7 @@ el('centerBtn').addEventListener('click', () => {
 // Size the sheet first: newMap() places the first map in the visible area
 sheet.setSheet(sheet.state);
 state.mode = panes.getMode();
+loadBlocks();
 if (!loadSnapshot(savedSnapshot()) && state.mode === 'maps') newMap();
 el('margin').value = state.margin;
 
@@ -497,6 +509,7 @@ function setMode(mode) {
     showMode();
     if (!modeMaps().length && mode === 'maps') newMap();
     else selectInMode();
+    syncPanel();
     renderRoute();
     renderArea();
     renderRouteBar();
@@ -703,62 +716,99 @@ el('areaRemoveBtn').addEventListener('click', () => { areaTools.cancel(); setAre
     else renderArea();
 })();
 
-// --- Cover the route with maps --------------------------------------------------
-// Sheets along the route in walking order (cover.js). Shown while a route
-// exists and is not being drawn or edited.
-function coverInputs() {
-    const overlap = Number(el('coverOverlap').value);
-    return {
-        paperSize: PAPER_MM[el('coverPaper').value] ? el('coverPaper').value : 'A4',
-        scale: parseInt(el('coverScale').value, 10) || 20000,
-        margin: state.margin,
-        overlapPct: OVERLAP_OPTIONS.includes(overlap) ? overlap : DEFAULT_OVERLAP,
-        sameOrientation: el('coverSame').checked,
-    };
-}
+// --- Route and Atlas print blocks -----------------------------------------------
+// Each set has its own print settings, saved under SETS_KEY. They set up the
+// next Create; the sheets keep the settings they were made with
+// (state.madeWith), and the block says so when the two differ.
+const BLOCK_FIELDS = ['Paper', 'Orientation', 'Scale', 'MapType', 'Grid', 'GridSpacing', 'Overlap'];
 
-const coverSheets = () => planCover(routeLines(), coverInputs());
-
-// Paper and scale start from the selected map (margin: Advanced)
-function fillCoverFromActive() {
-    const e = active();
-    if (!e) return;
-    el('coverPaper').value = e.paperSize;
-    el('coverScale').value = e.scale;
-}
-
-function renderCover() {
-    const section = el('coverSection');
-    const show = routeLines().length > 0 && !anyTool();
-    if (show && section.hidden) fillCoverFromActive();
-    section.hidden = !show;
-    if (!show) return;
-    const n = coverSheets().length;
-    const count = n.toLocaleString(locale());
-    el('coverCount').textContent = n > MAX_BATCH ? t('cover.tooMany', { count })
-        : n === 1 ? t('cover.countOne') : t('cover.count', { count });
-    el('coverCount').classList.toggle('warn', n > MAX_BATCH);
-    el('coverRouteHidden').hidden = el('gpxShow').checked;
-}
-
-// Replace all maps with `items` ([{ center, orientation, title }]) on the
-// given paper, scale and margin; the map layer and grid come from the
-// selected map. Undo brings the old maps back.
-function replaceMaps(items, { paperSize, scale, margin }, undoLabel) {
-    const snapshot = snapshotOf();
-    const cur = active() ?? DEFAULTS;
-    const base = {
-        paperSize, scale, margin,
-        // this scale may not support the vector map
-        layer: effectiveLayer(cur.layer, scale), gridMode: cur.gridMode, gridSpacing: cur.gridSpacing,
-    };
-    removeMode(state.mode);
-    const created = items.map(({ center, orientation, title }) => {
-        const e = createEntry(center, { ...base, orientation, title, mode: state.mode });
-        moveFeature(e, lockedLayer);
-        return e;
+function readBlock(mode) {
+    const p = BLOCK_PREFIX[mode];
+    return sanitizeSetSettings(mode, {
+        paperSize: el(`${p}Paper`).value,
+        orientation: el(`${p}Orientation`).value,
+        scale: parseInt(el(`${p}Scale`).value, 10),
+        layer: el(`${p}MapType`).value === 'vector' ? VECTOR_LAYER : 'maastokartta',
+        gridMode: el(`${p}Grid`).value,
+        gridSpacing: parseInt(el(`${p}GridSpacing`).value, 10),
+        overlapPct: Number(el(`${p}Overlap`).value),
     });
+}
+
+// The vector option exists only at the scales the vector map supports
+function updateBlockControls(mode) {
+    const p = BLOCK_PREFIX[mode];
+    const ok = VECTOR_SCALES.includes(parseInt(el(`${p}Scale`).value, 10));
+    el(`${p}MapTypeVector`).disabled = !ok;
+    el(`${p}MapTypeHint`).hidden = ok;
+    if (!ok) el(`${p}MapType`).value = 'raster';
+    el(`${p}GridSpacing`).disabled = el(`${p}Grid`).value === 'off';
+}
+
+function writeBlock(mode, settings) {
+    const p = BLOCK_PREFIX[mode];
+    el(`${p}Paper`).value = settings.paperSize;
+    el(`${p}Orientation`).value = settings.orientation;
+    el(`${p}Scale`).value = settings.scale;
+    el(`${p}MapType`).value = settings.layer === VECTOR_LAYER ? 'vector' : 'raster';
+    el(`${p}Grid`).value = settings.gridMode;
+    el(`${p}GridSpacing`).value = settings.gridSpacing;
+    el(`${p}Overlap`).value = settings.overlapPct;
+    updateBlockControls(mode);
+}
+
+function loadBlocks() {
+    let saved = null;
+    try { saved = JSON.parse(localStorage.getItem(SETS_KEY)); } catch { /* ignore */ }
+    for (const mode of ['route', 'atlas']) writeBlock(mode, sanitizeSetSettings(mode, saved?.[mode]));
+}
+
+function saveBlocks() {
+    try {
+        localStorage.setItem(SETS_KEY, JSON.stringify({ route: readBlock('route'), atlas: readBlock('atlas') }));
+    } catch { /* ignore */ }
+}
+
+function blockChanged(mode) {
+    updateBlockControls(mode);
+    saveBlocks();
+    if (mode === 'route') renderCover(); else renderAtlas();
+    if (state.mode === mode) syncPanel();
+}
+
+// "Create" or, when the block no longer matches the sheets, "Update"
+function renderSetButton(mode, disabled) {
+    const p = BLOCK_PREFIX[mode];
+    const changed = modeMaps(mode).length > 0 && settingsChanged(readBlock(mode), state.madeWith[mode]);
+    el(`${p}Changed`).hidden = !changed;
+    el(`${p}Btn`).textContent = t(`${p}.${changed ? 'update' : 'create'}`);
+    el(`${p}Btn`).disabled = disabled;
+}
+
+for (const mode of ['route', 'atlas']) {
+    for (const f of BLOCK_FIELDS) {
+        el(`${BLOCK_PREFIX[mode]}${f}`).addEventListener('change', () => blockChanged(mode));
+    }
+}
+
+// Replace one mode's maps with `items` ([{ center, orientation, title }])
+// made with `settings` (the block); the other modes keep theirs. Undo brings
+// the old set back.
+function replaceSet(mode, items, settings, undoLabel) {
+    const snapshot = snapshotOf(mode);
+    const base = {
+        paperSize: settings.paperSize, scale: settings.scale, margin: state.margin,
+        layer: effectiveLayer(settings.layer, settings.scale),   // vector only where it exists
+        gridMode: settings.gridMode, gridSpacing: settings.gridSpacing, mode,
+    };
+    removeMode(mode);
+    const created = items.map(({ center, orientation, title }) => createEntry(center, { ...base, orientation, title }));
+    state.madeWith[mode] = settings;
+    setActiveId(created[0].id);
+    showMode();
     setActive(created[0].id);
+    renderCover();
+    renderAtlas();
 
     showMapForRoute();
     const ext = created.map(entryExtent).reduce((a, b) => [
@@ -769,59 +819,50 @@ function replaceMaps(items, { paperSize, scale, margin }, undoLabel) {
     offerUndo(undoLabel, snapshot);
 }
 
-// Replace all maps with the route's sheets
+// --- Route sheets ---------------------------------------------------------------
+// Sheets along the route in walking order (cover.js). Shown while a route
+// exists and is not being drawn or edited.
+const coverSheets = () => planCover(routeLines(), { ...readBlock('route'), margin: state.margin });
+
+function renderCover() {
+    const section = el('coverSection');
+    const show = routeLines().length > 0 && !anyTool();
+    section.hidden = !show;
+    if (!show) return;
+    const n = coverSheets().length;
+    const count = n.toLocaleString(locale());
+    el('coverCount').textContent = n > MAX_BATCH ? t('cover.tooMany', { count })
+        : n === 1 ? t('cover.countOne') : t('cover.count', { count });
+    el('coverCount').classList.toggle('warn', n > MAX_BATCH);
+    el('coverRouteHidden').hidden = el('gpxShow').checked;
+    renderSetButton('route', !n || n > MAX_BATCH);
+}
+
 function createCover() {
     const sheets = coverSheets();
-    if (!sheets.length) return;
-    const name = routeLabel();
     const n = sheets.length;
+    if (!n || n > MAX_BATCH) return;
+    const name = routeLabel();
     const items = sheets.map((sheet, i) => ({
         center: sheet.center, orientation: sheet.orientation, title: coverTitle(name, i + 1, n),
     }));
-    replaceMaps(items, coverInputs(), () => createdLabel(n, name, getLang()));
+    replaceSet('route', items, readBlock('route'), () => createdLabel(n, name, getLang()));
 }
 el('coverBtn').addEventListener('click', createCover);
-
-for (const id of ['coverPaper', 'coverScale', 'coverOverlap', 'coverSame']) {
-    el(id).addEventListener('input', renderCover);
-    el(id).addEventListener('change', renderCover);
-}
 
 // --- Atlas of the area -------------------------------------------------------------
 // A grid of sheets over the drawn area (atlas.js), labelled A1, A2, … Shown
 // while an area exists and no drawing tool is open.
-function atlasInputs() {
-    const overlap = Number(el('atlasOverlap').value);
-    return {
-        paperSize: PAPER_MM[el('atlasPaper').value] ? el('atlasPaper').value : 'A4',
-        orientation: el('atlasOrientation').value === 'landscape' ? 'landscape' : 'portrait',
-        scale: parseInt(el('atlasScale').value, 10) || 20000,
-        margin: state.margin,
-        overlapPct: ATLAS_OVERLAP_OPTIONS.includes(overlap) ? overlap : ATLAS_DEFAULT_OVERLAP,
-    };
-}
 
 // A function declaration: the saved area is restored (and rendered) above
 function atlasPlan() {
-    return planAtlas(areaRing(), atlasInputs());
-}
-
-// Paper, scale and orientation start from the selected map (margin: Advanced)
-function fillAtlasFromActive() {
-    const e = active();
-    if (!e) return;
-    el('atlasPaper').value = e.paperSize;
-    el('atlasScale').value = e.scale;
-    el('atlasOrientation').value = e.orientation;
+    return planAtlas(areaRing(), { ...readBlock('atlas'), margin: state.margin });
 }
 
 function renderAtlas() {
     const section = el('atlasSection');
     const show = !!areaRing() && !anyTool();
-    if (show && section.hidden) {
-        fillAtlasFromActive();
-        el('atlasName').value = areaName;
-    }
+    if (show && section.hidden) el('atlasName').value = areaName;
     section.hidden = !show;
     if (!show) return;
     el('atlasName').placeholder = t('atlas.defaultName');
@@ -829,28 +870,24 @@ function renderAtlas() {
     const n = sheets ? sheets.length : atLeast;
     el('atlasCount').textContent = atlasCountLabel(n, rows, cols, getLang(), !sheets);
     el('atlasCount').classList.toggle('warn', n > ATLAS_MAX);
-    el('atlasBtn').disabled = n > ATLAS_MAX;
+    renderSetButton('atlas', !n || n > ATLAS_MAX);
 }
 
-// Replace all maps with the atlas sheets, in reading order
+// Replace the atlas sheets, in reading order
 function createAtlas() {
     const { sheets } = atlasPlan();
     const n = sheets?.length ?? 0;
     if (!n || n > ATLAS_MAX) return;
-    const inputs = atlasInputs();
+    const block = readBlock('atlas');
     const items = sheets.map(s => ({
-        center: s.center, orientation: inputs.orientation,
+        center: s.center, orientation: block.orientation,
         title: atlasTitle(areaName, s.label, t('atlas.defaultName')),
     }));
     const name = areaLabel();
-    replaceMaps(items, inputs, () => createdLabel(n, name, getLang(), 'atlas'));
+    replaceSet('atlas', items, block, () => createdLabel(n, name, getLang(), 'atlas'));
 }
 el('atlasBtn').addEventListener('click', createAtlas);
 
-for (const id of ['atlasPaper', 'atlasScale', 'atlasOrientation', 'atlasOverlap']) {
-    el(id).addEventListener('input', renderAtlas);
-    el(id).addEventListener('change', renderAtlas);
-}
 // The name does not change the layout: update the info line only
 el('atlasName').addEventListener('input', () => {
     areaName = el('atlasName').value;
@@ -1022,7 +1059,7 @@ function formatOptions() {
     for (const o of [...el('scale').options, ...el('coverScale').options, ...el('atlasScale').options]) {
         o.textContent = `1:${Number(o.value).toLocaleString(locale())}`;
     }
-    for (const o of el('gridSpacing').options) o.textContent = `${Number(o.value).toLocaleString(locale())} m`;
+    for (const o of [...el('gridSpacing').options, ...el('coverGridSpacing').options, ...el('atlasGridSpacing').options]) o.textContent = `${Number(o.value).toLocaleString(locale())} m`;
 }
 
 // Globe button + menu; the current language is checked
