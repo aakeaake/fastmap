@@ -26,13 +26,13 @@ export function createdLabel(count, name, lang = 'en') {
         : translate(lang, 'cover.created', { count: num(count, lang), name });
 }
 
-// On-screen credit "© Maanmittauslaitos MM/YYYY" (the licensor's name, the
+// On-screen credit "© Maanmittauslaitos, CC BY 4.0, MM/YYYY" (the licensor's name, the
 // same in both languages). The month comes from the server's licence line
 // (Finnish time); today is the fallback.
 export function attributionLabel(serverText, now = new Date()) {
     const month = /(\d{2}\/\d{4})/.exec(serverText ?? '')?.[1]
         ?? `${String(now.getMonth() + 1).padStart(2, '0')}/${now.getFullYear()}`;
-    return `© Maanmittauslaitos ${month}`;
+    return `© Maanmittauslaitos, CC BY 4.0, ${month}`;
 }
 
 export function progressLabel(running, secs, lang = 'en') {
