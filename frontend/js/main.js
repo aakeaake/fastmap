@@ -27,7 +27,7 @@ import {
     active, createEntry, entryCenter, entryExtent, getEntry, modeMaps, placeEntry, restoreFrom, serialize, setActiveId, state,
     syncLabel,
 } from './state.js';
-import { indexLayout, moveInIndex, nudgeCenter, sheetLabel } from './sheet-index.js';
+import { fitColumns, indexLayout, moveInIndex, nudgeCenter, sheetLabel } from './sheet-index.js';
 import { atlasCountLabel, attributionLabel, createdLabel, deletedLabel, displayName, mapSummary, progressLabel, setSummaryLabel, shortName } from './text.js';
 
 const el = id => document.getElementById(id);
@@ -40,6 +40,7 @@ const { map, view, baseLayer, areaLayer, gpxLayer, lockedLayer, activeLayer } =
 const generatingIds = new Set();
 let downloadAllBusy = false;      // Download all is running
 let mapsExpanded = false;         // phones: the long Maps list unfolded
+let revealedId = null;            // the Maps row last scrolled into view
 const downloadedIds = new Set();   // downloaded and unchanged since
 
 const nameOf = e => displayName(e, modeMaps(e.mode).indexOf(e), getLang());
@@ -184,6 +185,7 @@ function undo() {
     if (!undoSnapshot) return;
     const { mode, data } = undoSnapshot;
     hideToast();
+    revealedId = null;
     removeMode(mode);
     // The sheets come back at today's margin (one margin for all maps); a
     // route or atlas then says its settings changed if the margin did
@@ -383,7 +385,12 @@ function renderList() {
             (ul.querySelector(`[data-key="${listFocus}"]`)
                 ?? ul.querySelector(`[data-key="select-${active()?.id}"]`))?.focus();
         }
-        ul.querySelector('li.active')?.scrollIntoView({ block: 'nearest' });
+        // Scroll to the selected row only when the selection changed, not on
+        // every edit (that would carry the field being typed in out of view)
+        if (active() && active().id !== revealedId) {
+            ul.querySelector('li.active')?.scrollIntoView({ block: 'nearest' });
+            revealedId = active().id;
+        }
     } else {
         renderIndex(state.mode);
     }
@@ -418,8 +425,8 @@ function renderIndex(mode) {
     if (!sheets.length) { indexLayouts[mode] = null; return; }
     const idx = el(`${mode}Index`);
     const focusIn = idx.contains(document.activeElement);
-    const layout = indexLayout(mode, sheets, { maxCols: sheet.phone.matches ? 7 : 8 });
-    indexLayouts[mode] = layout;
+    const layout = indexLayout(mode, sheets, { maxCols: indexColumns(idx) });
+    indexLayouts[mode] = { ...layout, maxCols: indexColumns(idx) };
     el(`${mode}Summary`).textContent = setSummaryLabel(sheets.length, sheets[0], getLang());
 
     const cur = state.mode === mode ? active() : null;
@@ -457,8 +464,26 @@ function renderIndex(mode) {
     el(`${mode}SelDel`).title = t('map.deleteShort');
 }
 
+// As many columns as fit the panel (cells are 30 px, 44 px on touch)
+function indexColumns(idx) {
+    const cell = parseFloat(getComputedStyle(idx).getPropertyValue('--cell')) || 30;
+    return fitColumns(idx.clientWidth, cell, INDEX_GAP);
+}
+const INDEX_GAP = 4;
+
+// Re-lay the index when its width changes (scrollbar, rotation, resize), and
+// the Maps fold when the layout switches between phone and desktop
+function refitIndex() {
+    const mode = state.mode;
+    if (mode === 'maps' || !indexLayouts[mode]) return;
+    if (indexColumns(el(`${mode}Index`)) !== indexLayouts[mode].maxCols) renderList();
+}
+const indexWidth = new ResizeObserver(refitIndex);
+window.addEventListener('resize', refitIndex);   // also where observers are throttled
+
 for (const mode of ['route', 'atlas']) {
     const idx = el(`${mode}Index`);
+    indexWidth.observe(idx);
     idx.addEventListener('click', ev => {
         const b = ev.target.closest('.index-cell');
         const e = b && getEntry(Number(b.dataset.id));
@@ -506,6 +531,8 @@ const panes = createPanes({
     onLayout: setCoveredLeft,   // runs once before `panes` is assigned
 });
 const covered = () => ({ left: panes.coveredLeft(), bottom: sheet.coveredBottom() });
+// Phone <-> desktop: the Maps fold and the index columns follow
+sheet.phone.addEventListener('change', () => renderList());
 
 // Centre of the part of the map the user can actually see
 // (from the view, so it works before the first frame has rendered)
@@ -674,6 +701,7 @@ function setMode(mode) {
     routeTools.cancel();
     areaTools.cancel();
     state.mode = mode;
+    revealedId = null;
     panes.setModePref(mode);
     renderModeUi();
     showMode();

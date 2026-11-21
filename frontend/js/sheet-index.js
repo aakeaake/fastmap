@@ -72,14 +72,30 @@ export function moveInIndex(layout, id, key) {
         return j >= 0 && j < cells.length ? cells[j].id : id;
     }
     const maxRow = Math.max(...cells.map(c => c.row));
-    let { row, col } = cells[i];
+    const cur = cells[i];
+    let { row, col } = cur;
     for (;;) {
         row += step[0];
         col += step[1];
-        if (row < 0 || row > maxRow || col < 0 || col >= layout.cols) return id;
+        if (row < 0 || row > maxRow || col < 0 || col >= layout.cols) break;
         const hit = cells.find(c => c.row === row && c.col === col);
         if (hit) return hit.id;
     }
+    // Nothing straight ahead: the nearest cell in that direction, so no
+    // sheet is out of the keyboard's reach
+    const ahead = c => (step[0] ? (c.row - cur.row) * step[0] : (c.col - cur.col) * step[1]);
+    const aside = c => (step[0] ? Math.abs(c.col - cur.col) : Math.abs(c.row - cur.row));
+    let best = null;
+    for (const c of cells) {
+        if (ahead(c) <= 0) continue;
+        if (!best || ahead(c) < ahead(best) || (ahead(c) === ahead(best) && aside(c) < aside(best))) best = c;
+    }
+    return best ? best.id : id;
+}
+
+// How many cells of `cell` px with `gap` px between fit in `width` px
+export function fitColumns(width, cell, gap) {
+    return Math.max(1, Math.floor((width + gap) / (cell + gap)));
 }
 
 // A new map's centre, moved a quarter sheet right and down while another

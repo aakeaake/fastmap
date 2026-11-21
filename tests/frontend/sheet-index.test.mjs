@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { indexLayout, moveInIndex, nudgeCenter, sheetLabel } from '../../frontend/js/sheet-index.js';
+import { fitColumns, indexLayout, moveInIndex, nudgeCenter, sheetLabel } from '../../frontend/js/sheet-index.js';
 
 test('labels come from the title suffix', () => {
     assert.deepEqual(sheetLabel('Kilpisjärvi – Halti 3/25'), { n: 3 });
@@ -43,7 +43,7 @@ test('moving skips gaps and stops at edges', () => {
     const L = indexLayout('atlas', s, { maxCols: 8 });
     assert.equal(moveInIndex(L, 'A1', 'ArrowRight'), 'A3');   // A2 is a gap
     assert.equal(moveInIndex(L, 'A3', 'ArrowRight'), 'A3');
-    assert.equal(moveInIndex(L, 'B2', 'ArrowUp'), 'B2');      // A2 gap, nothing above
+    assert.equal(moveInIndex(L, 'B2', 'ArrowUp'), 'A1');      // A2 gap: the nearest above
     assert.equal(moveInIndex(L, 'A1', 'ArrowDown'), 'B1');
     assert.equal(moveInIndex(L, 'B2', 'End'), 'B3');
     assert.equal(moveInIndex(L, 'B2', 'Home'), 'A1');
@@ -59,4 +59,22 @@ test('new maps are nudged off each other', () => {
     assert.deepEqual(nudgeCenter([0, 0], [[0, 0]], [4000, 3000]), [1000, -750]);
     assert.deepEqual(nudgeCenter([0, 0], [[0, 0], [1000, -750]], [4000, 3000]), [2000, -1500]);
     assert.deepEqual(nudgeCenter([0, 0], [[5, 5]], [4000, 3000]), [0, 0]);   // 7 m away: free
+});
+
+test('a cell alone in its row and column is still reachable by arrows', () => {
+    const L = indexLayout('atlas', ['A1', 'B2', 'C3'].map(l => ({ id: l, title: `Atlas ${l}` })), { maxCols: 8 });
+    assert.equal(moveInIndex(L, 'A1', 'ArrowDown'), 'B2');
+    assert.equal(moveInIndex(L, 'A1', 'ArrowRight'), 'B2');
+    assert.equal(moveInIndex(L, 'C3', 'ArrowUp'), 'B2');
+    assert.equal(moveInIndex(L, 'C3', 'ArrowLeft'), 'B2');
+    assert.equal(moveInIndex(L, 'C3', 'ArrowDown'), 'C3');   // nothing below
+});
+
+test('the index shows as many columns as fit', () => {
+    assert.equal(fitColumns(246, 30, 4), 7);    // desktop panel with a scrollbar
+    assert.equal(fitColumns(256, 30, 4), 7);
+    assert.equal(fitColumns(270, 30, 4), 8);
+    assert.equal(fitColumns(328, 44, 4), 6);    // 360 px phone
+    assert.equal(fitColumns(343, 44, 4), 7);    // 375 px phone
+    assert.equal(fitColumns(0, 30, 4), 1);      // not laid out yet
 });
