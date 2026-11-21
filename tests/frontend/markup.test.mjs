@@ -71,3 +71,13 @@ test('route and atlas show their sheets as a compact index, not a list', () => {
         assert.ok(!html.includes(`id="${p}List"`), `${p}List gone`);
     }
 });
+
+test('Maps fold and the click-to-select tip have their words', () => {
+    assert.equal(STRINGS.en['maps.showAll'], 'Show all {count} maps');
+    assert.equal(STRINGS.fi['maps.showAll'], 'Näytä kaikki {count} karttaa');
+    assert.equal(STRINGS.en['maps.showLess'], 'Show fewer');
+    assert.equal(STRINGS.fi['maps.showLess'], 'Näytä vähemmän');
+    assert.match(STRINGS.en['hint.after'], /click a sheet to select it/);
+    assert.match(STRINGS.fi['hint.after'], /valitse karttalehti klikkaamalla/);
+    assert.ok(html.includes('id="mapsShowAll"'));
+});

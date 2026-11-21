@@ -1,8 +1,8 @@
 // FastMap UI: wires the map, the map list, the panes and PDF downloads.
 import {
-    GRID_MODES, HINT_KEY, PAPER_MM, STORAGE_KEY, VECTOR_LAYER, VECTOR_SCALES,
+    DEFAULTS, GRID_MODES, HINT_KEY, PAPER_MM, STORAGE_KEY, VECTOR_LAYER, VECTOR_SCALES,
 } from './constants.js';
-import { centerToShow, containsExtent, visibleCenter as visibleCenterOf, visibleExtent } from './geometry.js';
+import { centerToShow, containsExtent, contentMeters, visibleCenter as visibleCenterOf, visibleExtent } from './geometry.js';
 import { applyTranslations, getLang, locale, onLangChange, setLang, t } from './i18n.js';
 import { hydrateIcons, icon, setButton } from './icons.js';
 import { JobError, runJob } from './jobs.js';
@@ -27,7 +27,7 @@ import {
     active, createEntry, entryCenter, entryExtent, getEntry, modeMaps, placeEntry, restoreFrom, serialize, setActiveId, state,
     syncLabel,
 } from './state.js';
-import { indexLayout, moveInIndex, sheetLabel } from './sheet-index.js';
+import { indexLayout, moveInIndex, nudgeCenter, sheetLabel } from './sheet-index.js';
 import { atlasCountLabel, attributionLabel, createdLabel, deletedLabel, displayName, mapSummary, progressLabel, setSummaryLabel, shortName } from './text.js';
 
 const el = id => document.getElementById(id);
@@ -39,6 +39,7 @@ const { map, view, baseLayer, areaLayer, gpxLayer, lockedLayer, activeLayer } =
 
 const generatingIds = new Set();
 let downloadAllBusy = false;      // Download all is running
+let mapsExpanded = false;         // phones: the long Maps list unfolded
 const downloadedIds = new Set();   // downloaded and unchanged since
 
 const nameOf = e => displayName(e, modeMaps(e.mode).indexOf(e), getLang());
@@ -95,7 +96,10 @@ function newMap() {
         gridMode: cur.gridMode,
         gridSpacing: cur.gridSpacing,
     } : {};
-    setActive(createEntry(visibleCenter(), { ...settings, margin: state.margin, mode: 'maps' }).id);
+    const full = { ...DEFAULTS, ...settings, margin: state.margin, mode: 'maps' };
+    // not exactly on top of another map (it would hide under it)
+    const center = nudgeCenter(visibleCenter(), modeMaps('maps').map(entryCenter), contentMeters(full));
+    setActive(createEntry(center, full).id);
 }
 
 // An undo snapshot of one mode's maps
@@ -365,11 +369,21 @@ function renderList() {
     if (state.mode === 'maps') {
         const ul = el('mapList');
         const listFocus = ul.contains(focused) ? focused.dataset.key : null;
-        ul.replaceChildren(...modeMaps().map(listRow));
+        // Phones: a long list folds to the selected map, so its settings
+        // stay close; "Show all" unfolds it
+        const maps = modeMaps();
+        const fold = sheet.phone.matches && maps.length > MAPS_FOLD;
+        const shown = fold && !mapsExpanded ? maps.filter(e => e === active()) : maps;
+        ul.replaceChildren(...shown.map(listRow));
+        const more = el('mapsShowAll');
+        more.hidden = !fold;
+        more.textContent = mapsExpanded ? t('maps.showLess') : t('maps.showAll', { count: maps.length });
+        more.setAttribute('aria-expanded', String(fold && mapsExpanded));
         if (listFocus) {
             (ul.querySelector(`[data-key="${listFocus}"]`)
                 ?? ul.querySelector(`[data-key="select-${active()?.id}"]`))?.focus();
         }
+        ul.querySelector('li.active')?.scrollIntoView({ block: 'nearest' });
     } else {
         renderIndex(state.mode);
     }
@@ -389,6 +403,9 @@ function renderList() {
     if (!downloadAllBusy) el('downloadAllBtn').disabled = count === 0;
     refreshLabels();
 }
+
+const MAPS_FOLD = 5;   // phones fold the Maps list above this many maps
+el('mapsShowAll').addEventListener('click', () => { mapsExpanded = !mapsExpanded; renderList(); });
 
 // --- Route and Atlas: the sheet index ------------------------------------------
 // The set as its shape (atlas grid, route strip) with one summary line and
@@ -560,6 +577,27 @@ map.on('dblclick', ev => {
     if (!cur) return;
     placeEntry(cur, ev.coordinate);
     areaChanged(cur);
+});
+
+// A click on a sheet of the current mode selects it (the topmost one); it
+// does not move the view. Drawing tools keep their clicks.
+const sheetLayers = l => l === activeLayer || l === lockedLayer;
+map.on('singleclick', ev => {
+    if (routeTools.paused() || areaTools.paused()) return;
+    let id = null;
+    map.forEachFeatureAtPixel(ev.pixel, f => {
+        if (f.get('label') || f.get('mapId') == null) return false;
+        id = f.get('mapId');
+        return true;
+    }, { layerFilter: sheetLayers, hitTolerance: 2 });
+    const e = id === null ? null : getEntry(id);
+    if (e && e.mode === state.mode && e.id !== active()?.id) setActive(e.id);
+});
+// A hand over sheets that a click would select
+map.on('pointermove', ev => {
+    if (ev.dragging || sheet.phone.matches) return;
+    const over = map.hasFeatureAtPixel(ev.pixel, { layerFilter: l => l === lockedLayer, hitTolerance: 2 });
+    map.getTargetElement().style.cursor = over ? 'pointer' : '';
 });
 
 // Move-here button: put the selected map in the centre of the visible map

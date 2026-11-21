@@ -41,6 +41,7 @@
             <button id="clearAllBtn" class="btn-text" type="button" data-i18n="maps.clearAll">Clear all</button>
         </div>
         <ul id="mapList" class="map-list" aria-label="Maps" data-i18n-attr="aria-label:maps.heading"></ul>
+        <button id="mapsShowAll" class="btn-text maps-fold" type="button" aria-controls="mapList" hidden></button>
         <button id="newBtn" class="btn btn-secondary" type="button"></button>
     </section>
 
@@ -415,7 +416,7 @@
 <div class="stack">
     <div id="notices" class="notices"></div>
     <div id="hint" class="hint">
-        <span><span data-i18n="hint.before">Drag to move the map sheet; centre it</span><span class="hint-dblclick" data-i18n="hint.dblclick"> by double-clicking or</span><span data-i18n="hint.mid"> with the</span> <span class="kbd-icon" data-icon="target" role="img" aria-label="centre" data-i18n-attr="aria-label:hint.icon"></span><span data-i18n="hint.after"> button · pick an earlier map from the list</span></span>
+        <span><span data-i18n="hint.before">Drag to move the map sheet; centre it</span><span class="hint-dblclick" data-i18n="hint.dblclick"> by double-clicking or</span><span data-i18n="hint.mid"> with the</span> <span class="kbd-icon" data-icon="target" role="img" aria-label="centre" data-i18n-attr="aria-label:hint.icon"></span><span data-i18n="hint.after"> button · click a sheet to select it</span></span>
         <button id="hintClose" class="icon-btn" type="button" aria-label="Hide tip" data-i18n-attr="aria-label:hint.close" data-icon="x"></button>
     </div>
     <div id="attribution">© Maanmittauslaitos</div>

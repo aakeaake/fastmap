@@ -209,11 +209,20 @@ button { font: inherit; color: inherit; }
     border: 1px solid rgba(0,0,0,.18); background: var(--ink);
 }
 .map-list .chip.chip-active { background: var(--active); }
-.map-list .m-name { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.map-list .m-name { flex: 0 1 auto; min-width: 0; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .map-list .m-sum {
-    color: var(--ink-2); flex: 1; text-align: right; white-space: nowrap;
+    flex: 0 0 auto; margin-left: auto; color: var(--ink-2); text-align: right; white-space: nowrap;
     font-variant-numeric: tabular-nums;
 }
+/* Quieter rows: download and delete on the selected row; on the others
+   while the pointer or keyboard focus is there (touch: selected row only) */
+@media (hover: hover) and (pointer: fine) {
+    .map-list li:not(.active):not(:hover):not(:focus-within) .icon-btn { visibility: hidden; }
+}
+@media (pointer: coarse) {
+    .map-list li:not(.active) .icon-btn { display: none; }
+}
+.maps-fold { display: block; margin: -4px 0 10px; }
 .dl-btn.generating { color: var(--accent); cursor: wait; }
 .dl-btn.generating .icon { animation: spin 1s linear infinite; }
 .dl-btn.done { color: var(--success); }
