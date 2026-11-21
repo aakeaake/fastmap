@@ -1,8 +1,9 @@
 // User-facing strings built from data, in the given language. Pure.
 import { ATLAS_MAX } from './atlas.js';
+import { formatNumber } from './format.js';
 import { LOCALES, translate } from './strings.js';
 
-const num = (n, lang) => n.toLocaleString(LOCALES[lang] ?? LOCALES.en);
+const num = (n, lang) => formatNumber(n, LOCALES[lang] ?? LOCALES.en);
 
 export function displayName(entry, index, lang = 'en') {
     return entry.title || translate(lang, 'map.default', { n: index + 1 });

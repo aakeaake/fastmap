@@ -17,7 +17,7 @@ test('shortName trims to 16 characters', () => {
 });
 
 test('mapSummary groups digits for the language', () => {
-    assert.equal(mapSummary({ paperSize: 'A4', scale: 20000 }), 'A4 · 1:20,000');
+    assert.equal(mapSummary({ paperSize: 'A4', scale: 20000 }), 'A4 · 1:20\u00a0000');
     // fi-FI groups with a no-break space
     assert.match(mapSummary({ paperSize: 'A4', scale: 20000 }, 'fi'), /^A4 · 1:20\s000$/);
 });
@@ -61,7 +61,7 @@ test('atlasCountLabel: maps, rows and columns, singular and plural', () => {
 
 test('atlasCountLabel above 25 is the too-many warning', () => {
     assert.equal(atlasCountLabel(1234, 30, 50),
-        '1,234 maps — an atlas holds at most 25. Choose a smaller scale, larger paper or a smaller area.');
+        '1\u00a0234 maps — an atlas holds at most 25. Choose a smaller scale, larger paper or a smaller area.');
     assert.equal(atlasCountLabel(25, 5, 5), '25 maps · 5 rows × 5 columns');
 });
 

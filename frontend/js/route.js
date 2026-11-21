@@ -1,6 +1,7 @@
 // The route: length, GPX export and saved data. Pure (no OpenLayers), so it
 // runs in Node tests. A route is a list of lines; a line is a list of
 // [x, y] points in EPSG:3067 metres.
+import { formatNumber } from './format.js';
 
 export const ROUTE_KEY = 'fastmap.route.v1';
 
@@ -16,8 +17,7 @@ export function routeLengthM(lines) {
 }
 
 export function formatKm(m, locale) {
-    const n = new Intl.NumberFormat(locale, { minimumFractionDigits: 1, maximumFractionDigits: 1 });
-    return `${n.format(m / 1000)} km`;
+    return `${formatNumber(m / 1000, locale, { minimumFractionDigits: 1, maximumFractionDigits: 1 })} km`;
 }
 
 const XML_ESCAPES = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&apos;' };

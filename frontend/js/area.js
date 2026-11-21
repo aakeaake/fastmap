@@ -1,6 +1,7 @@
 // The atlas area: its size and saved data. Pure (no OpenLayers), so it runs
 // in Node tests. An area is one ring of [x, y] points in EPSG:3067 metres,
 // not closed (the first point is not repeated at the end).
+import { formatNumber } from './format.js';
 
 export const AREA_KEY = 'fastmap.area.v1';
 
@@ -21,8 +22,7 @@ export function ringAreaM2(ring) {
 export function formatKm2(m2, locale) {
     const km2 = m2 / 1e6;
     const digits = km2 < 100 ? 1 : 0;
-    const n = new Intl.NumberFormat(locale, { minimumFractionDigits: digits, maximumFractionDigits: digits });
-    return `${n.format(km2)} km²`;
+    return `${formatNumber(km2, locale, { minimumFractionDigits: digits, maximumFractionDigits: digits })} km²`;
 }
 
 export function serializeArea({ name, ring }) {

@@ -21,6 +21,7 @@ import { sanitizeSetSettings, settingsChanged } from './modes.js';
 import { buildPayload, gpxRoutes } from './payload.js';
 import { ROUTE_KEY, formatKm, routeLengthM, sanitizeSavedRoute, serializeRoute, toGpx } from './route.js';
 import { parseMargin } from './saved.js';
+import { formatNumber } from './format.js';
 import { createSheet } from './sheet.js';
 import {
     active, createEntry, entryCenter, entryExtent, getEntry, modeMaps, placeEntry, restoreFrom, serialize, setActiveId, state,
@@ -876,7 +877,7 @@ function renderCover() {
     if (!show) return;
     el('routeName').placeholder = t('gpx.myRoute');
     const n = coverSheets().length;
-    const count = n.toLocaleString(locale());
+    const count = formatNumber(n, locale());
     el('coverCount').textContent = n > MAX_BATCH ? t('cover.tooMany', { count })
         : n === 1 ? t('cover.countOne') : t('cover.count', { count });
     el('coverCount').classList.toggle('warn', n > MAX_BATCH);
@@ -1112,9 +1113,9 @@ el('downloadAllBtn').addEventListener('click', async () => {
 // Option labels with numbers follow the language's digit grouping
 function formatOptions() {
     for (const o of [...el('scale').options, ...el('coverScale').options, ...el('atlasScale').options]) {
-        o.textContent = `1:${Number(o.value).toLocaleString(locale())}`;
+        o.textContent = `1:${formatNumber(Number(o.value), locale())}`;
     }
-    for (const o of [...el('gridSpacing').options, ...el('coverGridSpacing').options, ...el('atlasGridSpacing').options]) o.textContent = `${Number(o.value).toLocaleString(locale())} m`;
+    for (const o of [...el('gridSpacing').options, ...el('coverGridSpacing').options, ...el('atlasGridSpacing').options]) o.textContent = `${formatNumber(Number(o.value), locale())} m`;
 }
 
 // Globe button + menu; the current language is checked
