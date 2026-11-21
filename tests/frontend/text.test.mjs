@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-    attributionLabel, deletedLabel, displayName, mapSummary, progressLabel, shortName,
+    attributionLabel, createdLabel, deletedLabel, displayName, mapSummary, progressLabel, shortName,
 } from '../../frontend/js/text.js';
 
 test('displayName: title, else a numbered default in the language', () => {
@@ -44,4 +44,11 @@ test('progressLabel', () => {
     assert.equal(progressLabel(2, 12), 'Creating 2 files… 12 s');
     assert.equal(progressLabel(1, 4, 'fi'), 'Luodaan PDF:ää… 4 s');
     assert.equal(progressLabel(2, 12, 'fi'), 'Luodaan 2 tiedostoa… 12 s');
+});
+
+test('createdLabel: singular and plural, both languages', () => {
+    assert.equal(createdLabel(1, 'Reitti'), 'Created 1 map for Reitti');
+    assert.equal(createdLabel(7, 'Reitti'), 'Created 7 maps for Reitti');
+    assert.equal(createdLabel(1, 'Reitti', 'fi'), '1 kartta luotu reitille Reitti');
+    assert.equal(createdLabel(7, 'Reitti', 'fi'), '7 karttaa luotu reitille Reitti');
 });

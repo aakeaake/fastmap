@@ -159,6 +159,51 @@
             </div>
         </div>
 
+        <div id="coverSection" hidden>
+            <h3 data-i18n="cover.heading">Cover route with maps</h3>
+            <div class="row">
+                <div>
+                    <label for="coverPaper" data-i18n="field.paper">Paper</label>
+                    <select id="coverPaper">
+                        <option value="A4" selected>A4</option>
+                        <option value="A3">A3</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="coverScale" data-i18n="field.scale">Scale</label>
+                    <select id="coverScale">
+                        <option value="10000">1:10,000</option>
+                        <option value="15000">1:15,000</option>
+                        <option value="20000" selected>1:20,000</option>
+                        <option value="25000">1:25,000</option>
+                        <option value="30000">1:30,000</option>
+                        <option value="40000">1:40,000</option>
+                        <option value="50000">1:50,000</option>
+                    </select>
+                </div>
+            </div>
+            <div class="row">
+                <div>
+                    <label for="coverMargin" data-i18n="field.margin">Margin (mm)</label>
+                    <input id="coverMargin" type="number" value="7" step="1" min="0" max="30">
+                </div>
+                <div>
+                    <label for="coverOverlap" data-i18n="cover.overlap">Overlap</label>
+                    <select id="coverOverlap">
+                        <option value="5">5 %</option>
+                        <option value="10" selected>10 %</option>
+                        <option value="20">20 %</option>
+                    </select>
+                </div>
+            </div>
+            <label class="check"><input id="coverSame" type="checkbox"> <span data-i18n="cover.sameOrientation">Same orientation for all</span></label>
+            <p class="section-note cover-count" id="coverCount" aria-live="polite"></p>
+            <p class="section-note" id="coverRouteHidden" data-i18n="cover.routeHidden" hidden>The route is not shown on printouts</p>
+            <div class="btn-row">
+                <button id="coverBtn" class="btn btn-primary" type="button" data-i18n="cover.create">Create maps</button>
+            </div>
+        </div>
+
         <h3 data-i18n="gpx.style">Route style</h3>
         <label class="check"><input id="gpxShow" type="checkbox" checked> <span data-i18n="gpx.showOnPrint">Show route on printouts</span></label>
         <label for="gpxColor" data-i18n="gpx.color">Colour</label>

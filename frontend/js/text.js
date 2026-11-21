@@ -21,6 +21,11 @@ export function deletedLabel(count, lang = 'en') {
     return count === 1 ? translate(lang, 'deleted.one') : translate(lang, 'deleted.many', { count });
 }
 
+export function createdLabel(count, name, lang = 'en') {
+    return count === 1 ? translate(lang, 'cover.createdOne', { name })
+        : translate(lang, 'cover.created', { count: num(count, lang), name });
+}
+
 // On-screen credit "© Maanmittauslaitos MM/YYYY" (the licensor's name, the
 // same in both languages). The month comes from the server's licence line
 // (Finnish time); today is the fallback.

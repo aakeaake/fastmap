@@ -1,5 +1,5 @@
 // FastMap UI: wires the map, the map list, the panes and PDF downloads.
-import { GRID_MODES, HINT_KEY, PAPER_MM, STORAGE_KEY } from './constants.js';
+import { DEFAULTS, GRID_MODES, HINT_KEY, PAPER_MM, STORAGE_KEY } from './constants.js';
 import { centerToShow, containsExtent, visibleCenter as visibleCenterOf, visibleExtent } from './geometry.js';
 import { applyTranslations, getLang, locale, onLangChange, setLang, t } from './i18n.js';
 import { hydrateIcons, icon, setButton } from './icons.js';
@@ -10,6 +10,7 @@ import {
 import { createLangMenu } from './lang-menu.js';
 import { createNotices } from './notices.js';
 import { createPanes } from './panes.js';
+import { DEFAULT_OVERLAP, MAX_BATCH, OVERLAP_OPTIONS, coverTitle, planCover } from './cover.js';
 import { buildPayload, gpxRoutes } from './payload.js';
 import { ROUTE_KEY, formatKm, routeLengthM, sanitizeSavedRoute, serializeRoute, toGpx } from './route.js';
 import { parseMargin } from './saved.js';
@@ -17,7 +18,7 @@ import { createSheet } from './sheet.js';
 import {
     active, createEntry, entryCenter, entryExtent, getEntry, placeEntry, restoreFrom, serialize, state, syncLabel,
 } from './state.js';
-import { attributionLabel, deletedLabel, displayName, mapSummary, progressLabel, shortName } from './text.js';
+import { attributionLabel, createdLabel, deletedLabel, displayName, mapSummary, progressLabel, shortName } from './text.js';
 
 const el = id => document.getElementById(id);
 hydrateIcons();
@@ -445,6 +446,7 @@ function renderRoute() {
     setButton(el('gpxRemoveBtn'), 'x', t('gpx.remove'));
     el('gpxInfo').textContent = has ? `${routeLabel()} · ${formatKm(routeLengthM(lines), locale())}` : '';
     el('sharedSummary').textContent = has ? t('shared.summaryRoute', { name: routeLabel() }) : t('shared.summary');
+    renderCover();
 }
 
 // Replace the route (no lines = no route)
@@ -464,6 +466,7 @@ const clearRoute = () => setRoute('', []);
 let toolLines = [];
 function renderRouteBar() {
     const mode = routeTools.active();
+    renderCover();
     el('routeBar').hidden = !mode;
     document.body.toggleAttribute('data-route-mode', !!mode);
     if (!mode) return;
@@ -497,7 +500,84 @@ el('routeCancel').addEventListener('click', () => routeTools.cancel());
 
 el('gpxBtn').addEventListener('click', () => gpxInput.click());
 el('gpxRemoveBtn').addEventListener('click', () => { routeTools.cancel(); clearRoute(); });
-el('gpxShow').addEventListener('change', saveRoute);
+el('gpxShow').addEventListener('change', () => { saveRoute(); renderCover(); });
+
+// --- Cover the route with maps --------------------------------------------------
+// Sheets along the route in walking order (cover.js). Shown while a route
+// exists and is not being drawn or edited.
+function coverInputs() {
+    const overlap = Number(el('coverOverlap').value);
+    return {
+        paperSize: PAPER_MM[el('coverPaper').value] ? el('coverPaper').value : 'A4',
+        scale: parseInt(el('coverScale').value, 10) || 20000,
+        margin: parseMargin(el('coverMargin').value),
+        overlapPct: OVERLAP_OPTIONS.includes(overlap) ? overlap : DEFAULT_OVERLAP,
+        sameOrientation: el('coverSame').checked,
+    };
+}
+
+const coverSheets = () => planCover(routeLines(), coverInputs());
+
+// Paper, scale and margin start from the selected map
+function fillCoverFromActive() {
+    const e = active();
+    if (!e) return;
+    el('coverPaper').value = e.paperSize;
+    el('coverScale').value = e.scale;
+    el('coverMargin').value = e.margin;
+}
+
+function renderCover() {
+    const section = el('coverSection');
+    const show = routeLines().length > 0 && !routeTools.active();
+    if (show && section.hidden) fillCoverFromActive();
+    section.hidden = !show;
+    if (!show) return;
+    const n = coverSheets().length;
+    const count = n.toLocaleString(locale());
+    el('coverCount').textContent = n > MAX_BATCH ? t('cover.tooMany', { count })
+        : n === 1 ? t('cover.countOne') : t('cover.count', { count });
+    el('coverCount').classList.toggle('warn', n > MAX_BATCH);
+    el('coverRouteHidden').hidden = el('gpxShow').checked;
+}
+
+// Replace all maps with the route's sheets; Undo brings the old ones back
+function createCover() {
+    const sheets = coverSheets();
+    if (!sheets.length) return;
+    const snapshot = serialize();
+    const cur = active() ?? DEFAULTS;
+    const { paperSize, scale, margin } = coverInputs();
+    const base = {
+        paperSize, scale, margin,
+        layer: cur.layer, gridMode: cur.gridMode, gridSpacing: cur.gridSpacing,
+    };
+    const name = routeLabel();
+    const n = sheets.length;
+    removeAll();
+    const created = sheets.map((sheet, i) => {
+        const e = createEntry(sheet.center, {
+            ...base, orientation: sheet.orientation, title: coverTitle(name, i + 1, n),
+        });
+        moveFeature(e, lockedLayer);
+        return e;
+    });
+    setActive(created[0].id);
+
+    showMapForRoute();
+    const ext = created.map(entryExtent).reduce((a, b) => [
+        Math.min(a[0], b[0]), Math.min(a[1], b[1]), Math.max(a[2], b[2]), Math.max(a[3], b[3]),
+    ]);
+    const c = covered();
+    view.fit(ext, { padding: [40, 40, 40 + c.bottom, 40 + c.left], duration: 300 });
+    offerUndo(() => createdLabel(n, name, getLang()), snapshot);
+}
+el('coverBtn').addEventListener('click', createCover);
+
+for (const id of ['coverPaper', 'coverScale', 'coverMargin', 'coverOverlap', 'coverSame']) {
+    el(id).addEventListener('input', renderCover);
+    el(id).addEventListener('change', renderCover);
+}
 
 el('gpxDownloadBtn').addEventListener('click', () => {
     const text = toGpx(routeLabel(), routeLines(), toWgs84);
@@ -657,7 +737,9 @@ el('downloadAllBtn').addEventListener('click', async () => {
 // --- Language -------------------------------------------------------------------------
 // Option labels with numbers follow the language's digit grouping
 function formatOptions() {
-    for (const o of el('scale').options) o.textContent = `1:${Number(o.value).toLocaleString(locale())}`;
+    for (const o of [...el('scale').options, ...el('coverScale').options]) {
+        o.textContent = `1:${Number(o.value).toLocaleString(locale())}`;
+    }
     for (const o of el('gridSpacing').options) o.textContent = `${Number(o.value).toLocaleString(locale())} m`;
 }
 
