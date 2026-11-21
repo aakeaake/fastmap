@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "fastmap"
 version = "0.1.9"
-description = "Print-ready PDF maps of Finland from MML raster data"
+description = "Print-ready PDF maps of Finland from MML raster and vector data"
 readme = "README.md"
 requires-python = ">=3.10"
 
@@ -21,6 +21,7 @@ dependencies = [
     "rl_accel>=0.9",
     "mapbox-vector-tile>=2.1",
     "shapely>=2.1",
+    "numpy>=1.21",
 ]
 
 [project.optional-dependencies]

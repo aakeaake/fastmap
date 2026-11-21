@@ -549,11 +549,11 @@ def test_vector_layer_wrong_scale_is_422():
     assert "1:25 000 and 1:50 000" in resp.text
 
 
-def test_vector_layer_without_scale_is_422():
+def test_vector_layer_bbox_without_scale_is_422():
     payload = _single_payload(layer="maastokartta_vektori")
     resp = client.post("/generate-map-async", json=payload)
     assert resp.status_code == 422
-    assert "1:25 000 and 1:50 000" in resp.text
+    assert "needs a scale" in resp.text
 
 
 def test_vector_layer_accepted_and_rendered(monkeypatch):

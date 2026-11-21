@@ -15,3 +15,9 @@ test('other layers are unchanged at any scale', () => {
     assert.equal(effectiveLayer('maastokartta', 20000), 'maastokartta');
     assert.equal(effectiveLayer('ortokuva', 15000), 'ortokuva');
 });
+
+test('preview tiles for the vector layer come from the raster layer', async () => {
+    const { previewTileLayer } = await import('../../frontend/js/layer.js');
+    assert.equal(previewTileLayer('maastokartta_vektori'), 'maastokartta');
+    assert.equal(previewTileLayer('ortokuva'), 'ortokuva');
+});

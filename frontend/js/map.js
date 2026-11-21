@@ -18,6 +18,7 @@ import { defaults } from 'ol/interaction/defaults.js';
 import GPX from 'ol/format/GPX.js';
 import proj4 from 'proj4';
 import { register } from 'ol/proj/proj4.js';
+import { previewTileLayer } from './layer.js';
 import {
     ACTIVE_COLOR, CASING, DEF_CENTER, LOCKED_COLOR, MAX_EXTENT, PROJ, PROJ_DEF, RESOLUTIONS, TILE_ORIGIN,
 } from './constants.js';
@@ -29,7 +30,7 @@ export function makeBaseSource(layer) {
     return new TileImage({
         projection: PROJ,
         tileGrid: new TileGrid({ origin: TILE_ORIGIN, resolutions: RESOLUTIONS, tileSize: 256 }),
-        tileUrlFunction: ([z, x, y]) => `/api/nls-tiles/${z}/${x}/${y}.png?layer=${layer}`,
+        tileUrlFunction: ([z, x, y]) => `/api/nls-tiles/${z}/${x}/${y}.png?layer=${previewTileLayer(layer)}`,
     });
 }
 
