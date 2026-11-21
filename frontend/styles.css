@@ -244,8 +244,8 @@ button { font: inherit; color: inherit; }
 /* --- Download footer ----------------------------------------------- */
 .download { flex: 0 0 auto; background: var(--surface); border-top: 1px solid var(--surface-3); }
 .dl-row { display: flex; gap: 8px; }
-.dl-row select { flex: 0 0 112px; height: 36px !important; }
-.dl-row .btn { flex: 1; }
+.dl-row select { flex: 0 0 96px; height: 36px !important; }
+.dl-row .btn { flex: 1; white-space: nowrap; }
 
 /* --- Undo message: beside the open panes --------------------------- */
 .toast {
@@ -265,7 +265,8 @@ button { font: inherit; color: inherit; }
 .stack {
     position: absolute; z-index: 1000;
     right: var(--edge-r); bottom: var(--edge-b);
-    max-width: min(520px, calc(100% - 360px));
+    /* clear of the left column (--covered-left, set from main.js) */
+    max-width: min(520px, calc(100% - var(--covered-left, 300px) - var(--edge-r) - 16px));
     display: flex; flex-direction: column; align-items: flex-end; gap: 6px;
 }
 .hint {

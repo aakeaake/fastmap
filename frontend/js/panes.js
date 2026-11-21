@@ -4,7 +4,7 @@ import { MODES, UI_KEY } from './constants.js';
 
 const el = id => document.getElementById(id);
 
-export function createPanes({ phone, onNewMap, onDownloadAll }) {
+export function createPanes({ phone, onNewMap, onDownloadAll, onLayout = () => {} }) {
     const ui = (() => { try { return JSON.parse(localStorage.getItem(UI_KEY)) || {}; } catch { return {}; } })();
     delete ui.shared;   // the second pane is gone
     const saveUi = () => { try { localStorage.setItem(UI_KEY, JSON.stringify(ui)); } catch { /* ignore */ } };
@@ -17,6 +17,7 @@ export function createPanes({ phone, onNewMap, onDownloadAll }) {
         el('collapseBtn').setAttribute('aria-expanded', String(!collapsed));
         el('expandBtn').setAttribute('aria-expanded', String(!collapsed));
         if (focus) el(collapsed ? 'expandBtn' : 'collapseBtn').focus();
+        onLayout(coveredLeft());
     }
 
     // Pixel width of map hidden behind the left column (0 on phones)

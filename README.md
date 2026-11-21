@@ -123,41 +123,54 @@ MML requests are retried up to 3 attempts (not read timeouts). See
 
 ## Usage
 
-* **Settings pane (left).** The **Maps** list shows every map; click a row to
+* **Three modes** at the top of the settings pane: **Maps** (place sheets by
+  hand), **Route** (sheets along a route) and **Atlas** (a grid of sheets over
+  an area). Each mode keeps its own sheets: only the current mode's sheets are
+  on the map, in its list and in **Download all**, and creating sheets in one
+  mode never touches another's.
+* **Maps mode.** The **Maps** list shows every map; click a row to
   select it. The **selected map** is drawn as a solid blue frame (drag it to
   move it); the others are dark dashed frames. Both sit on a white outline so
   they stay visible over any part of the map. ✕ deletes a map, and **Undo**
   brings it back for a few seconds; **Clear all** works the same way.
 * **New map** adds a map in the middle of the visible area, copying the
-  selected map's settings. Paper, orientation, scale, margin, grid and title
+  selected map's settings. Paper, orientation, scale, map type, grid and title
   are stored per map.
 * The frame shows the printable *content area* (paper minus margins and the
   footer line), so what you see is exactly what prints.
 * **Grid** turns on grid lines (vertical, or full, each with optional
   coordinates) with a selectable spacing.
-* **Route, area and precision** opens a second pane with the settings shared
-  by all maps: load or remove a **GPX route** (shown on the preview and
-  printed on the PDFs) and its colour, width and opacity, plus print **DPI**
-  and **map level**.
-* **Atlas of an area** (same pane): draw an area on the map (click the
-  corners, double-click to finish; edit or remove it later). **Create atlas**
-  replaces the maps with a grid of sheets covering it, titled by row and
-  column ("Atlas A1", "Atlas B3": rows from the north, columns from the west),
-  with your paper, scale, margin, orientation and overlap (0–20 %). An atlas
-  holds at most 25 maps; **Undo** brings the old maps back.
+* **Route mode.** Load or draw a **GPX route** (shown on the preview and,
+  unless turned off under *Route on printouts*, printed on every map with
+  your colour, width and opacity). Pick paper, orientation (per sheet, or the
+  same for all), scale, map type, grid and overlap, then **Create maps**:
+  sheets in walking order, titled "My route 1/8" …
+* **Atlas mode.** Draw an area on the map (click the corners, double-click to
+  finish; edit or remove it later). **Create atlas** fills it with a grid of
+  sheets titled by row and column ("Atlas A1", "Atlas B3": rows from the
+  north, columns from the west), with your paper, orientation, scale, map
+  type, grid and overlap (0–20 %).
+* In Route and Atlas mode the settings set up the next run: when they no
+  longer match the sheets, the button becomes **Update maps** / **Update
+  atlas**. Both hold at most 25 maps; **Undo** brings the previous sheets
+  back.
+* **Advanced** (bottom of the pane, every mode): the page **margin** (one for
+  all maps), print **DPI** and **map level**.
 * **Download** at the bottom of the pane: the list's ↓ button downloads one
   map; **Download all** renders every map as one multi-page PDF (mixed page
   sizes allowed) or a ZIP of separate PDFs. Progress, the finished file and
   any error pop up as cards in the bottom-right corner (above the sheet on
   phones); errors stay until closed.
-* The collapse button in the pane header shrinks it to a **sidebar** with one
-  numbered tile per map, plus new map, route pane and download buttons.
+* The collapse button in the pane header shrinks it to a **sidebar** with the
+  three mode buttons, one numbered tile per map of the current mode, and new
+  map and download buttons.
 * **Map controls (right), top to bottom:** the **globe** button, which opens a
   small menu to pick English or Suomi; zoom **+ / −**; and the **centre**
   button (moves the selected map to the middle of the visible area;
   double-clicking the map does the same at the clicked spot).
 * **On a phone** the settings become a bottom sheet: drag or tap its header to
-  move between peek (selected map + download), half and full height.
+  move between peek (selected map, modes and download), half and full height.
+  The map always stays north up (no two-finger rotation).
 * Maps and layout choices are saved in your browser and restored on the next
   visit.
 

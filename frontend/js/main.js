@@ -395,6 +395,7 @@ const panes = createPanes({
     phone: sheet.phone,
     onNewMap: newMap,
     onDownloadAll: () => el('downloadAllBtn').click(),
+    onLayout: setCoveredLeft,   // runs once before `panes` is assigned
 });
 const covered = () => ({ left: panes.coveredLeft(), bottom: sheet.coveredBottom() });
 
@@ -403,6 +404,43 @@ const covered = () => ({ left: panes.coveredLeft(), bottom: sheet.coveredBottom(
 function visibleCenter() {
     return visibleCenterOf(view.getCenter(), view.getResolution(), covered());
 }
+
+// Pixel width of map hidden behind the right-hand controls (zoom, centre)
+function coveredRight() {
+    const tool = el('centerBtn');
+    if (tool.offsetParent === null) return 0;   // hidden (phone sheet fully open)
+    return Math.max(0, window.innerWidth - tool.getBoundingClientRect().left);
+}
+
+// Zoom to `entries`, clear of the panel, the sheet and the map controls
+function fitTo(entries, duration = 300) {
+    const ext = entries.map(entryExtent).reduce((a, b) => [
+        Math.min(a[0], b[0]), Math.min(a[1], b[1]), Math.max(a[2], b[2]), Math.max(a[3], b[3]),
+    ]);
+    const c = covered();
+    view.fit(ext, { padding: [40, 40 + coveredRight(), 40 + c.bottom, 40 + c.left], duration });
+}
+
+// When none of the mode's maps is in view, zoom to them (after a mode
+// switch or a reload); otherwise leave the view alone
+function fitModeIfHidden(duration = 300) {
+    const maps = modeMaps();
+    const size = map.getSize();
+    if (!maps.length || !size) return;
+    const [x0, y0, x1, y1] = visibleExtent(view.getCenter(), view.getResolution(), size, covered());
+    const seen = maps.some(e => {
+        const [a0, b0, a1, b1] = entryExtent(e);
+        return a0 < x1 && a1 > x0 && b0 < y1 && b1 > y0;
+    });
+    if (!seen) fitTo(maps, duration);
+}
+
+// Where the left column ends: the bottom-right stack keeps clear of it
+function setCoveredLeft(px) {
+    document.documentElement.style.setProperty('--covered-left', `${Math.round(px)}px`);
+}
+const updateCoveredLeft = () => setCoveredLeft(panes.coveredLeft());
+window.addEventListener('resize', updateCoveredLeft);
 
 // Pan so the entry sits in the visible area, if it is not there already
 function revealEntry(e) {
@@ -513,6 +551,7 @@ function setMode(mode) {
     renderRoute();
     renderArea();
     renderRouteBar();
+    fitModeIfHidden();
 }
 
 // Radio group: click, or arrow keys / Home / End move and select
@@ -811,11 +850,7 @@ function replaceSet(mode, items, settings, undoLabel) {
     renderAtlas();
 
     showMapForRoute();
-    const ext = created.map(entryExtent).reduce((a, b) => [
-        Math.min(a[0], b[0]), Math.min(a[1], b[1]), Math.max(a[2], b[2]), Math.max(a[3], b[3]),
-    ]);
-    const c = covered();
-    view.fit(ext, { padding: [40, 40, 40 + c.bottom, 40 + c.left], duration: 300 });
+    fitTo(created);
     offerUndo(undoLabel, snapshot);
 }
 
@@ -1085,3 +1120,5 @@ function renderScriptText() {
 
 onLangChange(renderScriptText);
 renderScriptText();
+updateCoveredLeft();
+fitModeIfHidden(0);
