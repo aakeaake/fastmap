@@ -209,6 +209,8 @@ button { font: inherit; color: inherit; }
 #gpxInfo { font-size: 13px; color: var(--ink-2); margin-top: 6px; overflow-wrap: anywhere; }
 #gpxInfo:empty { display: none; }
 #gpxColor { width: 100%; height: 32px; padding: 2px; box-sizing: border-box; border: 1px solid var(--line-strong); border-radius: var(--radius-sm); background: var(--surface); }
+.pane label.check { display: flex; align-items: center; gap: 8px; color: var(--ink); cursor: pointer; }
+.pane label.check input { margin: 0; width: 16px; height: 16px; }
 .range-row { display: flex; align-items: center; gap: 10px; }
 .range-row input { flex: 1; margin: 0; }
 .range-row output { font-size: 13px; color: var(--ink-2); min-width: 4ch; text-align: right; font-variant-numeric: tabular-nums; }

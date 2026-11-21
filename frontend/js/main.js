@@ -496,6 +496,7 @@ function sharedSettings() {
         dpi: el('dpi').value,
         zoomLevel: el('zoomLevel').value,
         routes: gpxRoutes(gpxLayer.getSource().getFeatures()),
+        showRoute: el('gpxShow').checked,
         gpxColor: el('gpxColor').value,
         gpxWidth: el('gpxWidth').value,
         gpxOpacity: el('gpxOpacity').value,
