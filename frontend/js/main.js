@@ -22,7 +22,8 @@ import { ROUTE_KEY, formatKm, routeLengthM, sanitizeSavedRoute, serializeRoute, 
 import { parseMargin } from './saved.js';
 import { createSheet } from './sheet.js';
 import {
-    active, createEntry, entryCenter, entryExtent, getEntry, placeEntry, restoreFrom, serialize, state, syncLabel,
+    active, createEntry, entryCenter, entryExtent, getEntry, modeMaps, placeEntry, restoreFrom, serialize, setActiveId, state,
+    syncLabel,
 } from './state.js';
 import { atlasCountLabel, attributionLabel, createdLabel, deletedLabel, displayName, mapSummary, progressLabel, shortName } from './text.js';
 
@@ -31,12 +32,12 @@ hydrateIcons();
 applyTranslations();
 
 const { map, view, baseLayer, areaLayer, gpxLayer, lockedLayer, activeLayer } =
-    createMap('map', { isActive: id => id === state.activeId });
+    createMap('map', { isActive: id => id === active()?.id });
 
 const generatingIds = new Set();
 const downloadedIds = new Set();   // downloaded and unchanged since
 
-const nameOf = e => displayName(e, state.maps.indexOf(e), getLang());
+const nameOf = e => displayName(e, modeMaps(e.mode).indexOf(e), getLang());
 const summaryOf = e => mapSummary(e, getLang());
 
 // --- Selection and the map layers -------------------------------------------
@@ -50,10 +51,16 @@ function moveFeature(entry, layer) {
     }
 }
 
+// Only the current mode's maps are on the map
+function showMode() {
+    for (const e of state.maps) moveFeature(e, null);
+    for (const e of modeMaps()) moveFeature(e, e === active() ? activeLayer : lockedLayer);
+}
+
 function setActive(id) {
     const cur = active();
     if (cur && cur.id !== id) moveFeature(cur, lockedLayer);
-    state.activeId = id;
+    setActiveId(id);
     moveFeature(active(), activeLayer);
     syncPanel();
     renderList();
@@ -83,20 +90,26 @@ function newMap() {
         margin: cur.margin,
         gridMode: cur.gridMode,
         gridSpacing: cur.gridSpacing,
-    } : {};
-    setActive(createEntry(visibleCenter(), settings).id);
+    } : { margin: state.margin };
+    setActive(createEntry(visibleCenter(), { ...settings, mode: 'maps' }).id);
 }
 
+// An undo snapshot of one mode's maps
+const snapshotOf = (mode = state.mode) => ({ mode, data: serialize({ mode }) });
+
 function deleteEntry(id) {
-    const i = state.maps.findIndex(m => m.id === id);
+    const list = modeMaps();
+    const i = list.findIndex(m => m.id === id);
     if (i === -1) return;
-    const snapshot = serialize();
-    const gone = state.maps[i];
+    const snapshot = snapshotOf();
+    const gone = list[i];
     moveFeature(gone, null);
-    state.maps.splice(i, 1);
-    if (id === state.activeId) {
-        if (state.maps.length) setActive(state.maps[Math.max(0, i - 1)].id);
-        else newMap();
+    state.maps.splice(state.maps.indexOf(gone), 1);
+    const rest = modeMaps();
+    if (!active()) {   // the selected map went
+        if (rest.length) setActive(rest[Math.max(0, i - 1)].id);
+        else if (state.mode === 'maps') newMap();
+        else { setActiveId(null); renderList(); persist(); }
     } else {
         renderList();
         persist();
@@ -105,28 +118,38 @@ function deleteEntry(id) {
     offerUndo(() => t('map.deleted', { name: displayName(gone, i, getLang()) }), snapshot);
 }
 
-function removeAll() {
-    for (const e of state.maps) moveFeature(e, null);
-    state.maps = [];
-    state.activeId = null;
+// Remove every map of one mode (the others stay)
+function removeMode(mode) {
+    for (const e of modeMaps(mode)) moveFeature(e, null);
+    state.maps = state.maps.filter(e => e.mode !== mode);
+    state.activeIds[mode] = null;
 }
 
+// Clear the current mode's maps (Maps mode starts again with one new map)
 function clearAll() {
-    const snapshot = serialize();
-    const count = state.maps.length;
-    removeAll();
-    try { localStorage.removeItem(STORAGE_KEY); } catch { /* ignore */ }
-    newMap();
+    const snapshot = snapshotOf();
+    const count = modeMaps().length;
+    removeMode(state.mode);
+    if (state.mode === 'maps') newMap();
+    else { renderList(); persist(); }
     offerUndo(() => deletedLabel(count, getLang()), snapshot);
 }
 
-// Restore a snapshot onto an empty map list; false if nothing in it was valid
+// Select the mode's saved selection, else its last map
+function selectInMode() {
+    const list = modeMaps();
+    const id = active()?.id ?? list[list.length - 1]?.id ?? null;
+    if (id === null) { setActiveId(null); renderList(); persist(); return; }
+    setActive(id);
+}
+
+// Load the saved layout at start; false if nothing in it was valid
 function loadSnapshot(data) {
     const created = restoreFrom(data);
-    created.forEach(e => moveFeature(e, lockedLayer));
+    showMode();
     if (!created.length) return false;
-    setActive(getEntry(data.activeId) ? data.activeId : state.maps[state.maps.length - 1].id);
-    return true;
+    selectInMode();
+    return modeMaps().length > 0 || state.mode !== 'maps';
 }
 
 // --- Undo -------------------------------------------------------------------
@@ -148,13 +171,21 @@ function hideToast() {
     undoSnapshot = null;
 }
 
+// Put back the snapshot's mode only; other modes keep any later changes
 function undo() {
     if (!undoSnapshot) return;
-    const snapshot = undoSnapshot;
+    const { mode, data } = undoSnapshot;
     hideToast();
-    removeAll();
-    if (!loadSnapshot(snapshot)) { newMap(); return; }
-    el('mapList').querySelector(`[data-key="select-${state.activeId}"]`)?.focus();
+    removeMode(mode);
+    restoreFrom(data, { mode });
+    showMode();
+    if (mode === state.mode) {
+        if (!modeMaps().length && mode === 'maps') newMap();
+        else selectInMode();
+    } else {
+        persist();
+    }
+    el('mapList').querySelector(`[data-key="select-${active()?.id}"]`)?.focus();
 }
 
 // --- Settings form <-> selected map -------------------------------------------
@@ -217,7 +248,7 @@ function refreshLabels() {
 function renderRail(focusKey) {
     const ul = el('railMaps');
     ul.innerHTML = '';
-    state.maps.forEach((e, i) => {
+    modeMaps().forEach((e, i) => {
         const li = document.createElement('li');
         const b = document.createElement('button');
         b.type = 'button';
@@ -229,7 +260,7 @@ function renderRail(focusKey) {
         const label = `${nameOf(e)} · ${summaryOf(e)}`;
         b.setAttribute('aria-label', label);
         b.title = label;
-        b.setAttribute('aria-pressed', String(e.id === state.activeId));
+        b.setAttribute('aria-pressed', String(e.id === active()?.id));
         b.addEventListener('click', () => selectAndReveal(e));
         li.append(b);
         ul.append(li);
@@ -238,7 +269,7 @@ function renderRail(focusKey) {
 }
 
 function listRow(e) {
-    const isActive = e.id === state.activeId;
+    const isActive = e.id === active()?.id;
     const name = nameOf(e);
     const li = document.createElement('li');
     li.dataset.id = e.id;
@@ -305,10 +336,10 @@ function renderList() {
     const listFocus = ul.contains(focused) ? focused.dataset.key : null;
     const railFocus = el('railMaps').contains(focused) ? focused.dataset.key : null;
 
-    ul.replaceChildren(...state.maps.map(listRow));
+    ul.replaceChildren(...modeMaps().map(listRow));
     if (listFocus) {
         (ul.querySelector(`[data-key="${listFocus}"]`)
-            ?? ul.querySelector(`[data-key="select-${state.activeId}"]`))?.focus();
+            ?? ul.querySelector(`[data-key="select-${active()?.id}"]`))?.focus();
     }
     renderRail(railFocus);
 
@@ -321,8 +352,8 @@ function renderList() {
         b.textContent = nameOf(cur);
         summary.append(b, ` · ${summaryOf(cur)}`);
     }
-    el('downloadAllBtn').textContent = state.maps.length > 1
-        ? t('download.allCount', { count: state.maps.length }) : t('download.one');
+    const count = modeMaps().length;
+    el('downloadAllBtn').textContent = count > 1 ? t('download.allCount', { count }) : t('download.one');
     refreshLabels();
 }
 
@@ -639,16 +670,16 @@ function renderCover() {
 // given paper, scale and margin; the map layer and grid come from the
 // selected map. Undo brings the old maps back.
 function replaceMaps(items, { paperSize, scale, margin }, undoLabel) {
-    const snapshot = serialize();
+    const snapshot = snapshotOf();
     const cur = active() ?? DEFAULTS;
     const base = {
         paperSize, scale, margin,
         // this scale may not support the vector map
         layer: effectiveLayer(cur.layer, scale), gridMode: cur.gridMode, gridSpacing: cur.gridSpacing,
     };
-    removeAll();
+    removeMode(state.mode);
     const created = items.map(({ center, orientation, title }) => {
-        const e = createEntry(center, { ...base, orientation, title });
+        const e = createEntry(center, { ...base, orientation, title, mode: state.mode });
         moveFeature(e, lockedLayer);
         return e;
     });
@@ -899,12 +930,13 @@ function setDownloadAllBusy(busy) {
 }
 
 el('downloadAllBtn').addEventListener('click', async () => {
-    if (!state.maps.length) return;
+    const maps = modeMaps();
+    if (!maps.length) return;
     setDownloadAllBusy(true);
     const shared = sharedSettings();
     await trackJob('/generate-maps-batch-async', {
         output: el('batchFormat').value,
-        maps: state.maps.map(e => buildPayload(e, entryExtent(e), shared)),
+        maps: maps.map(e => buildPayload(e, entryExtent(e), shared)),
     }, 'result-batch');
     setDownloadAllBusy(false);
 });

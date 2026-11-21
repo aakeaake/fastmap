@@ -22,6 +22,7 @@ import MultiPoint from 'ol/geom/MultiPoint.js';
 import CircleStyle from 'ol/style/Circle.js';
 import { altKeyOnly, doubleClick, never, singleClick } from 'ol/events/condition.js';
 import { defaults } from 'ol/interaction/defaults.js';
+import { defaults as defaultControls } from 'ol/control/defaults.js';
 import GPX from 'ol/format/GPX.js';
 import proj4 from 'proj4';
 import { register } from 'ol/proj/proj4.js';
@@ -108,12 +109,16 @@ export function createMap(target, { isActive }) {
     });
     const lockedLayer = new VectorLayer({ source: new VectorSource(), style: styleFor });
     const activeLayer = new VectorLayer({ source: new VectorSource(), style: styleFor });
-    const view = new View({ projection: PROJ, center: DEF_CENTER, resolution: 128, extent: MAX_EXTENT });
+    // North up always: the PDFs are north-up, so the map never rotates
+    const view = new View({
+        projection: PROJ, center: DEF_CENTER, resolution: 128, extent: MAX_EXTENT, enableRotation: false,
+    });
     const map = new Map({
         target,
         layers: [baseLayer, areaLayer, gpxLayer, lockedLayer, activeLayer],
         view,
-        interactions: defaults({ doubleClickZoom: false }),
+        interactions: defaults({ doubleClickZoom: false, altShiftDragRotate: false, pinchRotate: false }),
+        controls: defaultControls({ rotate: false }),
     });
     return { map, view, baseLayer, areaLayer, gpxLayer, lockedLayer, activeLayer };
 }
