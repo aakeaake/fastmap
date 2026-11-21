@@ -397,6 +397,151 @@
    }
   },
   {
+   "id": "maasto_alue_vesi",
+   "type": "fill",
+   "metadata": {
+    "trailmap:ways_only": true
+   },
+   "source": "mml",
+   "source-layer": "maasto_alue",
+   "filter": [
+    "match",
+    [
+     "get",
+     "kohdeluokka"
+    ],
+    [
+     35300,
+     35411,
+     35412,
+     35421,
+     35422
+    ],
+    true,
+    false
+   ],
+   "layout": {
+    "visibility": "visible",
+    "fill-sort-key": [
+     "match",
+     [
+      "get",
+      "kohdeluokka"
+     ],
+     [
+      34100,
+      34700,
+      38600
+     ],
+     2,
+     [
+      39110,
+      39120
+     ],
+     0,
+     1
+    ]
+   },
+   "paint": {
+    "fill-color": [
+     "match",
+     [
+      "get",
+      "kohdeluokka"
+     ],
+     [
+      35412,
+      35422,
+      35401,
+      35402
+     ],
+     "#c7ebeb",
+     [
+      35411,
+      35421
+     ],
+     "#d1cc40",
+     34100,
+     "#d1c7d1",
+     [
+      34700,
+      38600
+     ],
+     "hsla(0, 0%, 100%, 0)",
+     34300,
+     "#ffff66",
+     39130,
+     "#ffff40",
+     38300,
+     "#b3ffff",
+     [
+      38700,
+      38400,
+      35300
+     ],
+     "#e6f5f5",
+     39120,
+     "hsla(48, 100%, 55%, 0.08)",
+     39110,
+     "hsla(70, 100%, 45%, 0.12)",
+     33000,
+     "#ffffd9",
+     "hsla(0, 0%, 100%, 0)"
+    ],
+    "fill-outline-color": [
+     "match",
+     [
+      "get",
+      "kohdeluokka"
+     ],
+     33000,
+     "#000000",
+     "hsla(0, 0%, 100%, 0)"
+    ],
+    "fill-opacity": 1
+   }
+  },
+  {
+   "id": "maasto_alue_vesi-suo-vaikea",
+   "type": "fill",
+   "source": "mml",
+   "source-layer": "maasto_alue",
+   "minzoom": 11,
+   "filter": [
+    "match",
+    [
+     "get",
+     "kohdeluokka"
+    ],
+    [
+     35421,
+     35422
+    ],
+    true,
+    false
+   ],
+   "layout": {
+    "visibility": "visible"
+   },
+   "paint": {
+    "fill-pattern": "mmlhc_suo_vaikea",
+    "fill-opacity": [
+     "interpolate",
+     [
+      "exponential",
+      1
+     ],
+     [
+      "zoom"
+     ],
+     11,
+     0,
+     11.7,
+     1
+    ]
+   }
+  },
+  {
    "id": "maankaytto",
    "type": "fill",
    "metadata": {
@@ -1161,6 +1306,38 @@
    }
   },
   {
+   "id": "water-mml",
+   "type": "fill",
+   "metadata": {
+    "mapbox:group": "1444849382550.77",
+    "trailmap:mtb": true,
+    "trailmap:mtb_winter": true,
+    "trailmap:gravel": true,
+    "trailmap:ways_only": true
+   },
+   "source": "mml",
+   "source-layer": "vesisto_alue",
+   "filter": [
+    "all",
+    [
+     "==",
+     "$type",
+     "Polygon"
+    ],
+    [
+     "!in",
+     "kohdeluokka",
+     36211
+    ]
+   ],
+   "layout": {
+    "visibility": "visible"
+   },
+   "paint": {
+    "fill-color": "#80ffff"
+   }
+  },
+  {
    "id": "vesisto_alue_reuna",
    "type": "line",
    "source": "mml",
@@ -1198,38 +1375,6 @@
      20,
      72.0
     ]
-   }
-  },
-  {
-   "id": "water-mml",
-   "type": "fill",
-   "metadata": {
-    "mapbox:group": "1444849382550.77",
-    "trailmap:mtb": true,
-    "trailmap:mtb_winter": true,
-    "trailmap:gravel": true,
-    "trailmap:ways_only": true
-   },
-   "source": "mml",
-   "source-layer": "vesisto_alue",
-   "filter": [
-    "all",
-    [
-     "==",
-     "$type",
-     "Polygon"
-    ],
-    [
-     "!in",
-     "kohdeluokka",
-     36211
-    ]
-   ],
-   "layout": {
-    "visibility": "visible"
-   },
-   "paint": {
-    "fill-color": "#80ffff"
    }
   },
   {
@@ -1550,151 +1695,6 @@
    },
    "paint": {
     "text-color": "hsl(210, 67%, 45%)"
-   }
-  },
-  {
-   "id": "maasto_alue_vesi",
-   "type": "fill",
-   "metadata": {
-    "trailmap:ways_only": true
-   },
-   "source": "mml",
-   "source-layer": "maasto_alue",
-   "filter": [
-    "match",
-    [
-     "get",
-     "kohdeluokka"
-    ],
-    [
-     35300,
-     35411,
-     35412,
-     35421,
-     35422
-    ],
-    true,
-    false
-   ],
-   "layout": {
-    "visibility": "visible",
-    "fill-sort-key": [
-     "match",
-     [
-      "get",
-      "kohdeluokka"
-     ],
-     [
-      34100,
-      34700,
-      38600
-     ],
-     2,
-     [
-      39110,
-      39120
-     ],
-     0,
-     1
-    ]
-   },
-   "paint": {
-    "fill-color": [
-     "match",
-     [
-      "get",
-      "kohdeluokka"
-     ],
-     [
-      35412,
-      35422,
-      35401,
-      35402
-     ],
-     "#c7ebeb",
-     [
-      35411,
-      35421
-     ],
-     "#d1cc40",
-     34100,
-     "#d1c7d1",
-     [
-      34700,
-      38600
-     ],
-     "hsla(0, 0%, 100%, 0)",
-     34300,
-     "#ffff66",
-     39130,
-     "#ffff40",
-     38300,
-     "#b3ffff",
-     [
-      38700,
-      38400,
-      35300
-     ],
-     "#e6f5f5",
-     39120,
-     "hsla(48, 100%, 55%, 0.08)",
-     39110,
-     "hsla(70, 100%, 45%, 0.12)",
-     33000,
-     "#ffffd9",
-     "hsla(0, 0%, 100%, 0)"
-    ],
-    "fill-outline-color": [
-     "match",
-     [
-      "get",
-      "kohdeluokka"
-     ],
-     33000,
-     "#000000",
-     "hsla(0, 0%, 100%, 0)"
-    ],
-    "fill-opacity": 1
-   }
-  },
-  {
-   "id": "maasto_alue_vesi-suo-vaikea",
-   "type": "fill",
-   "source": "mml",
-   "source-layer": "maasto_alue",
-   "minzoom": 11,
-   "filter": [
-    "match",
-    [
-     "get",
-     "kohdeluokka"
-    ],
-    [
-     35421,
-     35422
-    ],
-    true,
-    false
-   ],
-   "layout": {
-    "visibility": "visible"
-   },
-   "paint": {
-    "fill-pattern": "mmlhc_suo_vaikea",
-    "fill-opacity": [
-     "interpolate",
-     [
-      "exponential",
-      1
-     ],
-     [
-      "zoom"
-     ],
-     11,
-     0,
-     11.7,
-     1
-    ]
    }
   },
   {

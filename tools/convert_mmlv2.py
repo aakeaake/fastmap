@@ -14,6 +14,23 @@ DROP_ID_PREFIXES = ("osm-",)
 # mmlv2 hides MML footpaths because Trailmap shows OSM paths; fastmap has none.
 FORCE_VISIBLE = {"mml-polku"}
 UPSTREAM_REF = "MaRaSu/mmlv2@82b5ab0"
+# Draw-order fixes for print, applied in order as (layer, "before"|"after", anchor):
+# swamps go under the contours (as on the printed Maastokartta), and the shoreline
+# goes over the water and swamp fills, which otherwise cover half of it.
+MOVES = (
+    ("maasto_alue_vesi", "before", "maankaytto"),
+    ("maasto_alue_vesi-suo-vaikea", "after", "maasto_alue_vesi"),
+    ("vesisto_alue_reuna", "after", "water-mml"),
+)
+
+
+def _move(layers: list[dict], lid: str, where: str, anchor: str) -> None:
+    layer = next(ly for ly in layers if ly["id"] == lid)
+    layers.remove(layer)
+    at = next(i for i, ly in enumerate(layers) if ly["id"] == anchor)
+    layers.insert(at if where == "before" else at + 1, layer)
+
+
 FORBIDDEN = ("api-key", "http://", "https://")
 
 
@@ -34,6 +51,8 @@ def convert(style: dict) -> dict:
         if lid in FORCE_VISIBLE:
             layer = {**layer, "layout": {**layer.get("layout", {}), "visibility": "visible"}}
         out_layers.append(layer)
+    for lid, where, anchor in MOVES:
+        _move(out_layers, lid, where, anchor)
     return {
         "version": style.get("version", 8),
         "name": style.get("name", "maastokartta"),
