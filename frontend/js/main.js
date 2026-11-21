@@ -35,6 +35,7 @@ const { map, view, baseLayer, areaLayer, gpxLayer, lockedLayer, activeLayer } =
     createMap('map', { isActive: id => id === active()?.id });
 
 const generatingIds = new Set();
+let downloadAllBusy = false;      // Download all is running
 const downloadedIds = new Set();   // downloaded and unchanged since
 
 const nameOf = e => displayName(e, modeMaps(e.mode).indexOf(e), getLang());
@@ -87,11 +88,10 @@ function newMap() {
         orientation: cur.orientation,
         scale: cur.scale,
         layer: cur.layer,
-        margin: cur.margin,
         gridMode: cur.gridMode,
         gridSpacing: cur.gridSpacing,
-    } : { margin: state.margin };
-    setActive(createEntry(visibleCenter(), { ...settings, mode: 'maps' }).id);
+    } : {};
+    setActive(createEntry(visibleCenter(), { ...settings, margin: state.margin, mode: 'maps' }).id);
 }
 
 // An undo snapshot of one mode's maps
@@ -185,20 +185,20 @@ function undo() {
     } else {
         persist();
     }
-    el('mapList').querySelector(`[data-key="select-${active()?.id}"]`)?.focus();
+    el(LISTS[state.mode]).querySelector(`[data-key="select-${active()?.id}"]`)?.focus();
 }
 
 // --- Settings form <-> selected map -------------------------------------------
 function syncPanel() {
     const e = active();
     if (!e) return;
+    baseLayer.setSource(makeBaseSource(e.layer));
+    if (e.mode !== 'maps') return;   // route and atlas sheets have no form of their own
     el('paperSize').value = e.paperSize;
     el('orientation').value = e.orientation;
     el('scale').value = e.scale;
-    el('margin').value = e.margin;
     el('mapType').value = e.layer === VECTOR_LAYER ? 'vector' : 'raster';
     updateMapTypeOption(e.scale);
-    baseLayer.setSource(makeBaseSource(e.layer));
     el('title').value = e.title;
     el('gridMode').value = e.gridMode;
     el('gridSpacing').value = e.gridSpacing;
@@ -219,7 +219,6 @@ function panelChanged() {
     e.paperSize = PAPER_MM[el('paperSize').value] ? el('paperSize').value : 'A4';
     e.orientation = el('orientation').value === 'landscape' ? 'landscape' : 'portrait';
     e.scale = parseInt(el('scale').value, 10) || 20000;
-    e.margin = parseMargin(el('margin').value);
     const prevLayer = e.layer;
     e.layer = effectiveLayer(el('mapType').value === 'vector' ? VECTOR_LAYER : 'maastokartta', e.scale);
     el('mapType').value = e.layer === VECTOR_LAYER ? 'vector' : 'raster';
@@ -332,7 +331,7 @@ function listRow(e) {
 // Rebuilt on every change; keyboard focus is carried over by data-key
 function renderList() {
     const focused = document.activeElement;
-    const ul = el('mapList');
+    const ul = el(LISTS[state.mode]);
     const listFocus = ul.contains(focused) ? focused.dataset.key : null;
     const railFocus = el('railMaps').contains(focused) ? focused.dataset.key : null;
 
@@ -354,8 +353,14 @@ function renderList() {
     }
     const count = modeMaps().length;
     el('downloadAllBtn').textContent = count > 1 ? t('download.allCount', { count }) : t('download.one');
+    if (!downloadAllBusy) el('downloadAllBtn').disabled = count === 0;
+    el('routeSheets').hidden = !modeMaps('route').length;
+    el('atlasSheets').hidden = !modeMaps('atlas').length;
     refreshLabels();
 }
+
+// The list each mode's maps are shown in
+const LISTS = { maps: 'mapList', route: 'routeList', atlas: 'atlasList' };
 
 // --- Persistence ----------------------------------------------------------------
 function persist() {
@@ -428,9 +433,11 @@ el('centerBtn').addEventListener('click', () => {
 // --- Start -------------------------------------------------------------------------
 // Size the sheet first: newMap() places the first map in the visible area
 sheet.setSheet(sheet.state);
-if (!loadSnapshot(savedSnapshot())) newMap();
+state.mode = panes.getMode();
+if (!loadSnapshot(savedSnapshot()) && state.mode === 'maps') newMap();
+el('margin').value = state.margin;
 
-for (const id of ['paperSize', 'orientation', 'scale', 'mapType', 'margin', 'gridMode', 'gridSpacing']) {
+for (const id of ['paperSize', 'orientation', 'scale', 'mapType', 'gridMode', 'gridSpacing']) {
     el(id).addEventListener('change', panelChanged);
     el(id).addEventListener('input', panelChanged);
 }
@@ -442,6 +449,77 @@ el('title').addEventListener('input', () => {
     persist();
 });
 el('newBtn').addEventListener('click', newMap);
+
+// One margin for every map (Advanced): re-size every sheet in every mode
+function marginChanged() {
+    state.margin = parseMargin(el('margin').value);
+    for (const e of state.maps) {
+        if (e.margin === state.margin) continue;
+        e.margin = state.margin;
+        placeEntry(e);
+        downloadedIds.delete(e.id);
+    }
+    renderList();
+    renderCover();
+    renderAtlas();
+    persist();
+}
+el('margin').addEventListener('input', marginChanged);
+el('margin').addEventListener('change', marginChanged);
+
+// --- Modes: Maps, Route, Atlas ----------------------------------------------------
+// Each mode keeps its own maps; only the current mode's are on the map, in
+// its list and in Download all.
+function renderModeUi() {
+    const mode = state.mode;
+    for (const m of ['maps', 'route', 'atlas']) {
+        el(`mode${m[0].toUpperCase()}${m.slice(1)}`).hidden = m !== mode;
+    }
+    for (const b of el('modeTabs').querySelectorAll('[data-mode]')) {
+        const on = b.dataset.mode === mode;
+        b.setAttribute('aria-checked', String(on));
+        b.tabIndex = on ? 0 : -1;
+    }
+    for (const b of el('railModes').querySelectorAll('[data-mode]')) {
+        b.setAttribute('aria-pressed', String(b.dataset.mode === mode));
+    }
+    el('railNew').hidden = mode !== 'maps';
+    areaLayer.setVisible(mode === 'atlas');
+}
+
+function setMode(mode) {
+    if (mode === state.mode) return;
+    routeTools.cancel();
+    areaTools.cancel();
+    state.mode = mode;
+    panes.setModePref(mode);
+    renderModeUi();
+    showMode();
+    if (!modeMaps().length && mode === 'maps') newMap();
+    else selectInMode();
+    renderRoute();
+    renderArea();
+    renderRouteBar();
+}
+
+// Radio group: click, or arrow keys / Home / End move and select
+el('modeTabs').addEventListener('click', ev => {
+    const b = ev.target.closest('[data-mode]');
+    if (b) setMode(b.dataset.mode);
+});
+el('modeTabs').addEventListener('keydown', ev => {
+    const order = ['maps', 'route', 'atlas'];
+    const i = order.indexOf(state.mode);
+    const next = { ArrowRight: i + 1, ArrowDown: i + 1, ArrowLeft: i - 1, ArrowUp: i - 1, Home: 0, End: 2 }[ev.key];
+    if (next === undefined) return;
+    ev.preventDefault();
+    setMode(order[(next + 3) % 3]);
+    el('modeTabs').querySelector(`[data-mode="${state.mode}"]`).focus();
+});
+el('railModes').addEventListener('click', ev => {
+    const b = ev.target.closest('[data-mode]');
+    if (b) setMode(b.dataset.mode);
+});
 el('clearAllBtn').addEventListener('click', clearAll);
 el('undoBtn').addEventListener('click', undo);
 
@@ -495,7 +573,6 @@ function renderRoute() {
     setButton(el('gpxDownloadBtn'), 'download', t('gpx.download'));
     setButton(el('gpxRemoveBtn'), 'x', t('gpx.remove'));
     el('gpxInfo').textContent = has ? `${routeLabel()} · ${formatKm(routeLengthM(lines), locale())}` : '';
-    el('sharedSummary').textContent = has ? t('shared.summaryRoute', { name: routeLabel() }) : t('shared.summary');
     renderCover();
 }
 
@@ -559,7 +636,6 @@ const areaTools = createShapeTools(map, areaLayer, {
 // Phones: get the sheets out of the way of the map
 function showMapForRoute() {
     if (!sheet.phone.matches) return;
-    panes.setShared(false);
     sheet.setSheet('peek');
 }
 el('drawBtn').addEventListener('click', () => { areaTools.cancel(); showMapForRoute(); routeTools.startDraw(); });
@@ -635,7 +711,7 @@ function coverInputs() {
     return {
         paperSize: PAPER_MM[el('coverPaper').value] ? el('coverPaper').value : 'A4',
         scale: parseInt(el('coverScale').value, 10) || 20000,
-        margin: parseMargin(el('coverMargin').value),
+        margin: state.margin,
         overlapPct: OVERLAP_OPTIONS.includes(overlap) ? overlap : DEFAULT_OVERLAP,
         sameOrientation: el('coverSame').checked,
     };
@@ -643,13 +719,12 @@ function coverInputs() {
 
 const coverSheets = () => planCover(routeLines(), coverInputs());
 
-// Paper, scale and margin start from the selected map
+// Paper and scale start from the selected map (margin: Advanced)
 function fillCoverFromActive() {
     const e = active();
     if (!e) return;
     el('coverPaper').value = e.paperSize;
     el('coverScale').value = e.scale;
-    el('coverMargin').value = e.margin;
 }
 
 function renderCover() {
@@ -707,7 +782,7 @@ function createCover() {
 }
 el('coverBtn').addEventListener('click', createCover);
 
-for (const id of ['coverPaper', 'coverScale', 'coverMargin', 'coverOverlap', 'coverSame']) {
+for (const id of ['coverPaper', 'coverScale', 'coverOverlap', 'coverSame']) {
     el(id).addEventListener('input', renderCover);
     el(id).addEventListener('change', renderCover);
 }
@@ -721,7 +796,7 @@ function atlasInputs() {
         paperSize: PAPER_MM[el('atlasPaper').value] ? el('atlasPaper').value : 'A4',
         orientation: el('atlasOrientation').value === 'landscape' ? 'landscape' : 'portrait',
         scale: parseInt(el('atlasScale').value, 10) || 20000,
-        margin: parseMargin(el('atlasMargin').value),
+        margin: state.margin,
         overlapPct: ATLAS_OVERLAP_OPTIONS.includes(overlap) ? overlap : ATLAS_DEFAULT_OVERLAP,
     };
 }
@@ -731,13 +806,12 @@ function atlasPlan() {
     return planAtlas(areaRing(), atlasInputs());
 }
 
-// Paper, scale, margin and orientation start from the selected map
+// Paper, scale and orientation start from the selected map (margin: Advanced)
 function fillAtlasFromActive() {
     const e = active();
     if (!e) return;
     el('atlasPaper').value = e.paperSize;
     el('atlasScale').value = e.scale;
-    el('atlasMargin').value = e.margin;
     el('atlasOrientation').value = e.orientation;
 }
 
@@ -773,7 +847,7 @@ function createAtlas() {
 }
 el('atlasBtn').addEventListener('click', createAtlas);
 
-for (const id of ['atlasPaper', 'atlasScale', 'atlasMargin', 'atlasOrientation', 'atlasOverlap']) {
+for (const id of ['atlasPaper', 'atlasScale', 'atlasOrientation', 'atlasOverlap']) {
     el(id).addEventListener('input', renderAtlas);
     el(id).addEventListener('change', renderAtlas);
 }
@@ -918,6 +992,7 @@ async function downloadSingle(entry) {
 }
 
 function setDownloadAllBusy(busy) {
+    downloadAllBusy = busy;
     const btn = el('downloadAllBtn');
     const rail = el('railDownload');
     btn.classList.toggle('loading', busy);
@@ -967,6 +1042,7 @@ function renderScriptText() {
     renderArea();
     renderRouteBar();
     langMenu.sync();
+    renderModeUi();
     renderList();
 }
 

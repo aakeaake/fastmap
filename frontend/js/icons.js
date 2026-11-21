@@ -6,6 +6,7 @@ const ICON_PATHS = {
     loader: '<path d="M12 3a9 9 0 1 0 9 9"/>',
     x: '<path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/>',
     route: '<circle cx="6" cy="19" r="2"/><circle cx="18" cy="5" r="2"/><path d="M8 19h6.5a3.5 3.5 0 0 0 0-7h-5a3.5 3.5 0 0 1 0-7H16"/>',
+    sheet: '<rect x="5" y="3" width="14" height="18" rx="1.5"/><path d="M9 8h6M9 12h6M9 16h3"/>',
     area: '<path d="M4 9 10 4l10 4-2.5 12H6z"/>',
     pen: '<path d="M4 20h4L19 9l-4-4L4 16v4z"/><path d="m13.5 6.5 4 4"/>',
     plus: '<path d="M12 5v14M5 12h14"/>',

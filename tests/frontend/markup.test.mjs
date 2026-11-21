@@ -28,3 +28,20 @@ test('the language menu offers every language', () => {
     const offered = [...html.matchAll(/role="menuitemradio" data-lang="(\w+)"/g)].map(m => m[1]).sort();
     assert.deepEqual(offered, [...LANGS].sort());
 });
+
+test('one panel with three modes, no second pane', () => {
+    assert.ok(!html.includes('id="sharedPane"'));
+    assert.match(html, /id="modeTabs"[^>]*role="radiogroup"/);
+    const modes = [...html.matchAll(/role="radio"[^>]*data-mode="(\w+)"/g)].map(m => m[1]);
+    assert.deepEqual(modes, ['maps', 'route', 'atlas']);
+    for (const id of ['modeMaps', 'modeRoute', 'modeAtlas', 'advanced', 'routeList', 'atlasList', 'railModes']) {
+        assert.ok(html.includes(`id="${id}"`), id);
+    }
+});
+
+test('margin lives in Advanced, map type next to scale', () => {
+    const adv = html.slice(html.indexOf('id="advanced"'));
+    assert.ok(adv.indexOf('id="margin"') > 0 && adv.indexOf('id="margin"') < adv.indexOf('</details>'));
+    const maps = html.slice(html.indexOf('id="modeMaps"'), html.indexOf('id="modeRoute"'));
+    assert.ok(maps.includes('id="mapType"') && !maps.includes('id="margin"'));
+});
