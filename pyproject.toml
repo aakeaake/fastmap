@@ -19,6 +19,8 @@ dependencies = [
     "reportlab>=4.0",
     "tzdata>=2024.1",
     "rl_accel>=0.9",
+    "mapbox-vector-tile>=2.1",
+    "shapely>=2.0",
 ]
 
 [project.optional-dependencies]
@@ -30,6 +32,9 @@ dev = [
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+fastmap = ["vector/styles/*.json", "vector/fonts/*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
