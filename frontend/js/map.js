@@ -16,6 +16,7 @@ import Fill from 'ol/style/Fill.js';
 import Text from 'ol/style/Text.js';
 import TileGrid from 'ol/tilegrid/TileGrid.js';
 import Translate from 'ol/interaction/Translate.js';
+import Draw from 'ol/interaction/Draw.js';
 import { defaults } from 'ol/interaction/defaults.js';
 import GPX from 'ol/format/GPX.js';
 import proj4 from 'proj4';
@@ -111,6 +112,97 @@ export function addTranslate(map, layer, { onMove, onEnd }) {
     translate.on('translating', ev => onMove(ids(ev)));
     translate.on('translateend', ev => onEnd(ids(ev)));
     map.addInteraction(translate);
+    return translate;
+}
+
+// --- Route drawing -------------------------------------------------------------
+// Drawing mode: a quick click adds a point, a drag pans, wheel/pinch zooms
+// (OpenLayers Draw defaults). The route on the layer is not touched until
+// the caller gets the result:
+//   onChange(lines)       the points so far (for the live length)
+//   onDone(mode, lines)   Finish (or double-click); lines has >= 2 points
+//   onModeChange(mode)    'draw' | null
+const KEYS = { Enter: 'finish', Backspace: 'removeLast', Escape: 'cancel' };
+const typing = t => t instanceof HTMLElement && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName));
+
+export function createRouteTools(map, { onChange, onDone, onModeChange }) {
+    let mode = null;
+    let interaction = null;
+    let points = [];        // placed points while drawing
+    let quietUntil = 0;     // the double-click that finished drawing must not centre a sheet
+
+    function onKey(ev) {
+        const action = KEYS[ev.key];
+        if (!action || !mode || typing(ev.target)) return;
+        ev.preventDefault();
+        ev.stopPropagation();
+        api[action]();
+    }
+
+    function enter(next, inter) {
+        if (mode) api.cancel();
+        mode = next;
+        interaction = inter;
+        map.addInteraction(inter);
+        window.addEventListener('keydown', onKey, true);
+        onModeChange(mode);
+    }
+
+    function exit() {
+        map.removeInteraction(interaction);
+        window.removeEventListener('keydown', onKey, true);
+        interaction = null;
+        mode = null;
+        points = [];
+        quietUntil = performance.now() + 500;
+        onModeChange(null);
+    }
+
+    const drawnLines = () => (points.length ? [points] : []);
+
+    function startDraw() {
+        const draw = new Draw({ type: 'LineString' });
+        // The sketch's last point follows the pointer; the rest are placed
+        draw.on('drawstart', ev => {
+            const geom = ev.feature.getGeometry();
+            const update = () => {
+                const next = geom.getCoordinates().slice(0, -1).map(p => [p[0], p[1]]);
+                if (next.length === points.length) return;
+                points = next;
+                onChange(drawnLines());
+            };
+            geom.on('change', update);
+            update();
+        });
+        draw.on('drawabort', () => { points = []; onChange([]); });
+        draw.on('drawend', ev => {
+            const line = ev.feature.getGeometry().getCoordinates().map(p => [p[0], p[1]]);
+            exit();
+            if (line.length >= 2) onDone('draw', [line]);
+        });
+        points = [];
+        enter('draw', draw);
+        onChange([]);
+    }
+
+    const api = {
+        startDraw,
+        finish() {
+            if (mode === 'draw' && points.length >= 2) interaction.finishDrawing();
+        },
+        removeLast() {
+            if (mode === 'draw') interaction.removeLastPoint();
+        },
+        cancel() {
+            if (!mode) return;
+            if (mode === 'draw') interaction.abortDrawing();
+            exit();
+        },
+        active: () => mode,
+        // Map clicks belong to the route tools (also just after they close)
+        paused: () => mode !== null || performance.now() < quietUntil,
+    };
+    return api;
 }
 
 export function readGpx(text) {

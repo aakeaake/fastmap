@@ -4,7 +4,9 @@ import { centerToShow, containsExtent, visibleCenter as visibleCenterOf, visible
 import { applyTranslations, getLang, locale, onLangChange, setLang, t } from './i18n.js';
 import { hydrateIcons, icon, setButton } from './icons.js';
 import { JobError, runJob } from './jobs.js';
-import { addTranslate, createMap, makeBaseSource, readGpx, routeFeature, toWgs84 } from './map.js';
+import {
+    addTranslate, createMap, createRouteTools, makeBaseSource, readGpx, routeFeature, toWgs84,
+} from './map.js';
 import { createLangMenu } from './lang-menu.js';
 import { createNotices } from './notices.js';
 import { createPanes } from './panes.js';
@@ -346,7 +348,7 @@ function revealEntry(e) {
 }
 
 // --- Map interactions ------------------------------------------------------------
-addTranslate(map, activeLayer, {
+const translate = addTranslate(map, activeLayer, {
     onMove: ids => ids.forEach(id => { const e = getEntry(id); if (e) syncLabel(e); }),
     onEnd: ids => {
         ids.forEach(id => downloadedIds.delete(id));
@@ -357,6 +359,7 @@ addTranslate(map, activeLayer, {
 
 // Double-click centres the selected rectangle there (no zoom)
 map.on('dblclick', ev => {
+    if (routeTools.paused()) return;
     const cur = active();
     if (!cur) return;
     placeEntry(cur, ev.coordinate);
@@ -430,9 +433,9 @@ function saveRoute() {
 function renderRoute() {
     const lines = routeLines();
     const has = lines.length > 0;
-    el('routeEmpty').hidden = has;
     el('routeLoaded').hidden = !has;
     setButton(el('gpxBtn'), 'upload', t('gpx.load'));
+    setButton(el('drawBtn'), 'pen', t('gpx.draw'));
     setButton(el('gpxDownloadBtn'), 'download', t('gpx.download'));
     setButton(el('gpxRemoveBtn'), 'x', t('gpx.remove'));
     el('gpxInfo').textContent = has ? `${routeLabel()} · ${formatKm(routeLengthM(lines), locale())}` : '';
@@ -450,6 +453,40 @@ function setRoute(name, lines) {
 }
 
 const clearRoute = () => setRoute('', []);
+
+// Drawing: toolbar at the top right of the map. Sheet dragging and
+// double-click-to-centre pause while it is open.
+let toolLines = [];
+function renderRouteBar() {
+    const mode = routeTools.active();
+    el('routeBar').hidden = !mode;
+    document.body.toggleAttribute('data-route-mode', !!mode);
+    if (!mode) return;
+    el('routeStatus').textContent = t('gpx.drawing', { km: formatKm(routeLengthM(toolLines), locale()) });
+    el('routeFinish').disabled = !(toolLines[0]?.length >= 2);
+}
+
+const routeTools = createRouteTools(map, {
+    onChange: lines => { toolLines = lines; renderRouteBar(); },
+    onDone: (mode, lines) => setRoute(t('gpx.myRoute'), lines),
+    onModeChange: mode => {
+        translate.setActive(!mode);
+        toolLines = [];
+        renderRouteBar();
+    },
+});
+
+el('drawBtn').addEventListener('click', () => {
+    // Phones: get the sheets out of the way of the map
+    if (sheet.phone.matches) {
+        panes.setShared(false);
+        sheet.setSheet('peek');
+    }
+    routeTools.startDraw();
+});
+el('routeUndo').addEventListener('click', () => routeTools.removeLast());
+el('routeFinish').addEventListener('click', () => routeTools.finish());
+el('routeCancel').addEventListener('click', () => routeTools.cancel());
 
 el('gpxBtn').addEventListener('click', () => gpxInput.click());
 el('gpxRemoveBtn').addEventListener('click', clearRoute);
@@ -630,6 +667,7 @@ function renderScriptText() {
     notices.refresh();
     formatOptions();
     renderRoute();
+    renderRouteBar();
     langMenu.sync();
     renderList();
 }

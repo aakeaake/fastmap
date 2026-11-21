@@ -145,8 +145,9 @@
         <p class="section-note" data-i18n="shared.note">Apply to all maps.</p>
 
         <h3 data-i18n="gpx.heading">GPX route</h3>
-        <div id="routeEmpty" class="btn-row">
+        <div class="btn-row">
             <button id="gpxBtn" class="btn btn-secondary" type="button"></button>
+            <button id="drawBtn" class="btn btn-secondary" type="button"></button>
         </div>
         <input type="file" id="gpxInput" accept=".gpx" hidden>
         <div id="routeLoaded" hidden>
@@ -196,6 +197,15 @@
 </div>
 </div>
 
+<!-- Route drawing / editing toolbar (top right while a mode is on) -->
+<div id="routeBar" class="route-bar" role="toolbar" aria-label="Route" data-i18n-attr="aria-label:gpx.toolbar" hidden>
+    <span id="routeStatus" class="route-status"></span>
+    <span class="route-actions">
+        <button id="routeUndo" class="btn btn-secondary" type="button" data-i18n="gpx.undoPoint">Remove last point</button>
+        <button id="routeCancel" class="btn btn-secondary" type="button" data-i18n="gpx.cancel">Cancel</button>
+        <button id="routeFinish" class="btn btn-primary" type="button" data-i18n="gpx.finish">Finish</button>
+    </span>
+</div>
 <button id="centerBtn" class="map-tool" type="button" aria-label="Move the selected map to the centre of the visible area" title="Move the selected map here" data-i18n-attr="aria-label:center.label;title:center.title" data-icon="target"></button>
 <!-- Language: globe button + small menu. Language names are written in their
      own language, so they are not translated. -->
