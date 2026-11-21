@@ -28,8 +28,15 @@ export function createSheet({ panel, head, footer, grabber, stack }) {
     // Pixel height of map hidden behind the sheet (0 on wider screens)
     const coveredBottom = () => (phone.matches ? panel.getBoundingClientRect().height : 0);
 
+    // Controls in the header (the mode switch) keep their own taps and drags;
+    // the rest of the header (title, summary, grab handle) moves the sheet
+    const onControl = target => {
+        const c = target instanceof Element && target.closest('button, a, input, select, [role="radio"]');
+        return !!c && c !== grabber;
+    };
+
     head.addEventListener('pointerdown', ev => {
-        if (!phone.matches || ev.button > 0) return;
+        if (!phone.matches || ev.button > 0 || onControl(ev.target)) return;
         suppressClick = false;
         // Measure once per gesture: reading layout on every move would force
         // a reflow right after the previous move changed --sheet-h
@@ -67,8 +74,9 @@ export function createSheet({ panel, head, footer, grabber, stack }) {
     for (const type of ['pointerup', 'pointercancel', 'lostpointercapture']) {
         head.addEventListener(type, endDrag);
     }
-    head.addEventListener('click', () => {
+    head.addEventListener('click', ev => {
         if (suppressClick) { suppressClick = false; return; }
+        if (onControl(ev.target)) return;
         if (phone.matches) setSheet(SHEET_NEXT[current]);
     });
     // Keyboard path: in peek the body is visibility:hidden (not focusable),

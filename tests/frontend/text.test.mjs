@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-    atlasCountLabel, attributionLabel, createdLabel, deletedLabel, displayName, mapSummary, progressLabel, shortName,
+    atlasCountLabel, attributionLabel, setSummaryLabel, createdLabel, deletedLabel, displayName, mapSummary, progressLabel, shortName,
 } from '../../frontend/js/text.js';
 
 test('displayName: title, else a numbered default in the language', () => {
@@ -17,7 +17,7 @@ test('shortName trims to 16 characters', () => {
 });
 
 test('mapSummary groups digits for the language', () => {
-    assert.equal(mapSummary({ paperSize: 'A4', scale: 20000 }), 'A4 · 1:20,000');
+    assert.equal(mapSummary({ paperSize: 'A4', scale: 20000 }), 'A4 · 1:20\u00a0000');
     // fi-FI groups with a no-break space
     assert.match(mapSummary({ paperSize: 'A4', scale: 20000 }, 'fi'), /^A4 · 1:20\s000$/);
 });
@@ -61,7 +61,7 @@ test('atlasCountLabel: maps, rows and columns, singular and plural', () => {
 
 test('atlasCountLabel above 25 is the too-many warning', () => {
     assert.equal(atlasCountLabel(1234, 30, 50),
-        '1,234 maps — an atlas holds at most 25. Choose a smaller scale, larger paper or a smaller area.');
+        '1\u00a0234 maps — an atlas holds at most 25. Choose a smaller scale, larger paper or a smaller area.');
     assert.equal(atlasCountLabel(25, 5, 5), '25 maps · 5 rows × 5 columns');
 });
 
@@ -76,4 +76,19 @@ test('atlasCountLabel for a grid too big to lay out', () => {
         'At least 224 maps — an atlas holds at most 25. Choose a smaller scale, larger paper or a smaller area.');
     assert.equal(atlasCountLabel(224, 224, 180, 'fi', true),
         'Vähintään 224 karttaa — kartastossa voi olla enintään 25. Valitse pienempi mittakaava, isompi paperi tai pienempi alue.');
+});
+
+test('shortName keeps the set label', () => {
+    assert.equal(shortName('Kilpisjärvi – Halti 12/25'), 'Kilpisjär… 12/25');
+    assert.equal(shortName('Saariselkä long atlas name B3'), 'Saariselkä l… B3');
+    assert.equal(shortName('Nuuksio'), 'Nuuksio');
+    assert.equal(shortName('Nuuksio national park east'), 'Nuuksio nationa…');
+    assert.equal(shortName(''), '');
+});
+
+test('set summary line', () => {
+    assert.equal(setSummaryLabel(23, { paperSize: 'A4', scale: 15000, layer: 'maastokartta' }),
+        '23 sheets · A4 · 1:15\u00a0000 · Maastokartta');
+    assert.equal(setSummaryLabel(1, { paperSize: 'A3', scale: 25000, layer: 'maastokartta_vektori' }, 'fi'),
+        '1 karttalehti · A3 · 1:25\u00a0000 · Maastokartta, vektori (beta)');
 });

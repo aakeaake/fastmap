@@ -24,16 +24,24 @@
             <span id="sheetSummary" aria-hidden="true"></span>
             <button id="collapseBtn" class="icon-btn" type="button" aria-controls="panel" aria-expanded="true" aria-label="Collapse the settings to a sidebar" title="Collapse settings" data-i18n-attr="aria-label:pane.collapse;title:pane.collapseShort" data-icon="collapse"></button>
         </div>
+        <!-- Three ways to make sheets; each keeps its own maps -->
+        <div id="modeTabs" class="mode-tabs" role="radiogroup" aria-label="Mode" data-i18n-attr="aria-label:mode.label">
+            <button type="button" role="radio" data-mode="maps" aria-checked="true" tabindex="0" aria-controls="modeMaps"><span data-icon="sheet"></span><span data-i18n="mode.maps">Maps</span></button>
+            <button type="button" role="radio" data-mode="route" aria-checked="false" tabindex="-1" aria-controls="modeRoute"><span data-icon="route"></span><span data-i18n="mode.route">Route</span></button>
+            <button type="button" role="radio" data-mode="atlas" aria-checked="false" tabindex="-1" aria-controls="modeAtlas"><span data-icon="area"></span><span data-i18n="mode.atlas">Atlas</span></button>
+        </div>
     </div>
 
     <div class="sheet-body" id="sheetBody">
 
+    <div id="modeMaps" class="mode">
     <section class="section" aria-labelledby="mapsHeading">
         <div class="section-head">
             <h2 id="mapsHeading" data-i18n="maps.heading">Maps</h2>
             <button id="clearAllBtn" class="btn-text" type="button" data-i18n="maps.clearAll">Clear all</button>
         </div>
-        <ul id="mapList" aria-label="Maps" data-i18n-attr="aria-label:maps.heading"></ul>
+        <ul id="mapList" class="map-list" aria-label="Maps" data-i18n-attr="aria-label:maps.heading"></ul>
+        <button id="mapsShowAll" class="btn-text maps-fold" type="button" aria-controls="mapList" hidden></button>
         <button id="newBtn" class="btn btn-secondary" type="button"></button>
     </section>
 
@@ -63,31 +71,24 @@
                 <label for="scale" data-i18n="field.scale">Scale</label>
                 <!-- option text is formatted for the language in main.js -->
                 <select id="scale">
-                    <option value="10000">1:10,000</option>
-                    <option value="15000">1:15,000</option>
-                    <option value="20000" selected>1:20,000</option>
-                    <option value="25000">1:25,000</option>
-                    <option value="30000">1:30,000</option>
-                    <option value="40000">1:40,000</option>
-                    <option value="50000">1:50,000</option>
+                    <option value="10000">1:10 000</option>
+                    <option value="15000">1:15 000</option>
+                    <option value="20000" selected>1:20 000</option>
+                    <option value="25000">1:25 000</option>
+                    <option value="30000">1:30 000</option>
+                    <option value="40000">1:40 000</option>
+                    <option value="50000">1:50 000</option>
                 </select>
             </div>
-            <div>
-                <label for="margin" data-i18n="field.margin">Margin (mm)</label>
-                <input id="margin" type="number" value="7" step="1" min="0" max="30">
-            </div>
-        </div>
-
-        <div class="row">
             <div>
                 <label for="mapType" data-i18n="field.mapType">Map</label>
                 <select id="mapType">
                     <option value="raster" selected data-i18n="maptype.raster">Maastokartta</option>
                     <option value="vector" id="mapTypeVector" data-i18n="maptype.vector">Maastokartta, vector (beta)</option>
                 </select>
-                <p class="section-note" id="mapTypeHint" data-i18n="maptype.hint" hidden>Vector map: 1:25 000 and 1:50 000 only</p>
             </div>
         </div>
+        <p class="section-note" id="mapTypeHint" data-i18n="maptype.hint" hidden>Vector map: 1:25 000 and 1:50 000 only</p>
 
         <div class="row">
             <div>
@@ -104,9 +105,9 @@
                 <label for="gridSpacing" data-i18n="field.gridSpacing">Grid spacing</label>
                 <select id="gridSpacing" disabled>
                     <option value="500">500 m</option>
-                    <option value="1000" selected>1,000 m</option>
-                    <option value="2000">2,000 m</option>
-                    <option value="5000">5,000 m</option>
+                    <option value="1000" selected>1 000 m</option>
+                    <option value="2000">2 000 m</option>
+                    <option value="5000">5 000 m</option>
                 </select>
             </div>
         </div>
@@ -115,47 +116,10 @@
         <input id="title" type="text" maxlength="120" placeholder="e.g. Kilpisjärvi east" data-i18n-attr="placeholder:field.titlePlaceholder">
     </section>
 
-    <section class="section" aria-label="Shared settings" data-i18n-attr="aria-label:shared.section">
-        <button id="sharedBtn" class="nav-row" type="button" aria-controls="sharedPane" aria-expanded="false">
-            <span data-icon="sliders"></span>
-            <span class="nav-text"><b data-i18n="shared.heading">Route, area and precision</b><small id="sharedSummary">Route, area, DPI and map level</small></span>
-            <span data-icon="chevron"></span>
-        </button>
-    </section>
     </div>
 
-    <section class="section download" aria-label="Download" data-i18n-attr="aria-label:download.section">
-        <div class="dl-row">
-            <label for="batchFormat" class="visually-hidden" data-i18n="download.format">File format</label>
-            <select id="batchFormat">
-                <option value="pdf" selected data-i18n="download.onePdf">One PDF</option>
-                <option value="zip" data-i18n="download.zip">ZIP</option>
-            </select>
-            <button id="downloadAllBtn" class="btn btn-primary" type="button">Download</button>
-        </div>
-    </section>
-</div>
-
-<nav class="rail" id="rail" aria-label="Maps (collapsed)" data-i18n-attr="aria-label:rail.label" hidden>
-    <button id="expandBtn" class="icon-btn" type="button" aria-controls="panel" aria-expanded="false" aria-label="Show settings" title="Show settings" data-i18n-attr="aria-label:rail.expand;title:rail.expand" data-icon="expand"></button>
-    <hr>
-    <ul id="railMaps"></ul>
-    <button id="railNew" class="icon-btn" type="button" aria-label="New map" title="New map" data-i18n-attr="aria-label:maps.new;title:maps.new" data-icon="plus"></button>
-    <hr>
-    <button id="railShared" class="icon-btn" type="button" aria-controls="sharedPane" aria-expanded="false" aria-label="Route, area and precision" title="Route, area and precision" data-i18n-attr="aria-label:shared.heading;title:shared.heading" data-icon="sliders"></button>
-    <button id="railDownload" class="icon-btn" type="button" aria-label="Download all maps" title="Download all" data-i18n-attr="aria-label:download.allMaps;title:download.all" data-icon="download"></button>
-</nav>
-
-<aside class="pane" id="sharedPane" aria-labelledby="sharedHeading" hidden>
-    <div class="head-row">
-        <h2 class="pane-title" id="sharedHeading" data-i18n="shared.heading">Route, area and precision</h2>
-        <button id="sharedClose" class="icon-btn" type="button" aria-label="Close" title="Close" data-i18n-attr="aria-label:close;title:close" data-icon="x"></button>
-    </div>
-    <div class="sheet-body">
-    <section class="section">
-        <p class="section-note" data-i18n="shared.note">Apply to all maps.</p>
-
-        <h3 data-i18n="gpx.heading">GPX route</h3>
+    <section id="modeRoute" class="section mode" aria-labelledby="routeHeading" hidden>
+        <h2 id="routeHeading" data-i18n="gpx.heading">GPX route</h2>
         <div class="btn-row">
             <button id="gpxBtn" class="btn btn-secondary" type="button"></button>
             <button id="drawBtn" class="btn btn-secondary" type="button"></button>
@@ -170,8 +134,20 @@
             </div>
         </div>
 
+        <div id="routeSet" class="set-index" hidden>
+            <p class="set-summary" id="routeSummary"></p>
+            <div id="routeIndex" class="index" role="group" aria-label="Sheets" data-i18n-attr="aria-label:set.sheets"></div>
+            <div id="routeSelected" class="set-selected">
+                <span class="set-sel-name" id="routeSelName"></span>
+                <button id="routeSelDl" class="icon-btn dl-btn" type="button"></button>
+                <button id="routeSelDel" class="icon-btn del" type="button" data-icon="x"></button>
+            </div>
+        </div>
+
         <div id="coverSection" hidden>
             <h3 data-i18n="cover.heading">Cover route with maps</h3>
+            <label for="routeName" data-i18n="atlas.name">Name</label>
+            <input id="routeName" type="text" maxlength="100" autocomplete="off">
             <div class="row">
                 <div>
                     <label for="coverPaper" data-i18n="field.paper">Paper</label>
@@ -181,41 +157,87 @@
                     </select>
                 </div>
                 <div>
-                    <label for="coverScale" data-i18n="field.scale">Scale</label>
-                    <select id="coverScale">
-                        <option value="10000">1:10,000</option>
-                        <option value="15000">1:15,000</option>
-                        <option value="20000" selected>1:20,000</option>
-                        <option value="25000">1:25,000</option>
-                        <option value="30000">1:30,000</option>
-                        <option value="40000">1:40,000</option>
-                        <option value="50000">1:50,000</option>
+                    <label for="coverOrientation" data-i18n="field.orientation">Orientation</label>
+                    <select id="coverOrientation">
+                        <option value="auto" selected data-i18n="cover.orientAuto">Per sheet</option>
+                        <option value="same" data-i18n="cover.orientSame">Same for all</option>
                     </select>
                 </div>
             </div>
             <div class="row">
                 <div>
-                    <label for="coverMargin" data-i18n="field.margin">Margin (mm)</label>
-                    <input id="coverMargin" type="number" value="7" step="1" min="0" max="30">
+                    <label for="coverScale" data-i18n="field.scale">Scale</label>
+                    <select id="coverScale">
+                        <option value="10000">1:10 000</option>
+                        <option value="15000">1:15 000</option>
+                        <option value="20000" selected>1:20 000</option>
+                        <option value="25000">1:25 000</option>
+                        <option value="30000">1:30 000</option>
+                        <option value="40000">1:40 000</option>
+                        <option value="50000">1:50 000</option>
+                    </select>
                 </div>
                 <div>
-                    <label for="coverOverlap" data-i18n="cover.overlap">Overlap</label>
-                    <select id="coverOverlap">
-                        <option value="5">5 %</option>
-                        <option value="10" selected>10 %</option>
-                        <option value="20">20 %</option>
+                    <label for="coverMapType" data-i18n="field.mapType">Map</label>
+                    <select id="coverMapType">
+                        <option value="raster" selected data-i18n="maptype.raster">Maastokartta</option>
+                        <option value="vector" id="coverMapTypeVector" data-i18n="maptype.vector">Maastokartta, vector (beta)</option>
                     </select>
                 </div>
             </div>
-            <label class="check"><input id="coverSame" type="checkbox"> <span data-i18n="cover.sameOrientation">Same orientation for all</span></label>
+            <p class="section-note" id="coverMapTypeHint" data-i18n="maptype.hint" hidden>Vector map: 1:25 000 and 1:50 000 only</p>
+            <div class="row">
+                <div>
+                    <label for="coverGrid" data-i18n="field.grid">Grid</label>
+                    <select id="coverGrid">
+                        <option value="off" selected data-i18n="grid.off">None</option>
+                        <option value="vertical" data-i18n="grid.vertical">Vertical lines</option>
+                        <option value="vertical_coords" data-i18n="grid.verticalCoords">Vertical lines + coordinates</option>
+                        <option value="full" data-i18n="grid.full">Full</option>
+                        <option value="full_coords" data-i18n="grid.fullCoords">Full + coordinates</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="coverGridSpacing" data-i18n="field.gridSpacing">Grid spacing</label>
+                    <select id="coverGridSpacing" disabled>
+                    <option value="500">500 m</option>
+                    <option value="1000" selected>1 000 m</option>
+                    <option value="2000">2 000 m</option>
+                    <option value="5000">5 000 m</option>
+                    </select>
+                </div>
+            </div>
+            <label for="coverOverlap" data-i18n="cover.overlap">Overlap</label>
+            <select id="coverOverlap">
+                <option value="5">5 %</option>
+                <option value="10" selected>10 %</option>
+                <option value="20">20 %</option>
+            </select>
             <p class="section-note cover-count" id="coverCount" aria-live="polite"></p>
+            <p class="section-note set-changed" id="coverChanged" data-i18n="set.changed" hidden>Settings changed — the maps still use the old ones</p>
             <p class="section-note" id="coverRouteHidden" data-i18n="cover.routeHidden" hidden>The route is not shown on printouts</p>
             <div class="btn-row">
                 <button id="coverBtn" class="btn btn-primary" type="button" data-i18n="cover.create">Create maps</button>
             </div>
         </div>
 
-        <h3 data-i18n="atlas.heading">Atlas of an area</h3>
+        <details id="routeStyle" class="fold">
+            <summary><span data-icon="chevron"></span><span data-i18n="route.style">Route on printouts</span></summary>
+            <label class="check"><input id="gpxShow" type="checkbox" checked> <span data-i18n="gpx.showOnPrint">Show route on printouts</span></label>
+            <label for="gpxColor" data-i18n="gpx.color">Colour</label>
+            <input id="gpxColor" type="color" value="#ff00ff">
+            <label for="gpxWidth" data-i18n="gpx.width">Width (pt)</label>
+            <input id="gpxWidth" type="number" value="5" step="1" min="1" max="20">
+            <label for="gpxOpacity" data-i18n="gpx.opacity">Opacity</label>
+            <div class="range-row">
+                <input id="gpxOpacity" type="range" value="60" min="10" max="100" step="5">
+                <output id="gpxOpacityVal" for="gpxOpacity">60 %</output>
+            </div>
+        </details>
+    </section>
+
+    <section id="modeAtlas" class="section mode" aria-labelledby="atlasHeading" hidden>
+        <h2 id="atlasHeading" data-i18n="atlas.heading">Atlas of an area</h2>
         <div id="areaStart">
             <div class="btn-row">
                 <button id="areaDrawBtn" class="btn btn-secondary" type="button"></button>
@@ -226,6 +248,15 @@
             <div class="btn-row">
                 <button id="areaEditBtn" class="btn btn-secondary" type="button"></button>
                 <button id="areaRemoveBtn" class="btn btn-secondary" type="button"></button>
+            </div>
+        </div>
+        <div id="atlasSet" class="set-index" hidden>
+            <p class="set-summary" id="atlasSummary"></p>
+            <div id="atlasIndex" class="index" role="group" aria-label="Sheets" data-i18n-attr="aria-label:set.sheets"></div>
+            <div id="atlasSelected" class="set-selected">
+                <span class="set-sel-name" id="atlasSelName"></span>
+                <button id="atlasSelDl" class="icon-btn dl-btn" type="button"></button>
+                <button id="atlasSelDel" class="icon-btn del" type="button" data-icon="x"></button>
             </div>
         </div>
         <div id="atlasSection" hidden>
@@ -240,28 +271,53 @@
                     </select>
                 </div>
                 <div>
-                    <label for="atlasScale" data-i18n="field.scale">Scale</label>
-                    <select id="atlasScale">
-                        <option value="10000">1:10,000</option>
-                        <option value="15000">1:15,000</option>
-                        <option value="20000" selected>1:20,000</option>
-                        <option value="25000">1:25,000</option>
-                        <option value="30000">1:30,000</option>
-                        <option value="40000">1:40,000</option>
-                        <option value="50000">1:50,000</option>
+                    <label for="atlasOrientation" data-i18n="field.orientation">Orientation</label>
+                    <select id="atlasOrientation">
+                        <option value="portrait" selected data-i18n="orientation.portrait">Portrait</option>
+                        <option value="landscape" data-i18n="orientation.landscape">Landscape</option>
                     </select>
                 </div>
             </div>
             <div class="row">
                 <div>
-                    <label for="atlasMargin" data-i18n="field.margin">Margin (mm)</label>
-                    <input id="atlasMargin" type="number" value="7" step="1" min="0" max="30">
+                    <label for="atlasScale" data-i18n="field.scale">Scale</label>
+                    <select id="atlasScale">
+                        <option value="10000">1:10 000</option>
+                        <option value="15000">1:15 000</option>
+                        <option value="20000" selected>1:20 000</option>
+                        <option value="25000">1:25 000</option>
+                        <option value="30000">1:30 000</option>
+                        <option value="40000">1:40 000</option>
+                        <option value="50000">1:50 000</option>
+                    </select>
                 </div>
                 <div>
-                    <label for="atlasOrientation" data-i18n="field.orientation">Orientation</label>
-                    <select id="atlasOrientation">
-                        <option value="portrait" selected data-i18n="orientation.portrait">Portrait</option>
-                        <option value="landscape" data-i18n="orientation.landscape">Landscape</option>
+                    <label for="atlasMapType" data-i18n="field.mapType">Map</label>
+                    <select id="atlasMapType">
+                        <option value="raster" selected data-i18n="maptype.raster">Maastokartta</option>
+                        <option value="vector" id="atlasMapTypeVector" data-i18n="maptype.vector">Maastokartta, vector (beta)</option>
+                    </select>
+                </div>
+            </div>
+            <p class="section-note" id="atlasMapTypeHint" data-i18n="maptype.hint" hidden>Vector map: 1:25 000 and 1:50 000 only</p>
+            <div class="row">
+                <div>
+                    <label for="atlasGrid" data-i18n="field.grid">Grid</label>
+                    <select id="atlasGrid">
+                        <option value="off" selected data-i18n="grid.off">None</option>
+                        <option value="vertical" data-i18n="grid.vertical">Vertical lines</option>
+                        <option value="vertical_coords" data-i18n="grid.verticalCoords">Vertical lines + coordinates</option>
+                        <option value="full" data-i18n="grid.full">Full</option>
+                        <option value="full_coords" data-i18n="grid.fullCoords">Full + coordinates</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="atlasGridSpacing" data-i18n="field.gridSpacing">Grid spacing</label>
+                    <select id="atlasGridSpacing" disabled>
+                    <option value="500">500 m</option>
+                    <option value="1000" selected>1 000 m</option>
+                    <option value="2000">2 000 m</option>
+                    <option value="5000">5 000 m</option>
                     </select>
                 </div>
             </div>
@@ -273,24 +329,19 @@
                 <option value="20">20 %</option>
             </select>
             <p class="section-note cover-count" id="atlasCount" aria-live="polite"></p>
+            <p class="section-note set-changed" id="atlasChanged" data-i18n="set.changed" hidden>Settings changed — the maps still use the old ones</p>
             <div class="btn-row">
                 <button id="atlasBtn" class="btn btn-primary" type="button" data-i18n="atlas.create">Create atlas</button>
             </div>
         </div>
 
-        <h3 data-i18n="gpx.style">Route style</h3>
-        <label class="check"><input id="gpxShow" type="checkbox" checked> <span data-i18n="gpx.showOnPrint">Show route on printouts</span></label>
-        <label for="gpxColor" data-i18n="gpx.color">Colour</label>
-        <input id="gpxColor" type="color" value="#ff00ff">
-        <label for="gpxWidth" data-i18n="gpx.width">Width (pt)</label>
-        <input id="gpxWidth" type="number" value="5" step="1" min="1" max="20">
-        <label for="gpxOpacity" data-i18n="gpx.opacity">Opacity</label>
-        <div class="range-row">
-            <input id="gpxOpacity" type="range" value="60" min="10" max="100" step="5">
-            <output id="gpxOpacityVal" for="gpxOpacity">60 %</output>
-        </div>
+    </section>
 
-        <h3 data-i18n="precision.heading">Precision</h3>
+    <details id="advanced" class="section fold">
+        <summary><span data-icon="chevron"></span><span data-i18n="advanced.heading">Advanced</span></summary>
+        <p class="section-note" data-i18n="advanced.note">Apply to every map.</p>
+        <label for="margin" data-i18n="field.margin">Margin (mm)</label>
+        <input id="margin" type="number" value="7" step="1" min="0" max="30">
         <label for="dpi" data-i18n="precision.dpi">Print DPI</label>
         <select id="dpi">
             <option value="" selected data-i18n="precision.dpiAuto">Automatic (300)</option>
@@ -307,9 +358,34 @@
             <option value="12" data-i18n="precision.fine">Fine (2 m/px)</option>
             <option value="13" data-i18n="precision.finest">Finest (1 m/px)</option>
         </select>
-    </section>
+    </details>
     </div>
-</aside>
+
+    <section class="section download" aria-label="Download" data-i18n-attr="aria-label:download.section">
+        <div class="dl-row">
+            <label for="batchFormat" class="visually-hidden" data-i18n="download.format">File format</label>
+            <select id="batchFormat">
+                <option value="pdf" selected data-i18n="download.onePdf">One PDF</option>
+                <option value="zip" data-i18n="download.zip">ZIP</option>
+            </select>
+            <button id="downloadAllBtn" class="btn btn-primary" type="button">Download</button>
+        </div>
+    </section>
+</div>
+
+<nav class="rail" id="rail" aria-label="Maps (collapsed)" data-i18n-attr="aria-label:rail.label" hidden>
+    <button id="expandBtn" class="icon-btn" type="button" aria-controls="panel" aria-expanded="false" aria-label="Show settings" title="Show settings" data-i18n-attr="aria-label:rail.expand;title:rail.expand" data-icon="expand"></button>
+    <div id="railModes" class="rail-modes" role="group" aria-label="Mode" data-i18n-attr="aria-label:mode.label">
+        <button type="button" class="icon-btn" data-mode="maps" aria-pressed="true" aria-label="Maps" title="Maps" data-i18n-attr="aria-label:mode.maps;title:mode.maps" data-icon="sheet"></button>
+        <button type="button" class="icon-btn" data-mode="route" aria-pressed="false" aria-label="Route" title="Route" data-i18n-attr="aria-label:mode.route;title:mode.route" data-icon="route"></button>
+        <button type="button" class="icon-btn" data-mode="atlas" aria-pressed="false" aria-label="Atlas" title="Atlas" data-i18n-attr="aria-label:mode.atlas;title:mode.atlas" data-icon="area"></button>
+    </div>
+    <hr>
+    <ul id="railMaps"></ul>
+    <button id="railNew" class="icon-btn" type="button" aria-label="New map" title="New map" data-i18n-attr="aria-label:maps.new;title:maps.new" data-icon="plus"></button>
+    <hr>
+    <button id="railDownload" class="icon-btn" type="button" aria-label="Download all maps" title="Download all" data-i18n-attr="aria-label:download.allMaps;title:download.all" data-icon="download"></button>
+</nav>
 
 <div id="toast" class="toast" role="status" aria-live="polite" hidden>
     <span id="toastMsg"></span>
@@ -340,7 +416,7 @@
 <div class="stack">
     <div id="notices" class="notices"></div>
     <div id="hint" class="hint">
-        <span><span data-i18n="hint.before">Drag to move the area; centre it</span><span class="hint-dblclick" data-i18n="hint.dblclick"> by double-clicking or</span><span data-i18n="hint.mid"> with the</span> <span class="kbd-icon" data-icon="target" role="img" aria-label="centre" data-i18n-attr="aria-label:hint.icon"></span><span data-i18n="hint.after"> button · pick an earlier map from the list</span></span>
+        <span><span data-i18n="hint.before">Drag to move the map sheet; centre it</span><span class="hint-dblclick" data-i18n="hint.dblclick"> by double-clicking or</span><span data-i18n="hint.mid"> with the</span> <span class="kbd-icon" data-icon="target" role="img" aria-label="centre" data-i18n-attr="aria-label:hint.icon"></span><span data-i18n="hint.after"> button · click a sheet to select it</span></span>
         <button id="hintClose" class="icon-btn" type="button" aria-label="Hide tip" data-i18n-attr="aria-label:hint.close" data-icon="x"></button>
     </div>
     <div id="attribution">© Maanmittauslaitos</div>

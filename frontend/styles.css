@@ -30,6 +30,9 @@
     accent-color: var(--accent);
 }
 
+/* `hidden` always wins over a class that sets display */
+[hidden] { display: none !important; }
+
 html, body { height: 100%; margin: 0; overflow: hidden; font-family: var(--font); color: var(--ink); background: var(--surface-2); }
 ::selection { background: var(--accent-soft); color: var(--ink); }
 #map { position: absolute; inset: 0; }
@@ -42,7 +45,7 @@ button { font: inherit; color: inherit; }
     clip: rect(0 0 0 0); white-space: nowrap;
 }
 
-/* --- Left column: settings pane | rail, route pane, undo ----------- */
+/* --- Left column: settings pane | rail, undo ------------------------ */
 .left-col {
     position: absolute; z-index: 1000;
     top: var(--edge-t); left: var(--edge-l);
@@ -58,20 +61,78 @@ button { font: inherit; color: inherit; }
     background: var(--surface); border-radius: 8px; box-shadow: var(--shadow);
 }
 .pane[hidden] { display: none; }
-#sharedPane { width: 264px; }
 .sheet-head { flex: 0 0 auto; }
 .grabber, #sheetSummary { display: none; }
 .head-row { display: flex; align-items: center; gap: 10px; padding: 10px 8px 2px 16px; min-height: 32px; }
 .head-row .icon-btn { margin-left: auto; }
 .pane h1 { font-size: 17px; font-weight: 700; margin: 0; letter-spacing: -.01em; }
-.pane-title { font-size: 15px; font-weight: 650; margin: 0; }
 .sheet-body {
     flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain;
     scrollbar-width: thin; scrollbar-color: var(--line) transparent;
 }
 
 .section { padding: 12px 16px 14px; }
-.section + .section { border-top: 1px solid var(--surface-3); }
+.section + .section, .mode + .section { border-top: 1px solid var(--surface-3); }
+.mode[hidden] { display: none; }
+
+/* Mode switch (Maps | Route | Atlas): a segmented radio group under the title */
+.mode-tabs {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 2px;
+    margin: 8px 12px 10px; padding: 3px;
+    background: var(--surface-2); border-radius: 8px;
+}
+.mode-tabs button {
+    display: flex; align-items: center; justify-content: center; gap: 6px; min-width: 0;
+    min-height: 32px; padding: 0 6px; border: none; border-radius: var(--radius);
+    background: none; color: var(--ink-2); font-size: 13px; font-weight: 600; cursor: pointer;
+    transition: background-color .15s ease-out, color .15s ease-out;
+}
+.mode-tabs button:hover { color: var(--ink); background: var(--surface-3); }
+.mode-tabs button[aria-checked="true"] { background: var(--surface); color: var(--ink); box-shadow: var(--shadow-sm); }
+.mode-tabs button[aria-checked="true"] .icon { color: var(--accent); }
+.mode-tabs button:focus-visible { outline-offset: -2px; }
+.mode-tabs .icon { width: 15px; height: 15px; }
+
+/* Folded groups (route on printouts, advanced): a quiet disclosure row */
+.fold > summary {
+    display: flex; align-items: center; gap: 6px; min-height: 32px;
+    font-size: 13px; font-weight: 650; color: var(--ink); cursor: pointer; list-style: none;
+    border-radius: var(--radius-sm);
+}
+.fold > summary::-webkit-details-marker { display: none; }
+.fold > summary .icon { width: 14px; height: 14px; color: var(--ink-3); transition: transform .15s ease-out; }
+.fold[open] > summary .icon { transform: rotate(90deg); }
+.fold > summary:hover .icon { color: var(--ink); }
+#routeStyle { margin-top: 14px; border-top: 1px solid var(--surface-3); padding-top: 6px; }
+#advanced { padding-top: 6px; padding-bottom: 8px; }
+#advanced[open] { padding-bottom: 14px; }
+
+/* Route and atlas sets: summary, the index (grid or strip), selected sheet */
+.set-index { margin: 14px 0 4px; }
+.set-summary { margin: 0 0 8px; font-size: 13px; font-weight: 600; color: var(--ink); font-variant-numeric: tabular-nums; }
+.index { --cell: 30px; display: grid; gap: 4px; justify-content: start; }
+.index-cell {
+    width: var(--cell); height: var(--cell); padding: 0; position: relative;
+    border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface);
+    font-size: 11px; font-weight: 650; font-variant-numeric: tabular-nums; color: var(--ink-2);
+    cursor: pointer;
+}
+.index-cell:hover { background: var(--surface-2); color: var(--ink); }
+.index-cell[aria-pressed="true"] { border: 2px solid var(--active); background: var(--active-soft); color: var(--active); }
+.index-cell:focus-visible { outline-offset: 1px; }
+.index-cell.done::after {          /* downloaded and unchanged */
+    content: ''; position: absolute; right: 2px; bottom: 2px;
+    width: 5px; height: 5px; border-radius: 50%; background: var(--success);
+}
+.index-cell.generating { border-style: dashed; }
+.set-selected {
+    display: flex; align-items: center; gap: 2px; margin-top: 8px;
+    padding: 2px 4px 2px 10px; border: 1px solid var(--active); border-radius: var(--radius);
+    background: var(--active-soft); font-size: 13px;
+}
+.set-sel-name { flex: 1; min-width: 0; padding: 5px 0; overflow-wrap: anywhere; line-height: 1.35; }
+.set-sel-name b { font-weight: 600; }
+.set-sel-name small { font-size: 12px; color: var(--ink-2); white-space: nowrap; font-variant-numeric: tabular-nums; }
 .section-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 6px; }
 .section h2 { font-size: 14px; font-weight: 650; margin: 0; }
 .section-note { font-size: 12px; color: var(--ink-3); margin: 2px 0 0; }
@@ -79,6 +140,7 @@ button { font: inherit; color: inherit; }
 .cover-count.warn { color: var(--danger); }
 .section h3 { font-size: 13px; font-weight: 650; margin: 16px 0 0; }
 .section h3:first-of-type { margin-top: 12px; }
+.section h2 + .btn-row { margin-top: 8px; }
 
 .pane label { display: block; font-size: 13px; color: var(--ink-2); margin: 10px 0 3px; }
 .pane select, .pane input[type=number], .pane input[type=text] {
@@ -126,52 +188,49 @@ button { font: inherit; color: inherit; }
 }
 .icon-btn:hover { background: var(--surface-3); color: var(--ink); }
 
-/* Row that opens the route & precision pane */
-.nav-row {
-    display: flex; align-items: center; gap: 10px; width: 100%; box-sizing: border-box;
-    min-height: 44px; padding: 6px 8px 6px 10px; margin: 0;
-    border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface);
-    text-align: left; cursor: pointer;
-}
-.nav-row:hover { background: var(--surface-2); }
-.nav-row[aria-expanded="true"] { border-color: var(--accent); background: var(--accent-soft); }
-.nav-row .nav-text { flex: 1; min-width: 0; display: flex; flex-direction: column; }
-.nav-row b { font-size: 14px; font-weight: 600; }
-.nav-row small { font-size: 12px; color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.nav-row > .icon:last-child { color: var(--ink-2); }
-
 /* --- Map list ------------------------------------------------------ */
-#mapList { list-style: none; margin: 0 0 10px; padding: 0; max-height: 212px; overflow-y: auto; }
-#mapList li {
+.map-list { list-style: none; margin: 0 0 10px; padding: 0; }
+/* Desktop: a long list scrolls on its own; phones let the sheet scroll */
+@media (min-width: 641px) { .map-list { max-height: 212px; overflow-y: auto; } }
+.map-list li {
     display: flex; align-items: center; gap: 2px;
     border: 1px solid var(--line); border-radius: var(--radius);
     padding: 2px 4px 2px 0; margin-bottom: 6px;
 }
-#mapList li:hover { background: var(--surface-2); }
-#mapList li.active { border-color: var(--active); background: var(--active-soft); }
-#mapList .m-select {
+.map-list li:hover { background: var(--surface-2); }
+.map-list li.active { border-color: var(--active); background: var(--active-soft); }
+.map-list .m-select {
     flex: 1; min-width: 0; min-height: 32px; display: flex; align-items: center; gap: 8px;
     padding: 0 6px 0 9px; border: none; background: none; border-radius: var(--radius-sm);
     text-align: left; cursor: pointer; font-size: 13px;
 }
-#mapList .chip {
+.map-list .chip {
     width: 10px; height: 10px; border-radius: 3px; flex: 0 0 auto;
     border: 1px solid rgba(0,0,0,.18); background: var(--ink);
 }
-#mapList .chip.chip-active { background: var(--active); }
-#mapList .m-name { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-#mapList .m-sum {
-    color: var(--ink-2); flex: 1; text-align: right; white-space: nowrap;
+.map-list .chip.chip-active { background: var(--active); }
+.map-list .m-name { flex: 0 1 auto; min-width: 0; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.map-list .m-sum {
+    flex: 0 0 auto; margin-left: auto; color: var(--ink-2); text-align: right; white-space: nowrap;
     font-variant-numeric: tabular-nums;
 }
-#mapList .dl-btn.generating { color: var(--accent); cursor: wait; }
-#mapList .dl-btn.generating .icon { animation: spin 1s linear infinite; }
-#mapList .dl-btn.done { color: var(--success); }
-#mapList .del:hover { color: var(--danger); }
+/* Quieter rows: download and delete on the selected row; on the others
+   while the pointer or keyboard focus is there (touch: selected row only) */
+@media (hover: hover) and (pointer: fine) {
+    .map-list li:not(.active):not(:hover):not(:focus-within) .icon-btn { visibility: hidden; }
+}
+@media (pointer: coarse) {
+    .map-list li:not(.active) .icon-btn { display: none; }
+}
+.maps-fold { display: block; margin: -4px 0 10px; }
+.dl-btn.generating { color: var(--accent); cursor: wait; }
+.dl-btn.generating .icon { animation: spin 1s linear infinite; }
+.dl-btn.done { color: var(--success); }
+.del:hover { color: var(--danger); }
 @keyframes spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) {
-    #mapList .dl-btn.generating .icon, .btn-primary.loading::after { animation-duration: 3s; }
-    .btn { transition: none; }
+    .dl-btn.generating .icon, .btn-primary.loading::after { animation-duration: 3s; }
+    .btn, .mode-tabs button, .fold > summary .icon { transition: none; }
 }
 
 /* --- Collapsed rail: one numbered tile per map --------------------- */
@@ -204,13 +263,14 @@ button { font: inherit; color: inherit; }
 #railDownload { background: var(--accent); color: #fff; margin-top: 2px; }
 #railDownload:hover { background: var(--accent-strong); }
 #railDownload.loading .icon { animation: spin 1s linear infinite; }
-#railShared[aria-expanded="true"] { background: var(--accent-soft); color: var(--accent); }
+.rail-modes { display: flex; flex-direction: column; gap: 4px; }
+.rail-modes .icon-btn[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent); }
 
-/* --- Route & precision pane ---------------------------------------- */
+/* --- Route and atlas blocks ---------------------------------------- */
 .btn-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; }
 .btn-row .btn { width: auto; flex: 1 1 auto; }
 #routeLoaded[hidden] { display: none; }
-#gpxInfo { font-size: 13px; color: var(--ink-2); margin-top: 6px; overflow-wrap: anywhere; }
+#gpxInfo, #areaInfo { font-size: 13px; color: var(--ink-2); margin-top: 6px; overflow-wrap: anywhere; }
 #gpxColor { width: 100%; height: 32px; padding: 2px; box-sizing: border-box; border: 1px solid var(--line-strong); border-radius: var(--radius-sm); background: var(--surface); }
 .pane label.check { display: flex; align-items: center; gap: 8px; color: var(--ink); cursor: pointer; }
 .pane label.check input { margin: 0; width: 16px; height: 16px; }
@@ -221,8 +281,8 @@ button { font: inherit; color: inherit; }
 /* --- Download footer ----------------------------------------------- */
 .download { flex: 0 0 auto; background: var(--surface); border-top: 1px solid var(--surface-3); }
 .dl-row { display: flex; gap: 8px; }
-.dl-row select { flex: 0 0 112px; height: 36px !important; }
-.dl-row .btn { flex: 1; }
+.dl-row select { flex: 0 0 96px; height: 36px !important; }
+.dl-row .btn { flex: 1; white-space: nowrap; }
 
 /* --- Undo message: beside the open panes --------------------------- */
 .toast {
@@ -242,7 +302,8 @@ button { font: inherit; color: inherit; }
 .stack {
     position: absolute; z-index: 1000;
     right: var(--edge-r); bottom: var(--edge-b);
-    max-width: min(520px, calc(100% - 360px));
+    /* clear of the left column (--covered-left, set from main.js) */
+    max-width: min(520px, calc(100% - var(--covered-left, 300px) - var(--edge-r) - 16px));
     display: flex; flex-direction: column; align-items: flex-end; gap: 6px;
 }
 .hint {
@@ -392,7 +453,11 @@ button { font: inherit; color: inherit; }
     .icon-btn { width: 44px; height: 44px; }
     .rail { width: 56px; }
     .rail .icon-btn, .rail-map { width: 44px; height: 44px; }
-    #mapList .m-select { min-height: 44px; font-size: 14px; }
+    .mode-tabs button { min-height: 44px; font-size: 15px; }
+    .index { --cell: 44px; }
+    .index-cell { font-size: 13px; }
+    .fold > summary { min-height: 44px; font-size: 14px; }
+    .map-list .m-select { min-height: 44px; font-size: 14px; }
     .pane label { font-size: 14px; }
     .ol-zoom .ol-zoom-in, .ol-zoom .ol-zoom-out { font-size: 24px; }
     .map-tool .icon { width: 20px; height: 20px; }
@@ -416,7 +481,8 @@ button { font: inherit; color: inherit; }
         width: 100%; height: 22px; padding: 0; border: none; background: none; cursor: inherit;
     }
     .grabber span { width: 40px; height: 5px; border-radius: 3px; background: var(--line-strong); }
-    #panel .head-row { padding: 0 16px 10px; }
+    #panel .head-row { padding: 0 16px 6px; }
+    .mode-tabs { margin: 0 16px 10px; }
     #sheetSummary {
         display: block; flex: 1; min-width: 0; text-align: right;
         font-size: 14px; color: var(--ink-2);
@@ -426,17 +492,6 @@ button { font: inherit; color: inherit; }
     #sheetSummary b { color: var(--ink); font-weight: 600; }
     #panel[data-sheet="peek"] .sheet-body { visibility: hidden; }
     .download { padding-bottom: max(14px, env(safe-area-inset-bottom)); }
-
-    /* Route & precision opens as its own sheet over the settings */
-    #sharedPane {
-        position: absolute; z-index: 1002;
-        left: 0; right: 0; bottom: 0; width: auto;
-        height: auto; max-height: calc(100% - 72px);
-        border-radius: 14px 14px 0 0;
-        box-shadow: 0 -10px 30px rgba(16, 24, 32, .24);
-    }
-    #sharedPane .head-row { padding-top: 12px; }
-    #sharedPane .sheet-body { padding-bottom: env(safe-area-inset-bottom); }
 
     .toast {
         position: absolute; z-index: 1003;
@@ -455,10 +510,7 @@ button { font: inherit; color: inherit; }
        The attribution stays: tiles are still on screen (CC BY 4.0). */
     body:has(#panel[data-sheet="full"]) .map-tool,
     body:has(#panel[data-sheet="full"]) .lang,
-    body:has(#sharedPane:not([hidden])) .lang,
-    body:has(#panel[data-sheet="full"]) .ol-zoom,
-    body:has(#sharedPane:not([hidden])) .map-tool,
-    body:has(#sharedPane:not([hidden])) .ol-zoom { display: none; }
+    body:has(#panel[data-sheet="full"]) .ol-zoom { display: none; }
     body:has(#panel[data-sheet="full"]) #attribution { padding: 0 4px; }
     /* Left of the zoom column; wraps into two rows on narrow screens */
     .route-bar { left: var(--edge-l); right: calc(var(--edge-r) + var(--tool) + 8px); padding: 6px; justify-content: space-between; }
@@ -468,12 +520,10 @@ button { font: inherit; color: inherit; }
        move the stack to the top of the screen, above the sheets, flowing
        down. It drops below the undo message when that is showing. The
        credit moves up with it, onto the strip of map that is still visible. */
-    body:has(#panel[data-sheet="full"]) .stack,
-    body:has(#sharedPane:not([hidden])) .stack {
+    body:has(#panel[data-sheet="full"]) .stack {
         top: var(--edge-t); bottom: auto; z-index: 1003; transition: none;
     }
-    body:has(#toast:not([hidden])):has(#panel[data-sheet="full"]) .stack,
-    body:has(#toast:not([hidden])):has(#sharedPane:not([hidden])) .stack {
+    body:has(#toast:not([hidden])):has(#panel[data-sheet="full"]) .stack {
         top: calc(var(--edge-t) + var(--tool) + 20px);
     }
 }

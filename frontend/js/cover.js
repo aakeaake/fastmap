@@ -122,11 +122,12 @@ export function coverParams({ paperSize, scale, margin, overlapPct }) {
     return { sizes, clearanceM: CLEARANCE_MM / 1000 * scale, overlapM: overlapPct / 100 * shorter };
 }
 
-// The sheets for the cover section's settings. With `sameOrientation`, every
-// sheet gets the orientation that needs fewer sheets (a tie goes to portrait).
-export function planCover(lines, { paperSize, scale, margin, overlapPct, sameOrientation }) {
+// The sheets for the route block's settings. `orientation` 'auto' picks the
+// best orientation per sheet; 'same' gives every sheet the orientation that
+// needs fewer sheets (a tie goes to portrait).
+export function planCover(lines, { paperSize, scale, margin, overlapPct, orientation = 'auto' }) {
     const params = coverParams({ paperSize, scale, margin, overlapPct });
-    if (!sameOrientation) return coverRoute(lines, params);
+    if (orientation !== 'same') return coverRoute(lines, params);
     const [p, l] = ORIENTATIONS.map(o => coverRoute(lines, { ...params, orientation: o }));
     return l.length < p.length ? l : p;
 }
