@@ -89,3 +89,68 @@ def test_real_tiles_merge_preserves_area(offline_tiles):
         ref = shapely.union_all(pieces).area
         total = sum(g.area for g in after)
         assert abs(total - ref) <= 0.01 * ref
+
+
+def _fixture_pieces(offline_tiles):
+    cx, cy = offline_tiles
+    return tiles.load_tiles(Extent(cx - 1500, cy - 1500, cx + 1500, cy + 1500), 12)
+
+
+def test_real_tiles_contours_merge_to_single_lines(offline_tiles):
+    pieces = _fixture_pieces(offline_tiles)
+    # outer limit of the fixture tiles: lines may only end there (data ends)
+    minx, miny, maxx, maxy = shapely.union_all([f.geometry for f in pieces]).bounds
+    tile_m = 256 * 8192 / 2**12
+    contours = [
+        f for f in merge_by_mtk_id(pieces) if f.layer == "korkeus" and f.geom_type == "LineString"
+    ]
+    assert contours
+    singles = 0
+    for f in contours:
+        parts = getattr(f.geometry, "geoms", [f.geometry])
+        ends = Counter()
+        for g in parts:
+            for x, y in (g.coords[0], g.coords[-1]):
+                ends[(round(x, 1), round(y, 1))] += 1
+        for (x, y), n in ends.items():
+            if n == 1:  # dangling end: contours may end, but never on an inner tile seam
+                on_outer = min(abs(x - minx), abs(x - maxx), abs(y - miny), abs(y - maxy)) < 1.0
+                dx = (x - minx) % tile_m
+                dy = (y - miny) % tile_m
+                on_seam = min(dx, tile_m - dx, dy, tile_m - dy) < 1.0
+                assert on_outer or not on_seam, (f.props["mtk_id"], x, y)
+        singles += f.geometry.geom_type == "LineString"
+    assert singles > len(contours) / 2
+
+
+def test_real_tiles_line_length_preserved(offline_tiles):
+    pieces = _fixture_pieces(offline_tiles)
+    summed: dict = {}
+    for f in pieces:
+        if f.geom_type == "LineString" and f.props.get("mtk_id") is not None:
+            k = (f.layer, f.props["mtk_id"])
+            summed[k] = summed.get(k, 0.0) + f.geometry.length
+    assert summed
+    got: dict = {}
+    for f in merge_by_mtk_id(pieces):
+        if f.geom_type == "LineString" and f.props.get("mtk_id") is not None:
+            k = (f.layer, f.props["mtk_id"])
+            got[k] = got.get(k, 0.0) + f.geometry.length
+    assert got.keys() == summed.keys()
+    for k, total in summed.items():
+        assert abs(got[k] - total) <= 0.005 * total + 1.0, k
+
+
+def test_real_tiles_no_duplicate_points(offline_tiles):
+    pts = [f for f in _fixture_pieces(offline_tiles) if f.geom_type == "Point"]
+    assert pts
+    seen = set()
+    for f in pts:
+        key = (
+            f.layer,
+            repr(sorted(f.props.items())),
+            round(f.geometry.x, 1),
+            round(f.geometry.y, 1),
+        )
+        assert key not in seen
+        seen.add(key)

@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 import shapely
-from shapely.geometry import box
+from shapely.geometry import LineString, box
 from shapely.ops import linemerge
 
 from fastmap.services.print_layout import Extent
 
 from .model import Feature
+
+SNAP_TOLERANCE_M = 1.0
 
 _FAMILY = {
     "Point": ("Point", "MultiPoint"),
@@ -32,6 +34,34 @@ def _only_type(geom, geom_type: str):
     return None
 
 
+def _join_lines(geoms):
+    """Merge line pieces, bridging gaps up to SNAP_TOLERANCE_M between their ends.
+
+    Tile-edge clipping leaves pieces whose ends differ by a few cm; end points
+    that lie within the tolerance of each other are moved to a shared
+    coordinate so ``linemerge`` can join them. Branch points stay branches.
+    """
+    parts = []
+    for g in geoms:
+        parts.extend(g.geoms if hasattr(g, "geoms") else [g])
+    coords = [list(p.coords) for p in parts]
+    anchors: list[tuple[float, float]] = []  # one shared coordinate per end cluster
+    tol2 = SNAP_TOLERANCE_M**2
+
+    def anchor(pt):
+        for a in anchors:
+            if (a[0] - pt[0]) ** 2 + (a[1] - pt[1]) ** 2 <= tol2:
+                return a
+        anchors.append((pt[0], pt[1]))
+        return anchors[-1]
+
+    for c in coords:
+        for i in (0, -1):
+            c[i] = anchor(c[i][:2])
+    lines = [LineString(c) for c in coords if len(c) > 1 and c[0] != c[-1] or len(c) > 2]
+    return linemerge(shapely.union_all(lines)) if lines else None
+
+
 def merge_by_mtk_id(features: list[Feature]) -> list[Feature]:
     """Join pieces of one object (same layer and ``mtk_id``) split by tile edges."""
     out: list[Feature] = []
@@ -53,12 +83,10 @@ def merge_by_mtk_id(features: list[Feature]) -> list[Feature]:
         if len(pieces) == 1 or first.geom_type == "Point":
             continue
         geoms = [p.geometry for p in pieces]
-        if first.geom_type == "Polygon":
-            merged = shapely.union_all(geoms)
+        if first.geom_type == "LineString":
+            merged = _join_lines(geoms)
         else:
             merged = shapely.union_all(geoms)
-            if merged.geom_type == "MultiLineString":
-                merged = linemerge(merged)
         merged = _only_type(merged, first.geom_type)
         if merged is None:
             continue

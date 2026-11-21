@@ -33,12 +33,12 @@ def test_decode_places_feature_in_metres(offline_tiles):
     tile_m = 256 * 8192 / 2**12
     minx = -548576 + col * tile_m
     miny = 8388608 - (row + 1) * tile_m
-    buf = 0.1 * tile_m
+    eps = 1e-6
     for f in feats:
         assert f.geom_type in ("Point", "LineString", "Polygon")
         x0, y0, x1, y1 = f.geometry.bounds
-        assert x0 >= minx - buf and x1 <= minx + tile_m + buf
-        assert y0 >= miny - buf and y1 <= miny + tile_m + buf
+        assert x0 >= minx - eps and x1 <= minx + tile_m + eps
+        assert y0 >= miny - eps and y1 <= miny + tile_m + eps
     layers = {f.layer for f in feats}
     assert {"korkeus", "liikenne", "nimisto"} <= layers
 

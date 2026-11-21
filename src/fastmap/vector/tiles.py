@@ -7,7 +7,7 @@ from concurrent.futures import as_completed
 import mapbox_vector_tile
 import requests
 from shapely.affinity import affine_transform
-from shapely.geometry import MultiPolygon, shape
+from shapely.geometry import MultiPolygon, box, shape
 from shapely.validation import make_valid
 
 from fastmap.core.config import MML_VECTOR_URL
@@ -22,6 +22,7 @@ from fastmap.services.mml_source import (
     _tile_pool,
 )
 from fastmap.services.print_layout import Extent
+from fastmap.vector.geometry import _only_type
 from fastmap.vector.model import Feature
 
 MAX_VECTOR_TILES = 400
@@ -68,6 +69,7 @@ def decode_tile(data: bytes, level: int, row: int, col: int) -> list[Feature]:
     ox, oy = WMTS_ORIGIN
     minx = ox + col * tile_m
     miny = oy - (row + 1) * tile_m
+    cell = box(minx, miny, minx + tile_m, miny + tile_m)
 
     try:
         decoded = mapbox_vector_tile.decode(data)
@@ -97,7 +99,8 @@ def decode_tile(data: bytes, level: int, row: int, col: int) -> list[Feature]:
                     if not parts:
                         continue
                     g = MultiPolygon(parts)
-            if g.is_empty:
+            g = _only_type(g.intersection(cell), gtype)
+            if g is None:
                 continue
             out.append(Feature(layer_name, gtype, g, dict(feat.get("properties") or {})))
     return out
