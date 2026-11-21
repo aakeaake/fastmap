@@ -1,5 +1,5 @@
 // FastMap UI: wires the map, the map list, the panes and PDF downloads.
-import { GRID_MODES, HINT_KEY, PAPER_MM, STORAGE_KEY } from './constants.js';
+import { DEFAULTS, GRID_MODES, HINT_KEY, PAPER_MM, STORAGE_KEY } from './constants.js';
 import { centerToShow, containsExtent, visibleCenter as visibleCenterOf, visibleExtent } from './geometry.js';
 import { applyTranslations, getLang, locale, onLangChange, setLang, t } from './i18n.js';
 import { hydrateIcons, icon, setButton } from './icons.js';
@@ -540,6 +540,39 @@ function renderCover() {
     el('coverCount').classList.toggle('warn', n > MAX_BATCH);
     el('coverRouteHidden').hidden = el('gpxShow').checked;
 }
+
+// Replace all maps with the route's sheets; Undo brings the old ones back
+function createCover() {
+    const sheets = coverSheets();
+    if (!sheets.length) return;
+    const snapshot = serialize();
+    const cur = active() ?? DEFAULTS;
+    const { paperSize, scale, margin } = coverInputs();
+    const base = {
+        paperSize, scale, margin,
+        layer: cur.layer, gridMode: cur.gridMode, gridSpacing: cur.gridSpacing,
+    };
+    const name = routeLabel();
+    const n = sheets.length;
+    removeAll();
+    const created = sheets.map((sheet, i) => {
+        const e = createEntry(sheet.center, {
+            ...base, orientation: sheet.orientation, title: coverTitle(name, i + 1, n),
+        });
+        moveFeature(e, lockedLayer);
+        return e;
+    });
+    setActive(created[0].id);
+
+    showMapForRoute();
+    const ext = created.map(entryExtent).reduce((a, b) => [
+        Math.min(a[0], b[0]), Math.min(a[1], b[1]), Math.max(a[2], b[2]), Math.max(a[3], b[3]),
+    ]);
+    const c = covered();
+    view.fit(ext, { padding: [40, 40, 40 + c.bottom, 40 + c.left], duration: 300 });
+    offerUndo(() => t('cover.created', { count: n.toLocaleString(locale()), name }), snapshot);
+}
+el('coverBtn').addEventListener('click', createCover);
 
 for (const id of ['coverPaper', 'coverScale', 'coverMargin', 'coverOverlap', 'coverSame']) {
     el(id).addEventListener('input', renderCover);
