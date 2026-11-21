@@ -71,17 +71,28 @@ def _join_lines(geoms):
     return merged  # LineString, or a collection that _only_type filters later
 
 
+# Area layers whose polygons are merged by class, not by object: a protected area
+# stored as several adjacent polygons must print as one area, with no border
+# drawn along the shared edges.
+DISSOLVE_BY_CLASS = frozenset({"alueraja"})
+
+
 def merge_by_mtk_id(features: list[Feature]) -> list[Feature]:
-    """Join pieces of one object (same layer and ``mtk_id``) split by tile edges."""
+    """Join pieces of one object (same layer and ``mtk_id``) split by tile edges.
+
+    Polygons of the ``DISSOLVE_BY_CLASS`` layers are joined by ``kohdeluokka``.
+    """
     out: list[Feature] = []
     groups: dict[tuple, list[Feature]] = {}
     slots: dict[tuple, int] = {}
     for f in features:
-        mtk_id = f.props.get("mtk_id")
-        if mtk_id is None:
+        if f.layer in DISSOLVE_BY_CLASS and f.geom_type == "Polygon":
+            key = (f.layer, f.geom_type, "class", f.props.get("kohdeluokka"))
+        elif f.props.get("mtk_id") is None:
             out.append(f)
             continue
-        key = (f.layer, f.geom_type, mtk_id)
+        else:
+            key = (f.layer, f.geom_type, f.props["mtk_id"])
         if key not in groups:
             groups[key] = []
             slots[key] = len(out)

@@ -55,7 +55,7 @@ _HEX_COLOR = re.compile(r"#([0-9a-fA-F]{2})([0-9a-fA-F]{2})([0-9a-fA-F]{2})")
 
 def attribution() -> str:
     """MML attribution, dated in Finnish time when called (once per document)."""
-    return f"© Maanmittauslaitos {datetime.now(_LOCAL_TZ):%m/%Y}"
+    return f"© Maanmittauslaitos, CC BY 4.0, {datetime.now(_LOCAL_TZ):%m/%Y}"
 
 
 # Footer line under the map (PDF base font: nothing embedded, 0 bytes added)
@@ -84,7 +84,7 @@ def _grid_label(value_m: int) -> str:
 # Grid coordinate labels (PDF base font, like the footer)
 _LABEL_FONT = "Courier"
 _LABEL_SIZE = 5.5
-_LABEL_COLOR = Color(0.35, 0.35, 0.35)
+_LABEL_COLOR = black  # coordinates print black, like the footer
 # Labels go in the margin, outside the map, when it is at least this wide;
 # in a narrower margin they fall back to inside the map edges.
 LABEL_MIN_MARGIN_MM = 3.0

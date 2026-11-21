@@ -452,7 +452,7 @@ def _footer_pdf(tmp_path, monkeypatch, *, title="Test Map", margin=10.0, **kw):
 
 
 def test_attribution_text_is_short():
-    assert re.fullmatch(r"© Maanmittauslaitos \d\d/\d{4}", pdf_generator.attribution())
+    assert re.fullmatch(r"© Maanmittauslaitos, CC BY 4\.0, \d\d/\d{4}", pdf_generator.attribution())
 
 
 def test_map_sits_footer_height_above_the_margin(tmp_path, monkeypatch):

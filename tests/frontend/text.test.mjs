@@ -31,12 +31,12 @@ test('deletedLabel', () => {
 
 test('attributionLabel takes the month from the server line', () => {
     const line = '© Maanmittauslaitos, CC BY 4.0 — Maastotietokanta 11/2026';
-    assert.equal(attributionLabel(line), '© Maanmittauslaitos 11/2026');
+    assert.equal(attributionLabel(line), '© Maanmittauslaitos, CC BY 4.0, 11/2026');
 });
 
 test('attributionLabel falls back to the given date', () => {
-    assert.equal(attributionLabel('', new Date(2027, 0, 5)), '© Maanmittauslaitos 01/2027');
-    assert.equal(attributionLabel(undefined, new Date(2027, 9, 5)), '© Maanmittauslaitos 10/2027');
+    assert.equal(attributionLabel('', new Date(2027, 0, 5)), '© Maanmittauslaitos, CC BY 4.0, 01/2027');
+    assert.equal(attributionLabel(undefined, new Date(2027, 9, 5)), '© Maanmittauslaitos, CC BY 4.0, 10/2027');
 });
 
 test('progressLabel', () => {
