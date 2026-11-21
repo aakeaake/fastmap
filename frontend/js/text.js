@@ -1,5 +1,6 @@
 // User-facing strings built from data, in the given language. Pure.
 import { ATLAS_MAX } from './atlas.js';
+import { VECTOR_LAYER } from './constants.js';
 import { formatNumber } from './format.js';
 import { LOCALES, translate } from './strings.js';
 
@@ -9,14 +10,26 @@ export function displayName(entry, index, lang = 'en') {
     return entry.title || translate(lang, 'map.default', { n: index + 1 });
 }
 
-// Short form for the label drawn on the map
+// Short form for the label drawn on the map (16 characters). A route or
+// atlas sheet keeps its printed label: "Kilpisjär… 12/25", "Saariselkä l… B3"
+const SHORT = 16;
 export function shortName(name) {
-    return name.length > 16 ? `${name.slice(0, 15)}…` : name;
+    if (name.length <= SHORT) return name;
+    const suffix = name.match(/ (\d+\/\d+|[A-Z]{1,2}\d{1,3})$/)?.[0] ?? '';
+    return `${name.slice(0, SHORT - suffix.length - 1)}…${suffix}`;
 }
 
 // "A4 · 1:20,000" / "A4 · 1:20 000"
 export function mapSummary({ paperSize, scale }, lang = 'en') {
     return `${paperSize} · 1:${num(scale, lang)}`;
+}
+
+// "23 sheets · A4 · 1:15 000 · Maastokartta"
+export function setSummaryLabel(count, { paperSize, scale, layer }, lang = 'en') {
+    const type = translate(lang, layer === VECTOR_LAYER ? 'maptype.vector' : 'maptype.raster');
+    const rest = `${paperSize} · 1:${num(scale, lang)} · ${type}`;
+    return count === 1 ? translate(lang, 'set.summaryOne', { rest })
+        : translate(lang, 'set.summary', { count: num(count, lang), rest });
 }
 
 export function deletedLabel(count, lang = 'en') {
