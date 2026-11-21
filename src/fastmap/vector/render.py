@@ -10,6 +10,8 @@ from fastmap.services.print_layout import Extent
 
 from .draw import MapFrame, background_color, draw_fill_line_layers
 from .geometry import clip_features, merge_by_mtk_id
+from .labels import collect_candidates, place
+from .labels import draw as draw_labels
 from .model import Feature
 from .profiles import PROFILES
 from .style import scale_to_zoom, style_for
@@ -58,4 +60,6 @@ def render_vector_map(
     symbols = Symbols()
     draw_fill_line_layers(c, frame, style, by_layer, zoom, profile.px_mm, symbols)
     draw_icon_layers(c, frame, style, by_layer, zoom, profile.px_mm, symbols)
+    candidates = collect_candidates(style, by_layer, zoom, frame, profile.px_mm)
+    draw_labels(c, place(candidates, frame))
     c.restoreState()

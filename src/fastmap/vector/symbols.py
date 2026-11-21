@@ -385,14 +385,37 @@ def referenced_names(style: Style) -> tuple[set[str], set[str]]:
     return patterns - set(_BLANK), icons - set(_BLANK)
 
 
+def icon_size_pt(name: str, size: float, px_mm: float) -> tuple[float, float]:
+    """Unrotated (width, height) of icon ``name`` on paper, in pt."""
+    icon = _ICONS.get(name)
+    if icon is None:
+        d = MARKER_DIAMETER_MM * mm
+        return (d, d)
+    s = size * px_mm * mm / PIXEL_RATIO
+    return (icon.w * s, icon.h * s)
+
+
 # ------------------------------------------------------------------ icon layers
+
+
+def placed_by_labels(layer: StyleLayer) -> bool:
+    """True if this layer's icons go through collision placement (``labels.place``).
+
+    Only icon-only layers with ``icon-allow-overlap: true`` are drawn unconditionally by
+    :func:`draw_icon_layers`; icons that may collide, or that share a unit with a text
+    label, are placed (and drawn) by the label code.
+    """
+    return "text-field" in layer.layout or layer.layout.get("icon-allow-overlap") is not True
 
 
 def _icon_layers(style: Style, zoom: float) -> list[StyleLayer]:
     return [
         ly
         for ly in style.layers
-        if ly.type == "symbol" and "icon-image" in ly.layout and ly.visible_at(zoom)
+        if ly.type == "symbol"
+        and "icon-image" in ly.layout
+        and ly.visible_at(zoom)
+        and not placed_by_labels(ly)
     ]
 
 
@@ -405,9 +428,9 @@ def draw_icon_layers(
     px_mm: float,
     symbols: Symbols,
 ) -> None:
-    """Draw the icons of every visible symbol layer at its point features.
+    """Draw the icons of visible icon-only symbol layers that allow overlap.
 
-    Collision handling arrives with label placement; icons are drawn unconditionally.
+    These are drawn unconditionally; all other icons are placed by ``labels.place``.
     """
     from .draw import _matching
 
