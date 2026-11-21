@@ -279,9 +279,10 @@ export function createShapeTools(map, layer, { type, onChange, onDone, onModeCha
         cancel() {
             if (!mode) return;
             if (mode === 'draw') interaction.abortDrawing();
-            const [feature, geometry] = mode === 'edit' ? [edited, before] : [];
+            // Put the shape back before closing, so what re-renders on
+            // close (counts, buttons) sees the restored shape
+            if (mode === 'edit') edited.setGeometry(before);
             exit();
-            feature?.setGeometry(geometry);
         },
         active: () => mode,
         // Map clicks belong to the route tools (also just after they close)

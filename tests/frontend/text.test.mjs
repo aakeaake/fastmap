@@ -70,3 +70,10 @@ test('createdLabel for an atlas', () => {
     assert.equal(createdLabel(1, 'Kartasto', 'fi', 'atlas'), '1 kartta luotu kartastoon Kartasto');
     assert.equal(createdLabel(3, 'Reitti', 'fi'), '3 karttaa luotu reitille Reitti');
 });
+
+test('atlasCountLabel for a grid too big to lay out', () => {
+    assert.equal(atlasCountLabel(224, 224, 180, 'en', true),
+        'At least 224 maps — an atlas holds at most 25. Choose a smaller scale, larger paper or a smaller area.');
+    assert.equal(atlasCountLabel(224, 224, 180, 'fi', true),
+        'Vähintään 224 karttaa — kartastossa voi olla enintään 25. Valitse pienempi mittakaava, isompi paperi tai pienempi alue.');
+});

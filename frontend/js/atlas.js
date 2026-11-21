@@ -8,6 +8,9 @@ import { contentMeters } from './geometry.js';
 export const ATLAS_OVERLAP_OPTIONS = [0, 5, 10, 20];
 export const ATLAS_DEFAULT_OVERLAP = 10;
 export const ATLAS_MAX = 25;   // the server's batch limit, so "Download all" works
+// Grids with more candidate cells are not laid out (the live count would
+// stall the page); they hold at least max(rows, cols) maps, far over ATLAS_MAX
+export const ATLAS_MAX_CELLS = 50000;
 
 const EPS = 1e-6;
 
@@ -54,7 +57,10 @@ function inside(edges, [x, y]) {
 // side with a neighbour), so no sheet is printed for a sliver its neighbour
 // already holds. Returns { rows, cols, sheets: [{ center, label }] } in
 // reading order (north row first, west to east).
-export function layoutAtlas(ring, { size: [w, h], overlapM }) {
+// Above `maxCells` candidate cells, returns { rows, cols, sheets: null,
+// atLeast } instead: the area is one connected shape spanning every row and
+// column, so it keeps at least one sheet in each of them.
+export function layoutAtlas(ring, { size: [w, h], overlapM, maxCells = Infinity }) {
     const ov = Math.max(0, Math.min(overlapM, w / 2, h / 2));
     const [sx, sy] = [w - ov, h - ov];
     const xs = ring.map(p => p[0]);
@@ -62,6 +68,7 @@ export function layoutAtlas(ring, { size: [w, h], overlapM }) {
     const [minx, maxx, miny, maxy] = [Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)];
     const cols = Math.max(1, Math.ceil((maxx - minx - ov) / sx - EPS));
     const rows = Math.max(1, Math.ceil((maxy - miny - ov) / sy - EPS));
+    if (rows * cols > maxCells) return { rows, cols, sheets: null, atLeast: Math.max(rows, cols) };
     const x0 = (minx + maxx) / 2 - (cols * sx + ov) / 2;
     const ytop = (miny + maxy) / 2 + (rows * sy + ov) / 2;
     const edges = ring.map((p, i) => [p, ring[(i + 1) % ring.length]]);
@@ -102,7 +109,7 @@ export function layoutAtlas(ring, { size: [w, h], overlapM }) {
 // The atlas for the section's paper settings
 export function planAtlas(ring, { paperSize, orientation, margin, scale, overlapPct }) {
     const size = contentMeters({ paperSize, orientation, margin, scale });
-    return layoutAtlas(ring, { size, overlapM: overlapPct / 100 * Math.min(...size) });
+    return layoutAtlas(ring, { size, overlapM: overlapPct / 100 * Math.min(...size), maxCells: ATLAS_MAX_CELLS });
 }
 
 // "<name> B3", a blank name replaced by `fallback`, cut to the server's limit

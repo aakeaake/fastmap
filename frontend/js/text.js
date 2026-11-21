@@ -28,8 +28,10 @@ export function createdLabel(count, name, lang = 'en', kind = 'cover') {
         : translate(lang, `${kind}.created`, { count: num(count, lang), name });
 }
 
-// "12 maps · 3 rows × 5 columns", or the too-many warning above ATLAS_MAX
-export function atlasCountLabel(count, rows, cols, lang = 'en') {
+// "12 maps · 3 rows × 5 columns", or the too-many warning above ATLAS_MAX;
+// with `atLeast`, `count` is a lower bound (the grid was too big to lay out)
+export function atlasCountLabel(count, rows, cols, lang = 'en', atLeast = false) {
+    if (atLeast) return translate(lang, 'atlas.tooManyAtLeast', { count: num(count, lang) });
     if (count > ATLAS_MAX) return translate(lang, 'atlas.tooMany', { count: num(count, lang) });
     const phrase = (n, key) => (n === 1 ? translate(lang, `${key}One`) : translate(lang, key, { count: num(n, lang) }));
     return translate(lang, count === 1 ? 'atlas.countOne' : 'atlas.count', {

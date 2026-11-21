@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { atlasLabel, atlasTitle, layoutAtlas, planAtlas } from '../../frontend/js/atlas.js';
+import { ATLAS_MAX_CELLS, atlasLabel, atlasTitle, layoutAtlas, planAtlas } from '../../frontend/js/atlas.js';
 
 const SIZE = [3000, 4000];
 const EPS = 1e-6;
@@ -141,10 +141,11 @@ test('planAtlas uses the paper settings', () => {
     assert.ok(l.sheets.length > 1);
 });
 
-test('a country-sized area at 1:10 000 lays out quickly', () => {
+test('a country-sized area at 1:10 000 lays out quickly when asked to', () => {
+    // A4 portrait at 1:10 000 (half of 3920 × 5600), no cell limit
     const ring = [[0, 6600000], [600000, 6600000], [700000, 7300000], [300000, 7800000], [100000, 7400000]];
     const t0 = performance.now();
-    const r = planAtlas(ring, { paperSize: 'A4', orientation: 'portrait', margin: 7, scale: 10000, overlapPct: 10 });
+    const r = layoutAtlas(ring, { size: [1960, 2800], overlapM: 196 });
     assert.ok(performance.now() - t0 < 500, `${performance.now() - t0} ms`);
     assert.ok(r.sheets.length > 1000);
 });
@@ -155,4 +156,20 @@ test('atlasTitle: label kept, long names cut, blank falls back', () => {
     const long = atlasTitle('x'.repeat(200), 'AA12', 'Atlas');
     assert.equal(long.length, 120);
     assert.ok(long.endsWith('… AA12'));
+});
+
+test('a huge grid is not laid out: at least max(rows, cols) maps, quickly', () => {
+    // a whole-country box at 1:10 000: over a million candidate cells
+    const ring = [[50000, 6600000], [750000, 6600000], [750000, 7800000], [50000, 7800000]];
+    const t0 = performance.now();
+    const r = planAtlas(ring, { paperSize: 'A4', orientation: 'portrait', margin: 7, scale: 10000, overlapPct: 10 });
+    assert.ok(performance.now() - t0 < 50, `${performance.now() - t0} ms`);
+    assert.ok(r.rows * r.cols > ATLAS_MAX_CELLS);
+    assert.equal(r.sheets, null);
+    assert.equal(r.atLeast, Math.max(r.rows, r.cols));
+});
+
+test('a grid at the cell limit is still laid out', () => {
+    const r = layoutAtlas([[0, 0], [3000, 0], [3000, 4000], [0, 4000]], { size: [3000, 4000], overlapM: 0, maxCells: 1 });
+    assert.equal(r.sheets.length, 1);
 });

@@ -720,9 +720,9 @@ function renderAtlas() {
     section.hidden = !show;
     if (!show) return;
     el('atlasName').placeholder = t('atlas.defaultName');
-    const { rows, cols, sheets } = atlasPlan();
-    const n = sheets.length;
-    el('atlasCount').textContent = atlasCountLabel(n, rows, cols, getLang());
+    const { rows, cols, sheets, atLeast } = atlasPlan();
+    const n = sheets ? sheets.length : atLeast;
+    el('atlasCount').textContent = atlasCountLabel(n, rows, cols, getLang(), !sheets);
     el('atlasCount').classList.toggle('warn', n > ATLAS_MAX);
     el('atlasBtn').disabled = n > ATLAS_MAX;
 }
@@ -730,7 +730,7 @@ function renderAtlas() {
 // Replace all maps with the atlas sheets, in reading order
 function createAtlas() {
     const { sheets } = atlasPlan();
-    const n = sheets.length;
+    const n = sheets?.length ?? 0;
     if (!n || n > ATLAS_MAX) return;
     const inputs = atlasInputs();
     const items = sheets.map(s => ({
@@ -746,10 +746,12 @@ for (const id of ['atlasPaper', 'atlasScale', 'atlasMargin', 'atlasOrientation',
     el(id).addEventListener('input', renderAtlas);
     el(id).addEventListener('change', renderAtlas);
 }
+// The name does not change the layout: update the info line only
 el('atlasName').addEventListener('input', () => {
     areaName = el('atlasName').value;
     saveArea();
-    renderArea();
+    const ring = areaRing();
+    if (ring) el('areaInfo').textContent = `${areaLabel()} · ${formatKm2(ringAreaM2(ring), locale())}`;
 });
 
 el('gpxDownloadBtn').addEventListener('click', () => {
