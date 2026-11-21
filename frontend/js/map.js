@@ -164,7 +164,10 @@ export function createRouteTools(map, routeLayer, opts) {
 export function createShapeTools(map, layer, { type, onChange, onDone, onModeChange }) {
     const polygon = type === 'Polygon';
     const minPoints = polygon ? 3 : 2;
+    // The layer's feature: a Polygon (area) or a MultiLineString (route)
     const shapeOf = feature => (polygon ? featureRing(feature) : xyLines(feature.getGeometry()));
+    // The finished sketch: a Polygon, or a single LineString
+    const drawnShape = feature => (polygon ? featureRing(feature) : [feature.getGeometry().getCoordinates().map(xy)]);
     let mode = null;
     let interaction = null;
     let editEnd = null;     // undoes what startEdit() set up
@@ -226,7 +229,7 @@ export function createShapeTools(map, layer, { type, onChange, onDone, onModeCha
         });
         draw.on('drawabort', () => { points = []; onChange([]); });
         draw.on('drawend', ev => {
-            const shape = shapeOf(ev.feature);
+            const shape = drawnShape(ev.feature);
             exit();
             if (polygon ? shape.length >= 3 : shape[0].length >= 2) onDone('draw', shape);
         });

@@ -11,6 +11,7 @@ import {
     routeFeature, toWgs84,
 } from './map.js';
 import { AREA_KEY, formatKm2, ringAreaM2, sanitizeSavedArea, serializeArea } from './area.js';
+import { ATLAS_DEFAULT_OVERLAP, ATLAS_MAX, ATLAS_OVERLAP_OPTIONS, atlasTitle, planAtlas } from './atlas.js';
 import { effectiveLayer } from './layer.js';
 import { createLangMenu } from './lang-menu.js';
 import { createNotices } from './notices.js';
@@ -23,7 +24,7 @@ import { createSheet } from './sheet.js';
 import {
     active, createEntry, entryCenter, entryExtent, getEntry, placeEntry, restoreFrom, serialize, state, syncLabel,
 } from './state.js';
-import { attributionLabel, createdLabel, deletedLabel, displayName, mapSummary, progressLabel, shortName } from './text.js';
+import { atlasCountLabel, attributionLabel, createdLabel, deletedLabel, displayName, mapSummary, progressLabel, shortName } from './text.js';
 
 const el = id => document.getElementById(id);
 hydrateIcons();
@@ -489,6 +490,7 @@ const openTool = () => (areaTools.active() ? areaTools : routeTools);
 function renderRouteBar() {
     const mode = anyTool();
     renderCover();
+    renderAtlas();
     el('routeBar').hidden = !mode;
     document.body.toggleAttribute('data-route-mode', !!mode);
     if (!mode) return;
@@ -569,6 +571,7 @@ function renderArea() {
     setButton(el('areaEditBtn'), 'pen', t('atlas.edit'));
     setButton(el('areaRemoveBtn'), 'x', t('atlas.remove'));
     el('areaInfo').textContent = ring ? `${areaLabel()} · ${formatKm2(ringAreaM2(ring), locale())}` : '';
+    renderAtlas();
 }
 
 // Replace the area (null = no area)
@@ -632,25 +635,20 @@ function renderCover() {
     el('coverRouteHidden').hidden = el('gpxShow').checked;
 }
 
-// Replace all maps with the route's sheets; Undo brings the old ones back
-function createCover() {
-    const sheets = coverSheets();
-    if (!sheets.length) return;
+// Replace all maps with `items` ([{ center, orientation, title }]) on the
+// given paper, scale and margin; the map layer and grid come from the
+// selected map. Undo brings the old maps back.
+function replaceMaps(items, { paperSize, scale, margin }, undoLabel) {
     const snapshot = serialize();
     const cur = active() ?? DEFAULTS;
-    const { paperSize, scale, margin } = coverInputs();
     const base = {
         paperSize, scale, margin,
-        // the cover's own scale may not support the vector map
+        // this scale may not support the vector map
         layer: effectiveLayer(cur.layer, scale), gridMode: cur.gridMode, gridSpacing: cur.gridSpacing,
     };
-    const name = routeLabel();
-    const n = sheets.length;
     removeAll();
-    const created = sheets.map((sheet, i) => {
-        const e = createEntry(sheet.center, {
-            ...base, orientation: sheet.orientation, title: coverTitle(name, i + 1, n),
-        });
+    const created = items.map(({ center, orientation, title }) => {
+        const e = createEntry(center, { ...base, orientation, title });
         moveFeature(e, lockedLayer);
         return e;
     });
@@ -662,7 +660,19 @@ function createCover() {
     ]);
     const c = covered();
     view.fit(ext, { padding: [40, 40, 40 + c.bottom, 40 + c.left], duration: 300 });
-    offerUndo(() => createdLabel(n, name, getLang()), snapshot);
+    offerUndo(undoLabel, snapshot);
+}
+
+// Replace all maps with the route's sheets
+function createCover() {
+    const sheets = coverSheets();
+    if (!sheets.length) return;
+    const name = routeLabel();
+    const n = sheets.length;
+    const items = sheets.map((sheet, i) => ({
+        center: sheet.center, orientation: sheet.orientation, title: coverTitle(name, i + 1, n),
+    }));
+    replaceMaps(items, coverInputs(), () => createdLabel(n, name, getLang()));
 }
 el('coverBtn').addEventListener('click', createCover);
 
@@ -670,6 +680,77 @@ for (const id of ['coverPaper', 'coverScale', 'coverMargin', 'coverOverlap', 'co
     el(id).addEventListener('input', renderCover);
     el(id).addEventListener('change', renderCover);
 }
+
+// --- Atlas of the area -------------------------------------------------------------
+// A grid of sheets over the drawn area (atlas.js), labelled A1, A2, … Shown
+// while an area exists and no drawing tool is open.
+function atlasInputs() {
+    const overlap = Number(el('atlasOverlap').value);
+    return {
+        paperSize: PAPER_MM[el('atlasPaper').value] ? el('atlasPaper').value : 'A4',
+        orientation: el('atlasOrientation').value === 'landscape' ? 'landscape' : 'portrait',
+        scale: parseInt(el('atlasScale').value, 10) || 20000,
+        margin: parseMargin(el('atlasMargin').value),
+        overlapPct: ATLAS_OVERLAP_OPTIONS.includes(overlap) ? overlap : ATLAS_DEFAULT_OVERLAP,
+    };
+}
+
+// A function declaration: the saved area is restored (and rendered) above
+function atlasPlan() {
+    return planAtlas(areaRing(), atlasInputs());
+}
+
+// Paper, scale, margin and orientation start from the selected map
+function fillAtlasFromActive() {
+    const e = active();
+    if (!e) return;
+    el('atlasPaper').value = e.paperSize;
+    el('atlasScale').value = e.scale;
+    el('atlasMargin').value = e.margin;
+    el('atlasOrientation').value = e.orientation;
+}
+
+function renderAtlas() {
+    const section = el('atlasSection');
+    const show = !!areaRing() && !anyTool();
+    if (show && section.hidden) {
+        fillAtlasFromActive();
+        el('atlasName').value = areaName;
+    }
+    section.hidden = !show;
+    if (!show) return;
+    el('atlasName').placeholder = t('atlas.defaultName');
+    const { rows, cols, sheets } = atlasPlan();
+    const n = sheets.length;
+    el('atlasCount').textContent = atlasCountLabel(n, rows, cols, getLang());
+    el('atlasCount').classList.toggle('warn', n > ATLAS_MAX);
+    el('atlasBtn').disabled = n > ATLAS_MAX;
+}
+
+// Replace all maps with the atlas sheets, in reading order
+function createAtlas() {
+    const { sheets } = atlasPlan();
+    const n = sheets.length;
+    if (!n || n > ATLAS_MAX) return;
+    const inputs = atlasInputs();
+    const items = sheets.map(s => ({
+        center: s.center, orientation: inputs.orientation,
+        title: atlasTitle(areaName, s.label, t('atlas.defaultName')),
+    }));
+    const name = areaLabel();
+    replaceMaps(items, inputs, () => createdLabel(n, name, getLang(), 'atlas'));
+}
+el('atlasBtn').addEventListener('click', createAtlas);
+
+for (const id of ['atlasPaper', 'atlasScale', 'atlasMargin', 'atlasOrientation', 'atlasOverlap']) {
+    el(id).addEventListener('input', renderAtlas);
+    el(id).addEventListener('change', renderAtlas);
+}
+el('atlasName').addEventListener('input', () => {
+    areaName = el('atlasName').value;
+    saveArea();
+    renderArea();
+});
 
 el('gpxDownloadBtn').addEventListener('click', () => {
     const text = toGpx(routeLabel(), routeLines(), toWgs84);
@@ -829,7 +910,7 @@ el('downloadAllBtn').addEventListener('click', async () => {
 // --- Language -------------------------------------------------------------------------
 // Option labels with numbers follow the language's digit grouping
 function formatOptions() {
-    for (const o of [...el('scale').options, ...el('coverScale').options]) {
+    for (const o of [...el('scale').options, ...el('coverScale').options, ...el('atlasScale').options]) {
         o.textContent = `1:${Number(o.value).toLocaleString(locale())}`;
     }
     for (const o of el('gridSpacing').options) o.textContent = `${Number(o.value).toLocaleString(locale())} m`;

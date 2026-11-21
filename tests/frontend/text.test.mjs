@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-    attributionLabel, createdLabel, deletedLabel, displayName, mapSummary, progressLabel, shortName,
+    atlasCountLabel, attributionLabel, createdLabel, deletedLabel, displayName, mapSummary, progressLabel, shortName,
 } from '../../frontend/js/text.js';
 
 test('displayName: title, else a numbered default in the language', () => {
@@ -51,4 +51,22 @@ test('createdLabel: singular and plural, both languages', () => {
     assert.equal(createdLabel(7, 'Reitti'), 'Created 7 maps for Reitti');
     assert.equal(createdLabel(1, 'Reitti', 'fi'), '1 kartta luotu reitille Reitti');
     assert.equal(createdLabel(7, 'Reitti', 'fi'), '7 karttaa luotu reitille Reitti');
+});
+
+test('atlasCountLabel: maps, rows and columns, singular and plural', () => {
+    assert.equal(atlasCountLabel(12, 3, 5), '12 maps · 3 rows × 5 columns');
+    assert.equal(atlasCountLabel(1, 1, 1), '1 map · 1 row × 1 column');
+    assert.equal(atlasCountLabel(2, 2, 2, 'fi'), '2 karttaa · 2 riviä × 2 saraketta');
+});
+
+test('atlasCountLabel above 25 is the too-many warning', () => {
+    assert.equal(atlasCountLabel(1234, 30, 50),
+        '1,234 maps — an atlas holds at most 25. Choose a smaller scale, larger paper or a smaller area.');
+    assert.equal(atlasCountLabel(25, 5, 5), '25 maps · 5 rows × 5 columns');
+});
+
+test('createdLabel for an atlas', () => {
+    assert.equal(createdLabel(12, 'Atlas', 'en', 'atlas'), 'Created 12 maps for Atlas');
+    assert.equal(createdLabel(1, 'Kartasto', 'fi', 'atlas'), '1 kartta luotu kartastoon Kartasto');
+    assert.equal(createdLabel(3, 'Reitti', 'fi'), '3 karttaa luotu reitille Reitti');
 });
