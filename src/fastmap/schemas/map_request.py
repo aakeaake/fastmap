@@ -9,10 +9,13 @@ from fastmap.services.print_layout import (
     snap_extent_to_scale,
     with_aspect,
 )
+from fastmap.vector import VECTOR_SCALES
 
 PaperSize = Literal["A4", "A3"]
 Orientation = Literal["portrait", "landscape"]
-MMLLayer = Literal["maastokartta", "taustakartta", "selkokartta", "ortokuva"]
+MMLLayer = Literal[
+    "maastokartta", "taustakartta", "selkokartta", "ortokuva", "maastokartta_vektori"
+]
 GridMode = Literal["off", "vertical", "vertical_coords", "full", "full_coords"]
 GridSpacing = Literal[500, 1000, 2000, 5000]
 
@@ -74,6 +77,11 @@ class MapRequest(BaseModel):
             self.center_x is not None and self.center_y is not None and self.scale is not None
         ):
             raise ValueError("Provide either 'bbox' or all of 'center_x', 'center_y' and 'scale'")
+        if self.layer == "maastokartta_vektori":
+            if self.scale is None:
+                raise ValueError("The vector map needs a scale (1:25 000 or 1:50 000)")
+            if self.scale not in VECTOR_SCALES:
+                raise ValueError("The vector map supports scales 1:25 000 and 1:50 000 only")
         return self
 
     def resolve_extent(self, content_aspect_wh: float) -> Extent:

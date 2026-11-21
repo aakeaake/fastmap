@@ -26,6 +26,13 @@ MML_WMTS_URL = os.environ.get(
     "{layer}/default/ETRS-TM35FIN/{z}/{y}/{x}.png",
 )
 
+# MML open vector tiles (taustakartta); {z} / {y}=TileRow / {x}=TileCol.
+MML_VECTOR_URL = os.environ.get(
+    "MML_VECTOR_URL",
+    "https://avoin-karttakuva.maanmittauslaitos.fi/vectortiles/taustakartta/wmts/1.0.0/"
+    "taustakartta/default/v20/ETRS-TM35FIN/{z}/{y}/{x}.pbf",
+)
+
 USER_AGENT = "fastmap/0.1 (print-ready maps of Finland)"
 
 DEFAULT_ZOOM = 11

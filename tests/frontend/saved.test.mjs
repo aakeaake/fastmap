@@ -54,3 +54,13 @@ test('maps that cannot be trusted are rejected', () => {
         assert.equal(sanitizeSavedMap(bad), null, JSON.stringify(bad));
     }
 });
+
+test('a saved vector map at an unsupported scale loads as raster', () => {
+    const { settings } = sanitizeSavedMap({ ...good, layer: 'maastokartta_vektori', scale: 15000 });
+    assert.equal(settings.layer, 'maastokartta');
+});
+
+test('a saved vector map at a supported scale keeps the vector layer', () => {
+    const { settings } = sanitizeSavedMap({ ...good, layer: 'maastokartta_vektori', scale: 50000 });
+    assert.equal(settings.layer, 'maastokartta_vektori');
+});

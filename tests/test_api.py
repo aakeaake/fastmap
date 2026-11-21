@@ -530,3 +530,60 @@ def test_app_serves_the_real_frontend_with_no_cache():
     resp = client.get("/js/main.js")
     assert resp.status_code == 200
     assert resp.headers["cache-control"] == "no-cache"
+
+
+def _vector_payload(**overrides) -> dict:
+    base = {
+        "center_x": 371500,
+        "center_y": 6687500,
+        "scale": 50000,
+        "layer": "maastokartta_vektori",
+    }
+    base.update(overrides)
+    return base
+
+
+def test_vector_layer_wrong_scale_is_422():
+    resp = client.post("/generate-map", json=_vector_payload(scale=20000))
+    assert resp.status_code == 422
+    assert "1:25 000 and 1:50 000" in resp.text
+
+
+def test_vector_layer_bbox_without_scale_is_422():
+    payload = _single_payload(layer="maastokartta_vektori")
+    resp = client.post("/generate-map-async", json=payload)
+    assert resp.status_code == 422
+    assert "needs a scale" in resp.text
+
+
+def test_vector_layer_accepted_and_rendered(monkeypatch):
+    calls = []
+    monkeypatch.setattr(
+        "fastmap.services.pdf_generator.render_vector_map",
+        lambda c, extent, rect, scale: calls.append((rect, scale)),
+    )
+    resp = client.post("/generate-map-async", json=_vector_payload())
+    assert resp.status_code == 200
+    status = _poll_until(resp.json()["job_id"])
+    assert status["status"] == "done"
+    assert status["actual_scale"] == 50000
+    assert calls and calls[0][1] == 50000
+
+
+def test_tile_proxy_vector_layer_fetches_raster(monkeypatch):
+    from fastmap.api import routes
+
+    urls = []
+
+    class Resp:
+        status_code = 200
+        content = b"png"
+
+    def fake_get(url, **kw):
+        urls.append(url)
+        return Resp()
+
+    monkeypatch.setattr(routes.requests, "get", fake_get)
+    resp = client.get("/api/nls-tiles/8/119/210.png", params={"layer": "maastokartta_vektori"})
+    assert resp.status_code == 200
+    assert "/maastokartta/" in urls[0] and "vektori" not in urls[0]

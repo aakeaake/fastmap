@@ -558,3 +558,103 @@ def test_footer_text_sits_1mm_below_the_map(tmp_path, monkeypatch):
     baseline = next(y for _, y, t, _ in _text_ops(content) if t == right)
     text_top = baseline + getAscent("Courier", 7)
     assert map_bottom - text_top == pytest.approx(1 * mm, abs=0.25 * mm)
+
+
+# ---------------------------------------------------------------------------
+# Vector layer
+# ---------------------------------------------------------------------------
+
+
+def _vector_extent(centre, scale, paper="A4", orientation="portrait", margin=7.0):
+    from fastmap.services.print_layout import extent_for_center
+
+    return extent_for_center(centre[0], centre[1], scale, paper, orientation, margin)
+
+
+def test_vector_layer_page_geometry(tmp_path, offline_tiles):
+    extent = _vector_extent(offline_tiles, 25000)
+    out = tmp_path / "v.pdf"
+    result = pdf_generator.generate_pdf(
+        extent, paper_size="A4", orientation="portrait", layer="maastokartta_vektori",
+        title="Vektori", out_pdf_path=str(out),
+    )  # fmt: skip
+    data = out.read_bytes()
+    assert b"/Subtype /Image" not in data
+    assert result.actual_scale == 25000
+    assert (result.width_px, result.height_px) == (0, 0)
+    assert re.search(rb"/MediaBox \[ 0 0 595\.27\d* 841\.88\d* \]", data)
+    texts = [t for _, _, t, _ in _text_ops(_page_content(data))]
+    assert any("Vektori" in t and format_scale_label(25000) in t for t in texts)
+
+
+def test_vector_with_grid_and_gpx(tmp_path, offline_tiles):
+    cx, cy = offline_tiles
+    extent = _vector_extent(offline_tiles, 25000)
+    out = tmp_path / "v.pdf"
+    pdf_generator.generate_pdf(
+        extent, paper_size="A4", orientation="portrait", layer="maastokartta_vektori",
+        grid_mode="full_coords", grid_spacing_m=1000,
+        gpx_routes=[[[cx - 500, cy - 500], [cx + 500, cy + 500]]],
+        gpx_color="#12ab34", out_pdf_path=str(out),
+    )  # fmt: skip
+    content = _page_content(out.read_bytes()).decode("latin-1")
+    clip = re.search(r" re W\*? n", content).start()  # the map's clip block
+    after = content[clip:]
+    assert ".070588 .670588 .203922 RG" in after  # GPX stroke colour
+    assert ".070588 .670588 .203922 RG" not in content[:clip]
+    labels = [t for _, _, t, _ in _text_ops(content.encode("latin-1"))]
+    assert "3730" in labels  # an east grid label
+    assert after.index("(3730) Tj") > 0  # drawn after the map clip block
+
+
+def test_vector_clip_rect_equals_raster_image_rect(tmp_path, monkeypatch, offline_tiles):
+    extent = _vector_extent(offline_tiles, 25000)
+    kw = dict(paper_size="A4", orientation="portrait", margin_mm=7.0)
+    monkeypatch.setattr(pdf_generator, "render_extent_image", _fake_render)
+    r = tmp_path / "r.pdf"
+    pdf_generator.generate_pdf(extent, out_pdf_path=str(r), **kw)
+    v = tmp_path / "v.pdf"
+    pdf_generator.generate_pdf(extent, layer="maastokartta_vektori", out_pdf_path=str(v), **kw)
+    x, y, w, h = _image_box(_page_content(r.read_bytes()))
+    content = _page_content(v.read_bytes()).decode("latin-1")
+    rects = [
+        tuple(float(g) for g in m.groups())
+        for m in re.finditer(r"([\d.]+) ([\d.]+) ([\d.]+) ([\d.]+) re\s+W", content)
+    ]
+    assert any(
+        all(abs(a - b) < 0.01 for a, b in zip(rect, (x, y, w, h), strict=True)) for rect in rects
+    ), (rects, (x, y, w, h))
+
+
+def test_vector_rejects_unsupported_scale(tmp_path, offline_tiles):
+    extent = _vector_extent(offline_tiles, 20000)
+    with pytest.raises(ValueError, match="1:25 000 and 1:50 000"):
+        pdf_generator.generate_pdf(
+            extent, paper_size="A4", orientation="portrait",
+            layer="maastokartta_vektori", out_pdf_path=str(tmp_path / "x.pdf"),
+        )  # fmt: skip
+
+
+def test_multi_pdf_mixed_raster_vector(tmp_path, monkeypatch, offline_tiles):
+    monkeypatch.setattr(pdf_generator, "render_extent_image", _fake_render)
+    out = tmp_path / "m.pdf"
+    results = pdf_generator.generate_multi_pdf(
+        [
+            (
+                _vector_extent(offline_tiles, 20000, "A3", "landscape"),
+                {"paper_size": "A3", "orientation": "landscape"},
+            ),
+            (
+                _vector_extent(offline_tiles, 50000),
+                {"paper_size": "A4", "orientation": "portrait", "layer": "maastokartta_vektori"},
+            ),
+        ],
+        str(out),
+    )
+    data = out.read_bytes()
+    assert [r.actual_scale for r in results] == [20000, 50000]
+    assert [r.width_px == 0 for r in results] == [False, True]
+    assert len(re.findall(rb"/Subtype /Image", data)) == 1
+    boxes = re.findall(rb"/MediaBox \[ 0 0 ([\d.]+) ([\d.]+) \]", data)
+    sizes = [(round(float(w) / mm), round(float(h) / mm)) for w, h in boxes]
+    assert sizes == [(420, 297), (210, 297)]
