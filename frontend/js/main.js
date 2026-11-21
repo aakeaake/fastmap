@@ -10,6 +10,7 @@ import {
 import { createLangMenu } from './lang-menu.js';
 import { createNotices } from './notices.js';
 import { createPanes } from './panes.js';
+import { DEFAULT_OVERLAP, MAX_BATCH, OVERLAP_OPTIONS, coverTitle, planCover } from './cover.js';
 import { buildPayload, gpxRoutes } from './payload.js';
 import { ROUTE_KEY, formatKm, routeLengthM, sanitizeSavedRoute, serializeRoute, toGpx } from './route.js';
 import { parseMargin } from './saved.js';
@@ -445,6 +446,7 @@ function renderRoute() {
     setButton(el('gpxRemoveBtn'), 'x', t('gpx.remove'));
     el('gpxInfo').textContent = has ? `${routeLabel()} · ${formatKm(routeLengthM(lines), locale())}` : '';
     el('sharedSummary').textContent = has ? t('shared.summaryRoute', { name: routeLabel() }) : t('shared.summary');
+    renderCover();
 }
 
 // Replace the route (no lines = no route)
@@ -464,6 +466,7 @@ const clearRoute = () => setRoute('', []);
 let toolLines = [];
 function renderRouteBar() {
     const mode = routeTools.active();
+    renderCover();
     el('routeBar').hidden = !mode;
     document.body.toggleAttribute('data-route-mode', !!mode);
     if (!mode) return;
@@ -497,7 +500,51 @@ el('routeCancel').addEventListener('click', () => routeTools.cancel());
 
 el('gpxBtn').addEventListener('click', () => gpxInput.click());
 el('gpxRemoveBtn').addEventListener('click', () => { routeTools.cancel(); clearRoute(); });
-el('gpxShow').addEventListener('change', saveRoute);
+el('gpxShow').addEventListener('change', () => { saveRoute(); renderCover(); });
+
+// --- Cover the route with maps --------------------------------------------------
+// Sheets along the route in walking order (cover.js). Shown while a route
+// exists and is not being drawn or edited.
+function coverInputs() {
+    const overlap = Number(el('coverOverlap').value);
+    return {
+        paperSize: PAPER_MM[el('coverPaper').value] ? el('coverPaper').value : 'A4',
+        scale: parseInt(el('coverScale').value, 10) || 20000,
+        margin: parseMargin(el('coverMargin').value),
+        overlapPct: OVERLAP_OPTIONS.includes(overlap) ? overlap : DEFAULT_OVERLAP,
+        sameOrientation: el('coverSame').checked,
+    };
+}
+
+const coverSheets = () => planCover(routeLines(), coverInputs());
+
+// Paper, scale and margin start from the selected map
+function fillCoverFromActive() {
+    const e = active();
+    if (!e) return;
+    el('coverPaper').value = e.paperSize;
+    el('coverScale').value = e.scale;
+    el('coverMargin').value = e.margin;
+}
+
+function renderCover() {
+    const section = el('coverSection');
+    const show = routeLines().length > 0 && !routeTools.active();
+    if (show && section.hidden) fillCoverFromActive();
+    section.hidden = !show;
+    if (!show) return;
+    const n = coverSheets().length;
+    const count = n.toLocaleString(locale());
+    el('coverCount').textContent = n > MAX_BATCH ? t('cover.tooMany', { count })
+        : n === 1 ? t('cover.countOne') : t('cover.count', { count });
+    el('coverCount').classList.toggle('warn', n > MAX_BATCH);
+    el('coverRouteHidden').hidden = el('gpxShow').checked;
+}
+
+for (const id of ['coverPaper', 'coverScale', 'coverMargin', 'coverOverlap', 'coverSame']) {
+    el(id).addEventListener('input', renderCover);
+    el(id).addEventListener('change', renderCover);
+}
 
 el('gpxDownloadBtn').addEventListener('click', () => {
     const text = toGpx(routeLabel(), routeLines(), toWgs84);
@@ -657,7 +704,9 @@ el('downloadAllBtn').addEventListener('click', async () => {
 // --- Language -------------------------------------------------------------------------
 // Option labels with numbers follow the language's digit grouping
 function formatOptions() {
-    for (const o of el('scale').options) o.textContent = `1:${Number(o.value).toLocaleString(locale())}`;
+    for (const o of [...el('scale').options, ...el('coverScale').options]) {
+        o.textContent = `1:${Number(o.value).toLocaleString(locale())}`;
+    }
     for (const o of el('gridSpacing').options) o.textContent = `${Number(o.value).toLocaleString(locale())} m`;
 }
 
