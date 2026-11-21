@@ -13,6 +13,7 @@ from .geometry import clip_features, merge_by_mtk_id
 from .model import Feature
 from .profiles import PROFILES
 from .style import scale_to_zoom, style_for
+from .symbols import Symbols, draw_icon_layers
 from .tiles import load_tiles
 
 CLIP_BUFFER_FRACTION = 0.02
@@ -54,5 +55,7 @@ def render_vector_map(
         c.setFillAlpha(a)
         c.rect(x, y, w, h, stroke=0, fill=1)
         c.setFillAlpha(1)
-    draw_fill_line_layers(c, frame, style, by_layer, zoom, profile.px_mm, None)
+    symbols = Symbols()
+    draw_fill_line_layers(c, frame, style, by_layer, zoom, profile.px_mm, symbols)
+    draw_icon_layers(c, frame, style, by_layer, zoom, profile.px_mm, symbols)
     c.restoreState()
