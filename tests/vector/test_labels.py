@@ -25,7 +25,7 @@ def _cand(text="Label", anchor=(100, 100), priority=(0,), line=None, **kw):
         size_pt=10,
         color=BLACK,
         halo_color=WHITE,
-        halo_pt=1,
+        halo_pt=kw.pop("halo_pt", 1),
         priority=priority,
         anchor_pts=[] if line is not None else [(anchor[0], anchor[1], 0.0)],
         line=line,
@@ -211,3 +211,35 @@ def test_later_layer_name_beats_earlier_contour_label():
     assert len(cands) == 2
     placed = place(cands, FRAME)
     assert [p.candidate.text for p in placed] == ["Kaurasuo"]
+
+
+def test_point_label_dropped_when_only_its_halo_crosses_the_edge():
+    w = pdfmetrics.stringWidth("Edge", "NotoSans-Regular", 10)
+    ax = 0.5 + w / 2  # bare text box starts 0.5 pt inside the frame
+    assert len(place([_cand("Edge", anchor=(ax, 100), halo_pt=0)], FRAME)) == 1
+    assert place([_cand("Edge", anchor=(ax, 100), halo_pt=1)], FRAME) == []
+
+
+def test_line_label_crossing_frame_edge_dropped():
+    crossing = _cand("12345", line=LineString([(-60, 100), (25, 100)]), spacing_pt=1000)
+    assert place([crossing], FRAME) == []
+    # cap box would fit 5.5 pt above the bottom edge; descenders and halo do not
+    low = _cand("12345", line=LineString([(10, 5.5), (190, 5.5)]), spacing_pt=1000)
+    assert place([low], FRAME) == []
+    high = _cand("12345", line=LineString([(10, 12), (190, 12)]), spacing_pt=1000)
+    assert len(place([high], FRAME)) == 1
+
+
+def test_line_label_rejected_by_spike_between_glyph_centres():
+    # ~2 pt spike, 1 pt high, sits between the 3rd and 4th glyph centres
+    coords = [(10, 100), (102.9, 100), (103.0, 101), (103.1, 100), (190, 100)]
+    cand = _cand("12345", line=LineString(coords), spacing_pt=1000, max_angle=45)
+    assert place([cand], FRAME) == []
+
+
+def test_line_label_rejected_when_colliding_with_placed_box():
+    blocker = _cand("Name", anchor=(100, 100), priority=(0,))
+    line = _cand("12345", line=LineString([(10, 100), (190, 100)]), spacing_pt=1000, priority=(1,))
+    other = _cand("678", line=LineString([(10, 150), (190, 150)]), spacing_pt=1000, priority=(1,))
+    placed = place([line, other, blocker], FRAME)
+    assert sorted(p.candidate.text for p in placed) == ["678", "Name"]

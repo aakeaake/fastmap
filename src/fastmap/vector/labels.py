@@ -290,8 +290,14 @@ def _rotated_box(cx: float, cy: float, w: float, h: float, angle_deg: float) -> 
     return (cx - hw, cy - hh, cx + hw, cy + hh)
 
 
-def _fits(box: Box, bounds: Box, grid: _Grid, pad: float, allow_overlap: bool) -> bool:
-    return _inside(box, bounds) and (allow_overlap or not grid.hits(_pad(box, pad)))
+def _fits(
+    box: Box, bounds: Box, grid: _Grid, pad: float, allow_overlap: bool, ink: float = 0.0
+) -> bool:
+    """``box`` grown by ``ink`` (halo) lies in the frame and, padded, hits nothing placed.
+
+    Placed boxes are stored unpadded, so padding counts once (on the query side).
+    """
+    return _inside(_pad(box, ink), bounds) and (allow_overlap or not grid.hits(_pad(box, pad)))
 
 
 # ------------------------------------------------------------------ point placement
@@ -343,7 +349,7 @@ def _place_point(cand: Candidate, anchor_pt, grid: _Grid, bounds: Box) -> Placem
         for anchor in cand.variable_anchors or ["center"]:
             left, top = _anchor_origin(anchor, ax, ay, w, h)
             box = (left, top - h, left + w, top)
-            if _fits(box, bounds, grid, pad, cand.allow_overlap):
+            if _fits(box, bounds, grid, pad, cand.allow_overlap, cand.halo_pt):
                 text_box, chosen = box, anchor
                 break
         if text_box is None:
@@ -352,9 +358,9 @@ def _place_point(cand: Candidate, anchor_pt, grid: _Grid, bounds: Box) -> Placem
             baseline = top - (i + 1) * lh + (lh - CAP_HEIGHT * size) / 2
             glyphs.append((t, left + (w - lw) / 2, baseline, 0.0))
         if not cand.ignore_placement:
-            grid.add(_pad(text_box, pad))
+            grid.add(text_box)
     if icon_box is not None and not cand.icon_ignore_placement:
-        grid.add(_pad(icon_box, pad))
+        grid.add(icon_box)
     return Placement(cand, glyphs, chosen, icon_xy)
 
 
@@ -363,6 +369,29 @@ def _place_point(cand: Candidate, anchor_pt, grid: _Grid, bounds: Box) -> Placem
 
 def _normalize(angle: np.ndarray) -> np.ndarray:
     return (angle + 180.0) % 360.0 - 180.0
+
+
+def _too_bent(
+    cum: np.ndarray, turns: np.ndarray, start: float, end: float, size: float, max_angle: float
+) -> bool:
+    """MapLibre checkMaxAngle: turns at the line's vertices inside [start, end].
+
+    Rejects a single turn sharper than ``max_angle`` or turns summing (signed) beyond it
+    within any stretch of three ems.
+    """
+    pos = cum[1:-1]
+    inside = (pos > start) & (pos < end)
+    if not inside.any():
+        return False
+    pos, turn = pos[inside], turns[inside]
+    if np.abs(turn).max() > max_angle:
+        return True
+    window = 3 * size
+    for i in range(len(pos)):
+        j = np.searchsorted(pos, pos[i] + window, side="right")
+        if abs(turn[i:j].sum()) > max_angle:
+            return True
+    return False
 
 
 def _place_line(cand: Candidate, grid: _Grid, bounds: Box) -> list[Placement]:
@@ -377,6 +406,7 @@ def _place_line(cand: Candidate, grid: _Grid, bounds: Box) -> list[Placement]:
     cum = np.concatenate([[0.0], np.cumsum(seglen)])
     total = cum[-1]
     seg_angle = np.degrees(np.arctan2(seg[:, 1], seg[:, 0]))
+    turns = _normalize(np.diff(seg_angle))  # turn at interior vertex i + 1 (at cum[i + 1])
 
     size = cand.size_pt
     chars = list(cand.text)
@@ -399,15 +429,17 @@ def _place_line(cand: Candidate, grid: _Grid, bounds: Box) -> list[Placement]:
         flip = x1 < x0  # keep text reading left to right
         s = dc - offs if flip else dc + offs
         k = np.clip(np.searchsorted(cum, s, side="right") - 1, 0, len(seg) - 1)
-        angles = _normalize(seg_angle[k] + (180.0 if flip else 0.0))
-        if len(angles) > 1 and np.abs(_normalize(np.diff(angles))).max() > cand.max_angle:
+        if _too_bent(cum, turns, dc - width / 2, dc + width / 2, size, cand.max_angle):
             continue
+        angles = _normalize(seg_angle[k] + (180.0 if flip else 0.0))
         gx, gy = at(s)
+        # glyph boxes one line-height tall, centred on the line: covers descenders too
         boxes = [
-            _rotated_box(x, y, a_w, size, a)
+            _rotated_box(x, y, a_w, LINE_HEIGHT * size, a)
             for x, y, a_w, a in zip(gx, gy, adv, angles, strict=True)
         ]
-        if not all(_fits(b, bounds, grid, cand.padding_pt, cand.allow_overlap) for b in boxes):
+        pad, ink = cand.padding_pt, cand.halo_pt
+        if not all(_fits(b, bounds, grid, pad, cand.allow_overlap, ink) for b in boxes):
             continue
         glyphs = []
         for ch, x, y, a_w, a in zip(chars, gx, gy, adv, angles, strict=True):
@@ -420,7 +452,7 @@ def _place_line(cand: Candidate, grid: _Grid, bounds: Box) -> list[Placement]:
             glyphs.append((ch, float(ox), float(oy), float(a)))
         if not cand.ignore_placement:
             for b in boxes:
-                grid.add(_pad(b, cand.padding_pt))
+                grid.add(b)
         out.append(Placement(cand, glyphs))
     return out
 
