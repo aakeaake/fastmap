@@ -118,7 +118,7 @@
     <section class="section" aria-label="Shared settings" data-i18n-attr="aria-label:shared.section">
         <button id="sharedBtn" class="nav-row" type="button" aria-controls="sharedPane" aria-expanded="false">
             <span data-icon="sliders"></span>
-            <span class="nav-text"><b data-i18n="shared.heading">Route and precision</b><small id="sharedSummary">GPX route, DPI and map level</small></span>
+            <span class="nav-text"><b data-i18n="shared.heading">Route, area and precision</b><small id="sharedSummary">Route, area, DPI and map level</small></span>
             <span data-icon="chevron"></span>
         </button>
     </section>
@@ -142,13 +142,13 @@
     <ul id="railMaps"></ul>
     <button id="railNew" class="icon-btn" type="button" aria-label="New map" title="New map" data-i18n-attr="aria-label:maps.new;title:maps.new" data-icon="plus"></button>
     <hr>
-    <button id="railShared" class="icon-btn" type="button" aria-controls="sharedPane" aria-expanded="false" aria-label="Route and precision" title="Route and precision" data-i18n-attr="aria-label:shared.heading;title:shared.heading" data-icon="sliders"></button>
+    <button id="railShared" class="icon-btn" type="button" aria-controls="sharedPane" aria-expanded="false" aria-label="Route, area and precision" title="Route, area and precision" data-i18n-attr="aria-label:shared.heading;title:shared.heading" data-icon="sliders"></button>
     <button id="railDownload" class="icon-btn" type="button" aria-label="Download all maps" title="Download all" data-i18n-attr="aria-label:download.allMaps;title:download.all" data-icon="download"></button>
 </nav>
 
 <aside class="pane" id="sharedPane" aria-labelledby="sharedHeading" hidden>
     <div class="head-row">
-        <h2 class="pane-title" id="sharedHeading" data-i18n="shared.heading">Route and precision</h2>
+        <h2 class="pane-title" id="sharedHeading" data-i18n="shared.heading">Route, area and precision</h2>
         <button id="sharedClose" class="icon-btn" type="button" aria-label="Close" title="Close" data-i18n-attr="aria-label:close;title:close" data-icon="x"></button>
     </div>
     <div class="sheet-body">
@@ -214,6 +214,21 @@
                 <button id="coverBtn" class="btn btn-primary" type="button" data-i18n="cover.create">Create maps</button>
             </div>
         </div>
+
+        <h3 data-i18n="atlas.heading">Atlas of an area</h3>
+        <div id="areaStart">
+            <div class="btn-row">
+                <button id="areaDrawBtn" class="btn btn-secondary" type="button"></button>
+            </div>
+        </div>
+        <div id="areaLoaded" hidden>
+            <div id="areaInfo"></div>
+            <div class="btn-row">
+                <button id="areaEditBtn" class="btn btn-secondary" type="button"></button>
+                <button id="areaRemoveBtn" class="btn btn-secondary" type="button"></button>
+            </div>
+        </div>
+        <div id="atlasSection" hidden></div>
 
         <h3 data-i18n="gpx.style">Route style</h3>
         <label class="check"><input id="gpxShow" type="checkbox" checked> <span data-i18n="gpx.showOnPrint">Show route on printouts</span></label>
