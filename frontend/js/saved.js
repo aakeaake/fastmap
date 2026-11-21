@@ -2,6 +2,7 @@
 import {
     DEFAULTS, GRID_MODES, GRID_SPACINGS, LAYERS, MARGIN_MAX_MM, ORIENTATIONS, PAPER_MM,
 } from './constants.js';
+import { effectiveLayer } from './layer.js';
 
 // Margin in mm from any input: non-numbers fall back to the default,
 // numbers are clamped to 0..MARGIN_MAX_MM.
@@ -31,7 +32,7 @@ export function sanitizeSavedMap(m) {
             paperSize: m.paperSize,
             orientation: m.orientation,
             scale: m.scale,
-            layer: m.layer,
+            layer: effectiveLayer(m.layer, m.scale),
             margin: Number.isFinite(m.margin) ? parseMargin(m.margin) : DEFAULTS.margin,
             gridMode: GRID_MODES.includes(m.gridMode) ? m.gridMode : 'off',
             gridSpacing: GRID_SPACINGS.includes(m.gridSpacing) ? m.gridSpacing : 1000,

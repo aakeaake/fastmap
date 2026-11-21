@@ -80,6 +80,17 @@
 
         <div class="row">
             <div>
+                <label for="mapType" data-i18n="field.mapType">Map</label>
+                <select id="mapType">
+                    <option value="raster" selected data-i18n="maptype.raster">Maastokartta</option>
+                    <option value="vector" id="mapTypeVector" data-i18n="maptype.vector">Maastokartta, vector (beta)</option>
+                </select>
+                <p class="section-note" id="mapTypeHint" data-i18n="maptype.hint" hidden>Vector map: 1:25 000 and 1:50 000 only</p>
+            </div>
+        </div>
+
+        <div class="row">
+            <div>
                 <label for="gridMode" data-i18n="field.grid">Grid</label>
                 <select id="gridMode">
                     <option value="off" selected data-i18n="grid.off">None</option>

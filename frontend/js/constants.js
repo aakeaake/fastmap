@@ -13,7 +13,10 @@ export const RESOLUTIONS = Array.from({ length: 14 }, (_, z) => 8192 / 2 ** z);
 // --- Map settings -------------------------------------------------------------
 export const PAPER_MM = { A4: [210, 297], A3: [297, 420] };
 export const ORIENTATIONS = ['portrait', 'landscape'];
-export const LAYERS = ['maastokartta', 'taustakartta', 'selkokartta', 'ortokuva'];
+export const VECTOR_LAYER = 'maastokartta_vektori';
+// The vector map is drawn at exactly these scales only.
+export const VECTOR_SCALES = [25000, 50000];
+export const LAYERS = ['maastokartta', VECTOR_LAYER, 'taustakartta', 'selkokartta', 'ortokuva'];
 export const GRID_MODES = ['off', 'vertical', 'vertical_coords', 'full', 'full_coords'];
 export const GRID_SPACINGS = [500, 1000, 2000, 5000];
 export const MARGIN_MAX_MM = 30;

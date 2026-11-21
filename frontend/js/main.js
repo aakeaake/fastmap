@@ -1,10 +1,11 @@
 // FastMap UI: wires the map, the map list, the panes and PDF downloads.
-import { GRID_MODES, HINT_KEY, PAPER_MM, STORAGE_KEY } from './constants.js';
+import { GRID_MODES, HINT_KEY, PAPER_MM, STORAGE_KEY, VECTOR_LAYER, VECTOR_SCALES } from './constants.js';
 import { centerToShow, containsExtent, visibleCenter as visibleCenterOf, visibleExtent } from './geometry.js';
 import { applyTranslations, getLang, locale, onLangChange, setLang, t } from './i18n.js';
 import { hydrateIcons, icon, setButton } from './icons.js';
 import { JobError, runJob } from './jobs.js';
 import { addTranslate, createMap, makeBaseSource, readGpx } from './map.js';
+import { effectiveLayer } from './layer.js';
 import { createLangMenu } from './lang-menu.js';
 import { createNotices } from './notices.js';
 import { createPanes } from './panes.js';
@@ -155,11 +156,20 @@ function syncPanel() {
     el('orientation').value = e.orientation;
     el('scale').value = e.scale;
     el('margin').value = e.margin;
+    el('mapType').value = e.layer === VECTOR_LAYER ? 'vector' : 'raster';
+    updateMapTypeOption(e.scale);
     baseLayer.setSource(makeBaseSource(e.layer));
     el('title').value = e.title;
     el('gridMode').value = e.gridMode;
     el('gridSpacing').value = e.gridSpacing;
     el('gridSpacing').disabled = e.gridMode === 'off';
+}
+
+// The vector option exists only at the scales the vector map supports
+function updateMapTypeOption(scale) {
+    const ok = VECTOR_SCALES.includes(scale);
+    el('mapTypeVector').disabled = !ok;
+    el('mapTypeHint').hidden = ok;
 }
 
 function panelChanged() {
@@ -170,7 +180,11 @@ function panelChanged() {
     e.orientation = el('orientation').value === 'landscape' ? 'landscape' : 'portrait';
     e.scale = parseInt(el('scale').value, 10) || 20000;
     e.margin = parseMargin(el('margin').value);
-    e.layer = 'maastokartta';
+    const prevLayer = e.layer;
+    e.layer = effectiveLayer(el('mapType').value === 'vector' ? VECTOR_LAYER : 'maastokartta', e.scale);
+    el('mapType').value = e.layer === VECTOR_LAYER ? 'vector' : 'raster';
+    updateMapTypeOption(e.scale);
+    if (e.layer !== prevLayer) baseLayer.setSource(makeBaseSource(e.layer));
     e.title = el('title').value.trim();
     e.gridMode = GRID_MODES.includes(el('gridMode').value) ? el('gridMode').value : 'off';
     e.gridSpacing = parseInt(el('gridSpacing').value, 10) || 1000;
@@ -375,7 +389,7 @@ el('centerBtn').addEventListener('click', () => {
 sheet.setSheet(sheet.state);
 if (!loadSnapshot(savedSnapshot())) newMap();
 
-for (const id of ['paperSize', 'orientation', 'scale', 'margin', 'gridMode', 'gridSpacing']) {
+for (const id of ['paperSize', 'orientation', 'scale', 'mapType', 'margin', 'gridMode', 'gridSpacing']) {
     el(id).addEventListener('change', panelChanged);
     el(id).addEventListener('input', panelChanged);
 }
