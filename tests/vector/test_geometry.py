@@ -188,7 +188,25 @@ def test_outline_leaves_out_cell_edges_and_keeps_the_rest_joined():
     # ring starts mid-way along the real edges; its east side is the cell edge
     ring = shapely.Polygon([(x - 50, 10), (x, 10), (x, 110), (x - 100, 110), (x - 100, 10)])
     lines = outline(ring, 512)
-    assert lines.geom_type == "MultiLineString" and len(lines.geoms) == 1
+    assert lines.geom_type == "LineString"  # one run, joined across the ring start
     assert lines.length == pytest.approx(300)  # the 100 m cell-edge side is gone
     assert outline(ring, None).length == pytest.approx(400)
     assert outline(box(x - 100, 10, x - 10, 60), 512).length == pytest.approx(280)
+
+
+def test_outline_crossing_a_seam_stays_one_line():
+    # Merged pieces whose cut vertices differ by 3 cm leave tiny jogs on the
+    # seam; dropping them would split the outline (dash phase and line-offset
+    # ends would restart at every seam crossing).
+    from shapely.geometry import Polygon
+
+    from fastmap.vector.geometry import outline
+
+    x = -548576 + 1800 * 512
+    left = Polygon([(x - 150, 100), (x, 100.0), (x, 300.02), (x - 150, 300)])
+    right = Polygon([(x, 99.97), (x + 150, 100), (x + 150, 300), (x, 299.99)])
+    merged = merge_by_mtk_id([_f("l", "Polygon", g, mtk_id=1) for g in (left, right)])
+    lines = outline(merged[0].geometry, 512)
+    assert lines.geom_type == "LineString"
+    assert lines.is_closed
+    assert lines.length == pytest.approx(merged[0].geometry.exterior.length)

@@ -14,6 +14,7 @@ from .model import Feature
 
 SNAP_TOLERANCE_M = 1.0
 CUT_TOLERANCE_M = 0.01  # cut vertices sit exactly on the cell edge
+MIN_CUT_EDGE_M = 0.5  # shorter stretches on a cell edge are jogs between merged pieces
 
 _FAMILY = {
     "Point": ("Point", "MultiPoint"),
@@ -119,23 +120,26 @@ def clip_features(features: list[Feature], extent: Extent, buffer_m: float) -> l
 
 
 def _cut_segments(coords: np.ndarray, tile_m: float) -> np.ndarray:
-    """Per segment: True when both ends lie on the same tile-cell edge."""
+    """Per segment: True when it runs along a tile-cell edge for at least MIN_CUT_EDGE_M."""
     cut = np.zeros(len(coords) - 1, dtype=bool)
     for axis, origin in enumerate(WMTS_ORIGIN):
         f = (coords[:, axis] - origin) / tile_m
         k = np.round(f)
         on = np.abs(f - k) * tile_m <= CUT_TOLERANCE_M
         cut |= on[:-1] & on[1:] & (k[:-1] == k[1:])
-    return cut
+    lengths = np.hypot(*np.diff(coords, axis=0).T)
+    return cut & (lengths >= MIN_CUT_EDGE_M)
 
 
 def outline(geom, tile_m: float | None):
     """A polygon's boundary as lines, minus the stretches along tile-cell edges.
 
     Tiles are clipped to their cells, so a boundary runs along a cell edge
-    where the object goes on in the next tile, or where merged pieces' cut
-    vertices differ by a few cm. Those stretches are clipping artefacts, not
-    edges of the object, and are left out. ``tile_m`` None keeps everything.
+    where the object goes on in the next tile. Those stretches are clipping
+    artefacts, not edges of the object, and are left out. The few-cm jogs left
+    where merged pieces' cut vertices differ are kept, so an outline crossing a
+    seam stays one line (dashes and offsets do not restart there). ``tile_m``
+    None keeps everything.
     """
     boundary = geom.boundary
     if tile_m is None:
@@ -162,4 +166,4 @@ def outline(geom, tile_m: float | None):
             elif is_cut and start is not None:
                 out.append(LineString(a[start : i + 1]))
                 start = None
-    return MultiLineString(out)
+    return shapely.line_merge(MultiLineString(out))

@@ -249,5 +249,7 @@ def test_no_outline_along_tile_seam(tmp_path, monkeypatch, layer, kohdeluokka, m
 
     assert any(on_x(s, 50) for s in segs), "the object's real west edge is outlined"
     assert any(on_x(s, 350) for s in segs), "the object's real east edge is outlined"
-    seam = [s for s in segs if on_x(s, 200)]
+    # sub-0.5 m jogs where merged pieces' cut vertices differ stay in the
+    # outline (keeping it continuous); real cut edges must not be stroked
+    seam = [s for s in segs if on_x(s, 200) and abs(s[0][1] - s[1][1]) >= 0.5]
     assert seam == [], f"outline stroked along the tile seam: {seam}"
