@@ -9,6 +9,7 @@ from fastmap.vector.expressions import (
     evaluate,
     filter_matches,
     validate,
+    validate_property,
 )
 
 STYLE_PATH = (
@@ -117,23 +118,12 @@ def test_validate_unknown_operator():
 
 
 def test_all_style_expressions_validate():
-    literal_arrays = {
-        "text-font",
-        "line-dasharray",
-        "text-offset",
-        "icon-offset",
-        "text-variable-anchor",
-    }
     style = json.loads(STYLE_PATH.read_text(encoding="utf-8"))
     n = 0
     for layer in style["layers"]:
         validate(layer.get("filter"))
         for section in ("paint", "layout"):
             for key, value in layer.get(section, {}).items():
-                if key in literal_arrays and not (
-                    isinstance(value, list) and value and value[0] in ("step", "match")
-                ):
-                    continue
-                validate(value)
+                validate_property(key, value)
                 n += 1
     assert n > 100

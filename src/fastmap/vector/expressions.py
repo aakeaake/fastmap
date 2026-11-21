@@ -399,3 +399,38 @@ def validate(expr: Any) -> None:
     else:
         for a in args:
             validate(a)
+
+
+# Properties whose value is a literal array rather than an expression.
+LITERAL_ARRAY_PROPS = frozenset(
+    {
+        "text-font",
+        "line-dasharray",
+        "text-offset",
+        "icon-offset",
+        "text-variable-anchor",
+        "text-anchor",
+    }
+)
+
+
+def _is_literal_array(prop: str, value: Any) -> bool:
+    return (
+        prop in LITERAL_ARRAY_PROPS
+        and isinstance(value, list)
+        and not (value and isinstance(value[0], str) and value[0] in _KNOWN_OPS)
+    )
+
+
+def evaluate_property(prop: str, value: Any, ctx: EvalContext) -> Any:
+    """Evaluate a paint/layout property; literal-array properties pass through."""
+    if _is_literal_array(prop, value):
+        return value
+    return evaluate(value, ctx)
+
+
+def validate_property(prop: str, value: Any) -> None:
+    """Validate a paint/layout property value (literal arrays are skipped)."""
+    if _is_literal_array(prop, value):
+        return
+    validate(value)
