@@ -102,6 +102,9 @@ def _apply_overrides(layers: list[StyleLayer], overrides: dict) -> None:
         for key in ("minzoom", "maxzoom"):
             if key in ov:
                 setattr(layer, key, ov[key])
+        if "filter" in ov:  # narrows the layer: ANDed with its own filter
+            extra = copy.deepcopy(ov["filter"])
+            layer.filter = extra if layer.filter is None else ["all", layer.filter, extra]
         layer.paint.update(copy.deepcopy(ov.get("paint", {})))
         layer.layout.update(copy.deepcopy(ov.get("layout", {})))
         _validate_layer(layer)

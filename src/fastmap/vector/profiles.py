@@ -26,6 +26,11 @@ class ScaleProfile:
 
 _INDEX_CONTOUR = ["==", ["%", ["get", "korkeusarvo"], 20000], 0]  # 20 m index lines
 
+# MML tags each place name with the smallest map scale it belongs on
+# (mittakaavarelevanssi); names tagged 25 000 are 1:25 000 detail, and untagged
+# (0) entries are service points (churches, museums, malls), not map names.
+_NAMES_FOR_50K = {"filter": [">=", ["coalesce", ["get", "mittakaavarelevanssi"], 0], 50000]}
+
 PROFILES: dict[int, ScaleProfile] = {
     25000: ScaleProfile(
         25000,
@@ -63,6 +68,11 @@ PROFILES: dict[int, ScaleProfile] = {
             },
             "korkeus_apuviiva": {"visibility": "none"},  # no 2.5 m contours at 1:50 000
             "mml-vedenpinta": {"minzoom": 13},  # lake surface heights, as on the reference
+            # only names meant for 1:50 000 maps (national parks and municipalities
+            # have their own layers and keep their names)
+            "nimisto-maasto-vedet": _NAMES_FOR_50K,
+            "nimisto-maasto-vedet-mat-prio": _NAMES_FOR_50K,
+            "nimisto": _NAMES_FOR_50K,
         },
         text_scale=1.5,  # small names as on the reference, readable at px_mm 0.07 (F5)
         halo_scale=0.4,  # hairline halo (F1): at most ~0.06 mm

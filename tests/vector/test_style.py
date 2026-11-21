@@ -1,6 +1,6 @@
 import pytest
 
-from fastmap.vector.expressions import EvalContext, StyleError
+from fastmap.vector.expressions import EvalContext, StyleError, filter_matches
 from fastmap.vector.profiles import PROFILES
 from fastmap.vector.style import (
     StyleLayer,
@@ -83,3 +83,42 @@ def test_profiles_thin_halo_and_lighter_lines(scale):
     profile = PROFILES[scale]
     assert 2 * profile.px_mm * profile.halo_scale <= 0.1  # widest style halo, mm
     assert profile.px_mm < 0.28
+
+
+def test_filter_override_is_anded_with_the_layer_filter():
+    style = load_style(overrides={"nimisto": {"filter": ["==", ["get", "x"], 1]}})
+    layer = next(ly for ly in style.layers if ly.id == "nimisto")
+    base = {"teema": "Kulttuuri", "alaryhma": "Kylät", "laji": "Kylä"}
+    match = filter_matches(layer.filter, EvalContext({**base, "x": 1}, 14.0, "Point"))
+    miss = filter_matches(layer.filter, EvalContext({**base, "x": 2}, 14.0, "Point"))
+    assert match and not miss
+
+
+def test_50k_shows_only_names_tagged_for_50k_or_smaller_scales():
+    style = style_for(PROFILES[50000])
+
+    def shown(props):
+        return any(
+            ly.source_layer == "nimisto"
+            and filter_matches(ly.filter, EvalContext(props, 13.5, "Point"))
+            for ly in style.layers
+        )
+
+    lake = {"teema": "Vedet", "prioriteetti": 30, "nimi_fin": "X"}
+    assert shown({**lake, "mittakaavarelevanssi": 50000})
+    assert shown({**lake, "mittakaavarelevanssi": 250000})
+    assert not shown({**lake, "mittakaavarelevanssi": 25000})
+    church = {"teema": "Kulttuuri", "alaryhma": "X", "laji": "Kirkko"}
+    assert not shown({**church, "mittakaavarelevanssi": 0})
+    assert not shown(church)  # no relevance tag: a service point, not a map name
+    park = {"teema": "Suojelu", "laji": "Kansallispuisto", "mittakaavarelevanssi": 25000}
+    assert shown(park)  # national parks keep their names
+
+
+def test_25k_keeps_all_names():
+    style = style_for(PROFILES[25000])
+    lake = {"teema": "Vedet", "prioriteetti": 30, "nimi_fin": "X", "mittakaavarelevanssi": 25000}
+    assert any(
+        ly.source_layer == "nimisto" and filter_matches(ly.filter, EvalContext(lake, 13.5, "Point"))
+        for ly in style.layers
+    )
