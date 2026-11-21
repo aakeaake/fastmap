@@ -21,7 +21,7 @@ test('a valid saved map keeps its settings', () => {
     const { settings, coords: c } = sanitizeSavedMap(good);
     assert.deepEqual(settings, {
         id: 3, title: 'Nuuksio', paperSize: 'A3', orientation: 'landscape', scale: 25000,
-        layer: 'maastokartta', margin: 5, gridMode: 'full', gridSpacing: 2000,
+        layer: 'maastokartta', margin: 5, gridMode: 'full', gridSpacing: 2000, mode: 'maps',
     });
     assert.equal(c, coords);
 });
@@ -63,4 +63,10 @@ test('a saved vector map at an unsupported scale loads as raster', () => {
 test('a saved vector map at a supported scale keeps the vector layer', () => {
     const { settings } = sanitizeSavedMap({ ...good, layer: 'maastokartta_vektori', scale: 50000 });
     assert.equal(settings.layer, 'maastokartta_vektori');
+});
+
+test('sanitizeSavedMap keeps the mode; missing or unknown is maps', () => {
+    assert.equal(sanitizeSavedMap({ ...good, mode: 'route' }).settings.mode, 'route');
+    assert.equal(sanitizeSavedMap(good).settings.mode, 'maps');
+    assert.equal(sanitizeSavedMap({ ...good, mode: 'x' }).settings.mode, 'maps');
 });

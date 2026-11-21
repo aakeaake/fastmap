@@ -13,6 +13,8 @@ export const RESOLUTIONS = Array.from({ length: 14 }, (_, z) => 8192 / 2 ** z);
 // --- Map settings -------------------------------------------------------------
 export const PAPER_MM = { A4: [210, 297], A3: [297, 420] };
 export const ORIENTATIONS = ['portrait', 'landscape'];
+// Ways to make sheets: by hand, along a route, a grid over an area
+export const MODES = ['maps', 'route', 'atlas'];
 export const VECTOR_LAYER = 'maastokartta_vektori';
 // The vector map is drawn at exactly these scales only.
 export const VECTOR_SCALES = [25000, 50000];

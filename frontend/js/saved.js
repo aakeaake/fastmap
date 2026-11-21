@@ -1,6 +1,6 @@
 // Validation of saved / undo snapshot data and of form input. Pure.
 import {
-    DEFAULTS, GRID_MODES, GRID_SPACINGS, LAYERS, MARGIN_MAX_MM, ORIENTATIONS, PAPER_MM,
+    DEFAULTS, GRID_MODES, GRID_SPACINGS, LAYERS, MARGIN_MAX_MM, MODES, ORIENTATIONS, PAPER_MM,
 } from './constants.js';
 import { effectiveLayer } from './layer.js';
 
@@ -11,6 +11,9 @@ export function parseMargin(value) {
     if (!Number.isFinite(m)) return DEFAULTS.margin;
     return Math.min(Math.max(m, 0), MARGIN_MAX_MM);
 }
+
+// Unknown or missing modes are hand-placed maps
+export const sanitizeMode = m => (MODES.includes(m) ? m : 'maps');
 
 function isRing(c) {
     return Array.isArray(c) && c.length === 5 && c.every(
@@ -36,6 +39,7 @@ export function sanitizeSavedMap(m) {
             margin: Number.isFinite(m.margin) ? parseMargin(m.margin) : DEFAULTS.margin,
             gridMode: GRID_MODES.includes(m.gridMode) ? m.gridMode : 'off',
             gridSpacing: GRID_SPACINGS.includes(m.gridSpacing) ? m.gridSpacing : 1000,
+            mode: sanitizeMode(m.mode),
         },
         coords: m.coords,
     };
