@@ -42,7 +42,8 @@ WMTS_TILE_SIZE = 256
 WMTS_MAX_LEVEL = 13
 WMTS_ORIGIN = (-548576.0, 8388608.0)  # top-left corner of level-0 mosaic
 
-MML_LAYERS = ("maastokartta", "taustakartta", "selkokartta", "ortokuva")
+VECTOR_LAYER = "maastokartta_vektori"
+MML_LAYERS = ("maastokartta", "taustakartta", "selkokartta", "ortokuva", VECTOR_LAYER)
 
 # Retries for every MML request (tiles and WMS), done by urllib3 on the
 # shared session: up to 2 retries for connection errors and for 429/5xx

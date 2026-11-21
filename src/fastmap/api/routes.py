@@ -23,6 +23,7 @@ from fastmap.schemas.map_request import BatchMapRequest, MapRequest
 from fastmap.services.jobs import JobStore, QueueFull
 from fastmap.services.mml_source import (
     MML_LAYERS,
+    VECTOR_LAYER,
     WMTS_MAX_LEVEL,
     MMLError,
 )
@@ -301,7 +302,9 @@ def nls_tile(level: int, col: int, row: int, layer: str = "taustakartta"):
     if layer not in MML_LAYERS:
         raise HTTPException(status_code=400, detail=f"Unknown layer '{layer}'")
 
-    url = MML_WMTS_URL.format(layer=layer, z=level, y=row, x=col)
+    # The vector map has no raster tiles of its own: preview with the raster map
+    raster_layer = "maastokartta" if layer == VECTOR_LAYER else layer
+    url = MML_WMTS_URL.format(layer=raster_layer, z=level, y=row, x=col)
     try:
         resp = requests.get(
             url,

@@ -16,11 +16,11 @@ from __future__ import annotations
 
 import math
 import re
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
-from PIL import Image
 from reportlab import rl_config
 from reportlab.lib.colors import Color, black
 from reportlab.lib.units import mm
@@ -28,7 +28,12 @@ from reportlab.lib.utils import ImageReader
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfgen import canvas
 
-from fastmap.services.mml_source import MML_LAYERS, pick_wmts_level, render_extent_image
+from fastmap.services.mml_source import (
+    MML_LAYERS,
+    VECTOR_LAYER,
+    pick_wmts_level,
+    render_extent_image,
+)
 from fastmap.services.print_layout import (
     FOOTER_MM,
     Extent,
@@ -37,6 +42,7 @@ from fastmap.services.print_layout import (
     format_scale_label,
     oriented_page_mm,
 )
+from fastmap.vector import VECTOR_SCALES, render_vector_map
 
 # See the module docstring. With the rl_accel C extension (a dependency)
 # ASCII85 is cheap (~0.08 s per A4 map), so this is about file size:
@@ -239,9 +245,49 @@ def _draw_grid_lines(
                 c.drawString(x0 + inset, py - 2, label)
 
 
+def _render_raster(extent, page_w_mm, margin_mm, dpi, zoom_level, layer):
+    """Fetch the raster image for ``extent`` at the zoom level it needs."""
+    px_w_est = round((page_w_mm - 2 * margin_mm) / 25.4 * (dpi or 300))
+    if zoom_level is None:
+        zoom_level = pick_wmts_level(extent.width_m / px_w_est)
+    res = 8192.0 / 2**zoom_level
+    return render_extent_image(
+        extent, round(extent.width_m / res), round(extent.height_m / res), layer=layer
+    )
+
+
+def _vector_scale(extent: Extent, paper_size: str, orientation: str, margin_mm: float) -> int:
+    """Nominal vector scale (25 000 / 50 000) for a snapped extent."""
+    actual = actual_scale(extent, content_area_mm(paper_size, orientation, margin_mm)[0])
+    nominal = min(VECTOR_SCALES, key=lambda s: abs(s - actual))
+    if abs(nominal - actual) > nominal * 0.01:
+        raise ValueError("The vector map supports scales 1:25 000 and 1:50 000 only")
+    return nominal
+
+
+def _raster_drawer(img) -> Callable[[canvas.Canvas, float, float, float, float], None]:
+    def draw(c: canvas.Canvas, x: float, y: float, w: float, h: float) -> None:
+        c.drawImage(ImageReader(img), x, y, w, h)
+
+    return draw
+
+
+def _vector_drawer(
+    extent: Extent, scale: int
+) -> Callable[[canvas.Canvas, float, float, float, float], None]:
+    def draw(c: canvas.Canvas, x: float, y: float, w: float, h: float) -> None:
+        c.saveState()
+        try:
+            render_vector_map(c, extent, (x, y, w, h), scale)
+        finally:
+            c.restoreState()
+
+    return draw
+
+
 def _draw_page(
     c: canvas.Canvas,
-    img: Image.Image,
+    draw_map: Callable[[canvas.Canvas, float, float, float, float], None],
     extent: Extent,
     *,
     paper_size: str,
@@ -266,8 +312,8 @@ def _draw_page(
     w = cont_w_mm * mm
     h = cont_h_mm * mm
 
-    # Map image fills the content area exactly -> printed scale is exact
-    c.drawImage(ImageReader(img), x0, y0, w, h)
+    # The map fills the content area exactly -> printed scale is exact
+    draw_map(c, x0, y0, w, h)
 
     # optional grid lines
     _draw_grid_lines(
@@ -329,20 +375,13 @@ def generate_pdf(
         raise ValueError(f"Unknown layer '{layer}'")
     _parse_hex_color(gpx_color)  # fail before the slow tile download
 
-    dpi_val = dpi or 300
     page_w_mm, page_h_mm = oriented_page_mm(paper_size, orientation)
-    content_w_mm = page_w_mm - 2 * margin_mm
-    px_w_est = round(content_w_mm / 25.4 * dpi_val)
-
-    if zoom_level is None:
-        target_res = extent.width_m / px_w_est
-        zoom_level = pick_wmts_level(target_res)
-
-    res = 8192.0 / 2**zoom_level
-    px_w = round(extent.width_m / res)
-    px_h = round(extent.height_m / res)
-
-    img = render_extent_image(extent, px_w, px_h, layer=layer)
+    if layer == VECTOR_LAYER:
+        draw_map = _vector_drawer(extent, _vector_scale(extent, paper_size, orientation, margin_mm))
+        img = None
+    else:
+        img = _render_raster(extent, page_w_mm, margin_mm, dpi, zoom_level, layer)
+        draw_map = _raster_drawer(img)
 
     nominal_title = format_scale_label(
         actual_scale(extent, content_area_mm(paper_size, orientation, margin_mm)[0])
@@ -351,7 +390,7 @@ def generate_pdf(
     c.setTitle(title or f"FastMap {nominal_title}")
     scale_value = _draw_page(
         c,
-        img,
+        draw_map,
         extent,
         paper_size=paper_size,
         orientation=orientation,
@@ -367,14 +406,15 @@ def generate_pdf(
     )
     c.showPage()
     c.save()
-    img.close()
+    if img is not None:
+        img.close()
 
     return PrintResult(
         path=out_pdf_path,
         actual_scale=scale_value,
         extent=extent,
-        width_px=img.size[0],
-        height_px=img.size[1],
+        width_px=img.size[0] if img is not None else 0,
+        height_px=img.size[1] if img is not None else 0,
     )
 
 
@@ -413,19 +453,15 @@ def generate_multi_pdf(
         gpx_width = kwargs.get("gpx_width", 5)
         gpx_opacity = kwargs.get("gpx_opacity", 0.6)
 
-        dpi_val = dpi or 300
         page_w_mm, _ = oriented_page_mm(paper_size, orientation)
-        content_w_mm = page_w_mm - 2 * margin_mm
-        px_w_est = round(content_w_mm / 25.4 * dpi_val)
-
-        if zoom_level is None:
-            target_res = extent.width_m / px_w_est
-            zoom_level = pick_wmts_level(target_res)
-
-        res = 8192.0 / 2**zoom_level
-        px_w = round(extent.width_m / res)
-        px_h = round(extent.height_m / res)
-        img = render_extent_image(extent, px_w, px_h, layer=layer)
+        if layer == VECTOR_LAYER:
+            draw_map = _vector_drawer(
+                extent, _vector_scale(extent, paper_size, orientation, margin_mm)
+            )
+            img = None
+        else:
+            img = _render_raster(extent, page_w_mm, margin_mm, dpi, zoom_level, layer)
+            draw_map = _raster_drawer(img)
 
         page_w_pt, page_h_pt = (v * mm for v in oriented_page_mm(paper_size, orientation))
         if c is None:
@@ -436,7 +472,7 @@ def generate_multi_pdf(
 
         scale_value = _draw_page(
             c,
-            img,
+            draw_map,
             extent,
             paper_size=paper_size,
             orientation=orientation,
@@ -455,11 +491,12 @@ def generate_multi_pdf(
                 path=out_pdf_path,
                 actual_scale=scale_value,
                 extent=extent,
-                width_px=img.size[0],
-                height_px=img.size[1],
+                width_px=img.size[0] if img is not None else 0,
+                height_px=img.size[1] if img is not None else 0,
             )
         )
-        img.close()
+        if img is not None:
+            img.close()
         c.showPage()
 
     if c is not None:
