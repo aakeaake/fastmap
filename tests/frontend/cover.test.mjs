@@ -152,3 +152,30 @@ test('coverTitle numbers and cuts long names', () => {
     assert.equal(long.length, 120);
     assert.ok(long.endsWith('… 3/12'));
 });
+
+// Wherever the route leaves a sheet, another sheet must already have held
+// the last `overlapM` of route before that point (the hiker's handover).
+function assertHandovers(lines, sheets, { sizes, clearanceM, overlapM }) {
+    for (const line of lines) {
+        const pts = densify(line, 5).map(q => ({ ...q, in: sheets.map(sh => inInner(sh, q.p, sizes, clearanceM)) }));
+        for (let i = 1; i < pts.length; i++) {
+            for (let a = 0; a < sheets.length; a++) {
+                if (!(pts[i - 1].in[a] && !pts[i].in[a])) continue;
+                const exit = pts[i].s;
+                const ok = sheets.some((_, b) => b !== a && pts[i].in[b]
+                    && pts.every(q => q.s < exit - overlapM + 10 || q.s > exit || q.in[b]));
+                assert.ok(ok, `leaving sheet ${a} at ${Math.round(exit)} m without ${Math.round(overlapM)} m handover`);
+            }
+        }
+    }
+}
+
+test('every handover shares at least the chosen overlap, also on diagonals and revisits', () => {
+    for (const overlapPct of [5, 20]) {
+    const settings = { paperSize: 'A4', scale: 20000, margin: 7, overlapPct, sameOrientation: false };
+    const params = coverParams(settings);
+    const diagonal = [[[0, 0], [7000, 5300], [15000, 6100], [21000, 13000]]];
+    const outAndBack = [[[0, 0], [9000, 6800], [17000, 7700], [17150, 7900], [9150, 7000], [150, 200]]];
+    for (const lines of [diagonal, outAndBack]) assertHandovers(lines, planCover(lines, settings), params);
+    }
+});

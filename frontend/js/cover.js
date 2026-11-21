@@ -54,9 +54,11 @@ export function coverRoute(lines, { sizes, clearanceM, overlapM, orientation = '
         if (!line.length) continue;
         const { P, S } = densify(line, step);
         const last = P.length - 1;
-        const firstFrom = (from, s) => {
+        // Last point at or before distance `s` (searching from `from`), so a
+        // handover never shares less route than asked
+        const startAt = (from, s) => {
             let k = from;
-            while (k < last && S[k] < s - EPS) k++;
+            while (k < last && S[k + 1] <= s + EPS) k++;
             return k;
         };
         let i = 0;
@@ -74,7 +76,7 @@ export function coverRoute(lines, { sizes, clearanceM, overlapM, orientation = '
                 const { sheet, j } = best;
                 if (j === last) break;
                 const long = S[j] - S[i] >= REVISIT * Math.min(...inner(sheet.orientation));
-                const next = firstFrom(i, S[j + 1] - overlapM);
+                const next = startAt(i, S[j] - overlapM);
                 if (long && next > i) {
                     i = next;
                     from = sheet;
@@ -104,7 +106,7 @@ export function coverRoute(lines, { sizes, clearanceM, overlapM, orientation = '
             const sheet = { center: [(minx + maxx) / 2, (miny + maxy) / 2], orientation: pick.o };
             sheets.push(sheet);
             if (pick.r === last) break lineLoop;
-            const next = firstFrom(i, S[pick.r] - overlapM);
+            const next = startAt(i, S[pick.r] - overlapM);
             i = next > i ? next : i + 1;
             from = sheet;
         }

@@ -18,7 +18,7 @@ import { createSheet } from './sheet.js';
 import {
     active, createEntry, entryCenter, entryExtent, getEntry, placeEntry, restoreFrom, serialize, state, syncLabel,
 } from './state.js';
-import { attributionLabel, deletedLabel, displayName, mapSummary, progressLabel, shortName } from './text.js';
+import { attributionLabel, createdLabel, deletedLabel, displayName, mapSummary, progressLabel, shortName } from './text.js';
 
 const el = id => document.getElementById(id);
 hydrateIcons();
@@ -570,7 +570,7 @@ function createCover() {
     ]);
     const c = covered();
     view.fit(ext, { padding: [40, 40, 40 + c.bottom, 40 + c.left], duration: 300 });
-    offerUndo(() => t('cover.created', { count: n.toLocaleString(locale()), name }), snapshot);
+    offerUndo(() => createdLabel(n, name, getLang()), snapshot);
 }
 el('coverBtn').addEventListener('click', createCover);
 
