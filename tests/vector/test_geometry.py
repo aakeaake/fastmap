@@ -154,3 +154,12 @@ def test_real_tiles_no_duplicate_points(offline_tiles):
         )
         assert key not in seen
         seen.add(key)
+
+
+def test_line_pieces_dissolving_into_one_linestring():
+    a = _f("l", "LineString", LineString([(0, 0), (10, 0)]), mtk_id=1)
+    b = _f("l", "LineString", LineString([(0, 0), (10, 0)]), mtk_id=1)
+    out = merge_by_mtk_id([a, b])
+    assert len(out) == 1
+    assert out[0].geometry.geom_type == "LineString"
+    assert out[0].geometry.length == 10

@@ -59,7 +59,12 @@ def _join_lines(geoms):
         for i in (0, -1):
             c[i] = anchor(c[i][:2])
     lines = [LineString(c) for c in coords if len(c) > 1 and c[0] != c[-1] or len(c) > 2]
-    return linemerge(shapely.union_all(lines)) if lines else None
+    if not lines:
+        return None
+    merged = shapely.union_all(lines)
+    if merged.geom_type == "MultiLineString":
+        return linemerge(merged)
+    return merged  # LineString, or a collection that _only_type filters later
 
 
 def merge_by_mtk_id(features: list[Feature]) -> list[Feature]:
