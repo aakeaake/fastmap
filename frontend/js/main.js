@@ -27,7 +27,8 @@ import {
     active, createEntry, entryCenter, entryExtent, getEntry, modeMaps, placeEntry, restoreFrom, serialize, setActiveId, state,
     syncLabel,
 } from './state.js';
-import { atlasCountLabel, attributionLabel, createdLabel, deletedLabel, displayName, mapSummary, progressLabel, shortName } from './text.js';
+import { indexLayout, moveInIndex, sheetLabel } from './sheet-index.js';
+import { atlasCountLabel, attributionLabel, createdLabel, deletedLabel, displayName, mapSummary, progressLabel, setSummaryLabel, shortName } from './text.js';
 
 const el = id => document.getElementById(id);
 hydrateIcons();
@@ -195,7 +196,8 @@ function undo() {
     renderCover();
     renderAtlas();
     persist();
-    el(LISTS[state.mode]).querySelector(`[data-key="select-${active()?.id}"]`)?.focus();
+    if (state.mode === 'maps') el('mapList').querySelector(`[data-key="select-${active()?.id}"]`)?.focus();
+    else el(`${state.mode}Index`).querySelector('[tabindex="0"]')?.focus();
 }
 
 // --- Settings form <-> selected map -------------------------------------------
@@ -267,7 +269,7 @@ function renderRail(focusKey) {
         b.type = 'button';
         b.className = 'rail-map';
         b.dataset.key = `rail-${e.id}`;
-        b.textContent = String(i + 1);
+        b.textContent = tileLabel(e, i);
         if (generatingIds.has(e.id)) b.classList.add('generating');
         else if (downloadedIds.has(e.id)) b.classList.add('done');
         const label = `${nameOf(e)} · ${summaryOf(e)}`;
@@ -279,6 +281,33 @@ function renderRail(focusKey) {
         ul.append(li);
     });
     if (focusKey) ul.querySelector(`[data-key="${focusKey}"]`)?.focus();
+}
+
+// Route and atlas sheets show their printed label ("3", "B3"); maps 1…N
+function tileLabel(e, i) {
+    const l = e.mode === 'maps' ? null : sheetLabel(e.title);
+    return l ? ('n' in l ? String(l.n) : l.label) : String(i + 1);
+}
+
+// A download button for one sheet, with its generating / done state
+function setDownloadButton(btn, e) {
+    const name = nameOf(e);
+    btn.classList.remove('generating', 'done');
+    btn.removeAttribute('aria-disabled');
+    if (generatingIds.has(e.id)) {
+        btn.classList.add('generating');
+        btn.innerHTML = icon('loader');
+        btn.setAttribute('aria-label', t('map.generating', { name }));
+        btn.setAttribute('aria-disabled', 'true');
+    } else if (downloadedIds.has(e.id)) {
+        btn.classList.add('done');
+        btn.innerHTML = icon('check');
+        btn.setAttribute('aria-label', t('map.downloadAgain', { name }));
+    } else {
+        btn.innerHTML = icon('download');
+        btn.setAttribute('aria-label', t('map.download', { name }));
+    }
+    btn.title = btn.getAttribute('aria-label');
 }
 
 function listRow(e) {
@@ -313,20 +342,7 @@ function listRow(e) {
     dlBtn.type = 'button';
     dlBtn.className = 'icon-btn dl-btn';
     dlBtn.dataset.key = `dl-${e.id}`;
-    if (generatingIds.has(e.id)) {
-        dlBtn.classList.add('generating');
-        dlBtn.innerHTML = icon('loader');
-        dlBtn.setAttribute('aria-label', t('map.generating', { name }));
-        dlBtn.setAttribute('aria-disabled', 'true');
-    } else if (downloadedIds.has(e.id)) {
-        dlBtn.classList.add('done');
-        dlBtn.innerHTML = icon('check');
-        dlBtn.setAttribute('aria-label', t('map.downloadAgain', { name }));
-    } else {
-        dlBtn.innerHTML = icon('download');
-        dlBtn.setAttribute('aria-label', t('map.download', { name }));
-    }
-    dlBtn.title = dlBtn.getAttribute('aria-label');
+    setDownloadButton(dlBtn, e);
     dlBtn.addEventListener('click', () => downloadSingle(e));
 
     const del = document.createElement('button');
@@ -345,14 +361,17 @@ function listRow(e) {
 // Rebuilt on every change; keyboard focus is carried over by data-key
 function renderList() {
     const focused = document.activeElement;
-    const ul = el(LISTS[state.mode]);
-    const listFocus = ul.contains(focused) ? focused.dataset.key : null;
     const railFocus = el('railMaps').contains(focused) ? focused.dataset.key : null;
-
-    ul.replaceChildren(...modeMaps().map(listRow));
-    if (listFocus) {
-        (ul.querySelector(`[data-key="${listFocus}"]`)
-            ?? ul.querySelector(`[data-key="select-${active()?.id}"]`))?.focus();
+    if (state.mode === 'maps') {
+        const ul = el('mapList');
+        const listFocus = ul.contains(focused) ? focused.dataset.key : null;
+        ul.replaceChildren(...modeMaps().map(listRow));
+        if (listFocus) {
+            (ul.querySelector(`[data-key="${listFocus}"]`)
+                ?? ul.querySelector(`[data-key="select-${active()?.id}"]`))?.focus();
+        }
+    } else {
+        renderIndex(state.mode);
     }
     renderRail(railFocus);
 
@@ -368,14 +387,80 @@ function renderList() {
     const count = modeMaps().length;
     el('downloadAllBtn').textContent = count > 1 ? t('download.allCount', { count }) : t('download.one');
     if (!downloadAllBusy) el('downloadAllBtn').disabled = count === 0;
-    el('routeSheets').hidden = !modeMaps('route').length;
-    el('atlasSheets').hidden = !modeMaps('atlas').length;
     refreshLabels();
 }
 
-// The list each mode's maps are shown in, and the id prefix of the Route and
-// Atlas print blocks (saved under SETS_KEY)
-const LISTS = { maps: 'mapList', route: 'routeList', atlas: 'atlasList' };
+// --- Route and Atlas: the sheet index ------------------------------------------
+// The set as its shape (atlas grid, route strip) with one summary line and
+// one line for the selected sheet. Cells show the printed labels.
+const indexLayouts = { route: null, atlas: null };
+
+function renderIndex(mode) {
+    const sheets = modeMaps(mode);
+    el(`${mode}Set`).hidden = !sheets.length;
+    if (!sheets.length) { indexLayouts[mode] = null; return; }
+    const idx = el(`${mode}Index`);
+    const focusIn = idx.contains(document.activeElement);
+    const layout = indexLayout(mode, sheets, { maxCols: sheet.phone.matches ? 7 : 8 });
+    indexLayouts[mode] = layout;
+    el(`${mode}Summary`).textContent = setSummaryLabel(sheets.length, sheets[0], getLang());
+
+    const cur = state.mode === mode ? active() : null;
+    const focusId = cur?.id ?? layout.cells[0].id;
+    idx.style.gridTemplateColumns = `repeat(${layout.cols}, var(--cell))`;
+    idx.replaceChildren(...layout.cells.map(c => {
+        const e = getEntry(c.id);
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'index-cell';
+        b.textContent = c.label;
+        b.style.gridRow = String(c.row + 1);
+        b.style.gridColumn = String(c.col + 1);
+        b.dataset.id = c.id;
+        b.tabIndex = c.id === focusId ? 0 : -1;
+        b.setAttribute('aria-pressed', String(c.id === cur?.id));
+        b.setAttribute('aria-label', `${nameOf(e)} · ${summaryOf(e)}`);
+        if (generatingIds.has(c.id)) b.classList.add('generating');
+        else if (downloadedIds.has(c.id)) b.classList.add('done');
+        return b;
+    }));
+    if (focusIn) idx.querySelector('[tabindex="0"]')?.focus();
+
+    el(`${mode}Selected`).hidden = !cur;
+    if (!cur) return;
+    const name = el(`${mode}SelName`);
+    name.replaceChildren();
+    const b = document.createElement('b');
+    b.textContent = nameOf(cur);
+    const small = document.createElement('small');
+    small.textContent = summaryOf(cur);
+    name.append(b, ' ', small);
+    setDownloadButton(el(`${mode}SelDl`), cur);
+    el(`${mode}SelDel`).setAttribute('aria-label', t('map.delete', { name: nameOf(cur) }));
+    el(`${mode}SelDel`).title = t('map.deleteShort');
+}
+
+for (const mode of ['route', 'atlas']) {
+    const idx = el(`${mode}Index`);
+    idx.addEventListener('click', ev => {
+        const b = ev.target.closest('.index-cell');
+        const e = b && getEntry(Number(b.dataset.id));
+        if (e) selectAndReveal(e);
+    });
+    // One tab stop; arrows move the selection (over gaps), Home / End
+    idx.addEventListener('keydown', ev => {
+        const layout = indexLayouts[mode];
+        if (!layout || !['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End'].includes(ev.key)) return;
+        ev.preventDefault();
+        const from = Number(ev.target.closest('.index-cell')?.dataset.id ?? active()?.id);
+        const e = getEntry(moveInIndex(layout, from, ev.key));
+        if (e) selectAndReveal(e);
+    });
+    el(`${mode}SelDl`).addEventListener('click', () => { const e = active(); if (e) downloadSingle(e); });
+    el(`${mode}SelDel`).addEventListener('click', () => { const e = active(); if (e) deleteEntry(e.id); });
+}
+
+// The id prefix of the Route and Atlas print blocks (saved under SETS_KEY)
 const BLOCK_PREFIX = { route: 'cover', atlas: 'atlas' };
 const SETS_KEY = 'fastmap.sets.v1';
 
@@ -833,6 +918,9 @@ function renderSetButton(mode, disabled) {
     el(`${p}Changed`).hidden = !changed;
     el(`${p}Btn`).textContent = t(`${p}.${changed ? 'update' : 'create'}`);
     el(`${p}Btn`).disabled = disabled;
+    const todo = changed || !modeMaps(mode).length;
+    el(`${p}Btn`).classList.toggle('btn-primary', todo);
+    el(`${p}Btn`).classList.toggle('btn-secondary', !todo);
 }
 
 for (const mode of ['route', 'atlas']) {

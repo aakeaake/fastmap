@@ -133,6 +133,16 @@
             </div>
         </div>
 
+        <div id="routeSet" class="set-index" hidden>
+            <p class="set-summary" id="routeSummary"></p>
+            <div id="routeIndex" class="index" role="group" aria-label="Sheets" data-i18n-attr="aria-label:set.sheets"></div>
+            <div id="routeSelected" class="set-selected">
+                <span class="set-sel-name" id="routeSelName"></span>
+                <button id="routeSelDl" class="icon-btn dl-btn" type="button"></button>
+                <button id="routeSelDel" class="icon-btn del" type="button" data-icon="x"></button>
+            </div>
+        </div>
+
         <div id="coverSection" hidden>
             <h3 data-i18n="cover.heading">Cover route with maps</h3>
             <label for="routeName" data-i18n="atlas.name">Name</label>
@@ -210,10 +220,6 @@
             </div>
         </div>
 
-        <div id="routeSheets" class="mode-sheets" hidden>
-            <h3 data-i18n="set.sheets">Sheets</h3>
-            <ul id="routeList" class="map-list" aria-label="Sheets" data-i18n-attr="aria-label:set.sheets"></ul>
-        </div>
         <details id="routeStyle" class="fold">
             <summary><span data-icon="chevron"></span><span data-i18n="route.style">Route on printouts</span></summary>
             <label class="check"><input id="gpxShow" type="checkbox" checked> <span data-i18n="gpx.showOnPrint">Show route on printouts</span></label>
@@ -241,6 +247,15 @@
             <div class="btn-row">
                 <button id="areaEditBtn" class="btn btn-secondary" type="button"></button>
                 <button id="areaRemoveBtn" class="btn btn-secondary" type="button"></button>
+            </div>
+        </div>
+        <div id="atlasSet" class="set-index" hidden>
+            <p class="set-summary" id="atlasSummary"></p>
+            <div id="atlasIndex" class="index" role="group" aria-label="Sheets" data-i18n-attr="aria-label:set.sheets"></div>
+            <div id="atlasSelected" class="set-selected">
+                <span class="set-sel-name" id="atlasSelName"></span>
+                <button id="atlasSelDl" class="icon-btn dl-btn" type="button"></button>
+                <button id="atlasSelDel" class="icon-btn del" type="button" data-icon="x"></button>
             </div>
         </div>
         <div id="atlasSection" hidden>
@@ -319,10 +334,6 @@
             </div>
         </div>
 
-        <div id="atlasSheets" class="mode-sheets" hidden>
-            <h3 data-i18n="set.sheets">Sheets</h3>
-            <ul id="atlasList" class="map-list" aria-label="Sheets" data-i18n-attr="aria-label:set.sheets"></ul>
-        </div>
     </section>
 
     <details id="advanced" class="section fold">

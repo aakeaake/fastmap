@@ -106,8 +106,33 @@ button { font: inherit; color: inherit; }
 #routeStyle { margin-top: 14px; border-top: 1px solid var(--surface-3); padding-top: 6px; }
 #advanced { padding-top: 6px; padding-bottom: 8px; }
 #advanced[open] { padding-bottom: 14px; }
-.mode-sheets h3 { margin-top: 16px; }
-.mode-sheets .map-list { margin-top: 6px; }
+
+/* Route and atlas sets: summary, the index (grid or strip), selected sheet */
+.set-index { margin: 14px 0 4px; }
+.set-summary { margin: 0 0 8px; font-size: 13px; font-weight: 600; color: var(--ink); font-variant-numeric: tabular-nums; }
+.index { --cell: 30px; display: grid; gap: 4px; justify-content: start; }
+.index-cell {
+    width: var(--cell); height: var(--cell); padding: 0; position: relative;
+    border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface);
+    font-size: 11px; font-weight: 650; font-variant-numeric: tabular-nums; color: var(--ink-2);
+    cursor: pointer;
+}
+.index-cell:hover { background: var(--surface-2); color: var(--ink); }
+.index-cell[aria-pressed="true"] { border: 2px solid var(--active); background: var(--active-soft); color: var(--active); }
+.index-cell:focus-visible { outline-offset: 1px; }
+.index-cell.done::after {          /* downloaded and unchanged */
+    content: ''; position: absolute; right: 2px; bottom: 2px;
+    width: 5px; height: 5px; border-radius: 50%; background: var(--success);
+}
+.index-cell.generating { border-style: dashed; }
+.set-selected {
+    display: flex; align-items: center; gap: 2px; margin-top: 8px;
+    padding: 2px 4px 2px 10px; border: 1px solid var(--active); border-radius: var(--radius);
+    background: var(--active-soft); font-size: 13px;
+}
+.set-sel-name { flex: 1; min-width: 0; padding: 5px 0; overflow-wrap: anywhere; line-height: 1.35; }
+.set-sel-name b { font-weight: 600; }
+.set-sel-name small { font-size: 12px; color: var(--ink-2); white-space: nowrap; font-variant-numeric: tabular-nums; }
 .section-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 6px; }
 .section h2 { font-size: 14px; font-weight: 650; margin: 0; }
 .section-note { font-size: 12px; color: var(--ink-3); margin: 2px 0 0; }
@@ -189,13 +214,13 @@ button { font: inherit; color: inherit; }
     color: var(--ink-2); flex: 1; text-align: right; white-space: nowrap;
     font-variant-numeric: tabular-nums;
 }
-.map-list .dl-btn.generating { color: var(--accent); cursor: wait; }
-.map-list .dl-btn.generating .icon { animation: spin 1s linear infinite; }
-.map-list .dl-btn.done { color: var(--success); }
-.map-list .del:hover { color: var(--danger); }
+.dl-btn.generating { color: var(--accent); cursor: wait; }
+.dl-btn.generating .icon { animation: spin 1s linear infinite; }
+.dl-btn.done { color: var(--success); }
+.del:hover { color: var(--danger); }
 @keyframes spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) {
-    .map-list .dl-btn.generating .icon, .btn-primary.loading::after { animation-duration: 3s; }
+    .dl-btn.generating .icon, .btn-primary.loading::after { animation-duration: 3s; }
     .btn, .mode-tabs button, .fold > summary .icon { transition: none; }
 }
 
@@ -420,6 +445,8 @@ button { font: inherit; color: inherit; }
     .rail { width: 56px; }
     .rail .icon-btn, .rail-map { width: 44px; height: 44px; }
     .mode-tabs button { min-height: 44px; font-size: 15px; }
+    .index { --cell: 44px; }
+    .index-cell { font-size: 13px; }
     .fold > summary { min-height: 44px; font-size: 14px; }
     .map-list .m-select { min-height: 44px; font-size: 14px; }
     .pane label { font-size: 14px; }

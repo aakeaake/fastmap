@@ -34,7 +34,7 @@ test('one panel with three modes, no second pane', () => {
     assert.match(html, /id="modeTabs"[^>]*role="radiogroup"/);
     const modes = [...html.matchAll(/role="radio"[^>]*data-mode="(\w+)"/g)].map(m => m[1]);
     assert.deepEqual(modes, ['maps', 'route', 'atlas']);
-    for (const id of ['modeMaps', 'modeRoute', 'modeAtlas', 'advanced', 'routeList', 'atlasList', 'railModes']) {
+    for (const id of ['modeMaps', 'modeRoute', 'modeAtlas', 'advanced', 'railModes']) {
         assert.ok(html.includes(`id="${id}"`), id);
     }
 });
@@ -60,4 +60,14 @@ test('route and atlas both have a name field', () => {
 test('a drawn route is called Route / Reitti', () => {
     assert.equal(STRINGS.en['gpx.myRoute'], 'Route');
     assert.equal(STRINGS.fi['gpx.myRoute'], 'Reitti');
+});
+
+test('route and atlas show their sheets as a compact index, not a list', () => {
+    for (const p of ['route', 'atlas']) {
+        assert.match(html, new RegExp(`id="${p}Index"[^>]*role="group"`), p);
+        for (const id of [`${p}Set`, `${p}Summary`, `${p}Selected`, `${p}SelDl`, `${p}SelDel`]) {
+            assert.ok(html.includes(`id="${id}"`), id);
+        }
+        assert.ok(!html.includes(`id="${p}List"`), `${p}List gone`);
+    }
 });
