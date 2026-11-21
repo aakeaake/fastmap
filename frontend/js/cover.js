@@ -131,9 +131,11 @@ export function planCover(lines, { paperSize, scale, margin, overlapPct, sameOri
     return l.length < p.length ? l : p;
 }
 
-// "<name> i/n", the name cut so the title fits the server's limit
-export function coverTitle(name, i, n) {
-    const suffix = ` ${i}/${n}`;
+// `name` + `suffix`, the name cut with "…" so the title fits the server's limit
+export function fitTitle(name, suffix) {
     if (name.length + suffix.length <= TITLE_MAX) return `${name}${suffix}`;
     return `${name.slice(0, TITLE_MAX - suffix.length - 1)}…${suffix}`;
 }
+
+// "<name> i/n"
+export const coverTitle = (name, i, n) => fitTitle(name, ` ${i}/${n}`);
