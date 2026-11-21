@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import logging
 from concurrent.futures import as_completed
 
 import mapbox_vector_tile
@@ -24,8 +23,6 @@ from fastmap.services.mml_source import (
 )
 from fastmap.services.print_layout import Extent
 from fastmap.vector.model import Feature
-
-log = logging.getLogger(__name__)
 
 MAX_VECTOR_TILES = 400
 
@@ -72,8 +69,13 @@ def decode_tile(data: bytes, level: int, row: int, col: int) -> list[Feature]:
     minx = ox + col * tile_m
     miny = oy - (row + 1) * tile_m
 
+    try:
+        decoded = mapbox_vector_tile.decode(data)
+    except Exception:  # noqa: BLE001 - any parser failure means a bad tile
+        raise MMLError(f"Vector tile decode failed for {level}/{row}/{col}") from None
+
     out: list[Feature] = []
-    for layer_name, layer in mapbox_vector_tile.decode(data).items():
+    for layer_name, layer in decoded.items():
         scale = tile_m / (layer.get("extent") or 4096)
         for feat in layer.get("features", []):
             geom = feat.get("geometry") or {}

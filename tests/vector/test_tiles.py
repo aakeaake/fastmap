@@ -1,5 +1,6 @@
 from unittest.mock import MagicMock
 
+import mapbox_vector_tile
 import pytest
 
 from fastmap.services import mml_source
@@ -52,7 +53,7 @@ def test_fetch_404_is_empty(monkeypatch):
 def test_fetch_error_hides_key(monkeypatch):
     monkeypatch.setattr(tiles._session, "get", lambda *a, **k: _resp(503))
     with pytest.raises(MMLError) as err:
-        tiles.fetch_tile(12, 3291, 1803)
+        tiles.fetch_tile(12, 3322, 1797)
     assert "test-key" not in str(err.value)
     assert "12/" in str(err.value)
 
@@ -60,3 +61,35 @@ def test_fetch_error_hides_key(monkeypatch):
 def test_too_many_tiles():
     with pytest.raises(MMLError):
         tiles.load_tiles(Extent(360000, 6680000, 390000, 6710000), 12)
+
+
+def test_decode_orientation_y_up():
+    # pixel (10, 10) is near the tile's bottom-left, (10, 4000) near its top-left
+    data = mapbox_vector_tile.encode(
+        [
+            {
+                "name": "t",
+                "features": [
+                    {"geometry": "POINT(10 10)", "properties": {"k": "low"}},
+                    {"geometry": "POINT(10 4000)", "properties": {"k": "high"}},
+                ],
+            }
+        ],
+        default_options={"extents": 4096},
+    )
+    level, row, col = 12, 3322, 1797
+    tile_m = 256 * 8192 / 2**level
+    minx = -548576 + col * tile_m
+    miny = 8388608 - (row + 1) * tile_m
+    pts = {f.props["k"]: f.geometry for f in tiles.decode_tile(data, level, row, col)}
+    k = tile_m / 4096
+    assert pts["low"].x == pytest.approx(minx + 10 * k)
+    assert pts["low"].y == pytest.approx(miny + 10 * k)
+    assert pts["high"].y == pytest.approx(miny + 4000 * k)
+    assert pts["high"].y > pts["low"].y
+
+
+def test_decode_garbage_is_mml_error():
+    with pytest.raises(MMLError) as err:
+        tiles.decode_tile(b"\xff\xfe not a tile", 12, 3322, 1797)
+    assert "12/3322/1797" in str(err.value)
