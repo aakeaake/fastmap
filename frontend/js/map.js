@@ -17,6 +17,10 @@ import Text from 'ol/style/Text.js';
 import TileGrid from 'ol/tilegrid/TileGrid.js';
 import Translate from 'ol/interaction/Translate.js';
 import Draw from 'ol/interaction/Draw.js';
+import Modify from 'ol/interaction/Modify.js';
+import MultiPoint from 'ol/geom/MultiPoint.js';
+import CircleStyle from 'ol/style/Circle.js';
+import { altKeyOnly, doubleClick, singleClick } from 'ol/events/condition.js';
 import { defaults } from 'ol/interaction/defaults.js';
 import GPX from 'ol/format/GPX.js';
 import proj4 from 'proj4';
@@ -115,19 +119,34 @@ export function addTranslate(map, layer, { onMove, onEnd }) {
     return translate;
 }
 
-// --- Route drawing -------------------------------------------------------------
+// --- Route drawing and editing -----------------------------------------------------
 // Drawing mode: a quick click adds a point, a drag pans, wheel/pinch zooms
-// (OpenLayers Draw defaults). The route on the layer is not touched until
-// the caller gets the result:
+// (OpenLayers Draw defaults). The route layer is not touched; the caller
+// gets the result.
+// Editing mode: the route's points are shown on `routeLayer`; drag a point
+// to move it, drag a segment to add one, Alt-click (double-tap on touch)
+// deletes one. Cancel puts the route back as it was.
 //   onChange(lines)       the points so far (for the live length)
-//   onDone(mode, lines)   Finish (or double-click); lines has >= 2 points
-//   onModeChange(mode)    'draw' | null
+//   onDone(mode, lines)   Finish (or double-click when drawing)
+//   onModeChange(mode)    'draw' | 'edit' | null
 const KEYS = { Enter: 'finish', Backspace: 'removeLast', Escape: 'cancel' };
 const typing = t => t instanceof HTMLElement && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName));
 
-export function createRouteTools(map, { onChange, onDone, onModeChange }) {
+const VERTEX_STYLE = new Style({
+    image: new CircleStyle({
+        radius: 5, fill: new Fill({ color: '#ffffff' }), stroke: new Stroke({ color: '#c000c0', width: 2 }),
+    }),
+    geometry: f => new MultiPoint(f.getGeometry().getCoordinates().flat()),
+});
+
+const xyLines = geom => geom.getCoordinates().map(line => line.map(p => [p[0], p[1]]));
+
+export function createRouteTools(map, routeLayer, { onChange, onDone, onModeChange }) {
     let mode = null;
     let interaction = null;
+    let editEnd = null;     // undoes what startEdit() set up
+    let edited = null;      // the route feature while editing
+    let before = null;      // its geometry when editing started (for Cancel)
     let points = [];        // placed points while drawing
     let quietUntil = 0;     // the double-click that finished drawing must not centre a sheet
 
@@ -149,6 +168,9 @@ export function createRouteTools(map, { onChange, onDone, onModeChange }) {
     }
 
     function exit() {
+        editEnd?.();
+        editEnd = null;
+        edited = null;
         map.removeInteraction(interaction);
         window.removeEventListener('keydown', onKey, true);
         interaction = null;
@@ -185,10 +207,40 @@ export function createRouteTools(map, { onChange, onDone, onModeChange }) {
         onChange([]);
     }
 
+    // The route is one MultiLineString feature (see routeFeature)
+    function startEdit() {
+        if (mode) api.cancel();
+        const feature = routeLayer.getSource().getFeatures()[0];
+        if (!feature) return;
+        edited = feature;
+        before = feature.getGeometry().clone();
+        const modify = new Modify({
+            source: routeLayer.getSource(),
+            deleteCondition: e => (altKeyOnly(e) && singleClick(e))
+                || (e.originalEvent.pointerType === 'touch' && doubleClick(e)),
+        });
+        const vertices = new VectorLayer({ source: routeLayer.getSource(), style: VERTEX_STYLE });
+        const changed = () => onChange(xyLines(feature.getGeometry()));
+        feature.on('change', changed);
+        enter('edit', modify);
+        map.addLayer(vertices);
+        editEnd = () => {
+            feature.un('change', changed);
+            map.removeLayer(vertices);
+        };
+        changed();
+    }
+
     const api = {
         startDraw,
+        startEdit,
         finish() {
             if (mode === 'draw' && points.length >= 2) interaction.finishDrawing();
+            if (mode === 'edit') {
+                const lines = xyLines(edited.getGeometry());
+                exit();
+                onDone('edit', lines);
+            }
         },
         removeLast() {
             if (mode === 'draw') interaction.removeLastPoint();
@@ -196,7 +248,9 @@ export function createRouteTools(map, { onChange, onDone, onModeChange }) {
         cancel() {
             if (!mode) return;
             if (mode === 'draw') interaction.abortDrawing();
+            const [feature, geometry] = mode === 'edit' ? [edited, before] : [];
             exit();
+            feature?.setGeometry(geometry);
         },
         active: () => mode,
         // Map clicks belong to the route tools (also just after they close)

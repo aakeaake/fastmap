@@ -328,6 +328,7 @@ button { font: inherit; color: inherit; }
 .route-status { font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .route-actions { display: flex; gap: 6px; }
 .route-bar .btn:disabled { cursor: not-allowed; }
+.route-bar .btn[hidden] { display: none; }
 .route-bar .btn { width: auto; min-height: 0; height: var(--tool); padding: 0 12px; }
 /* Language: globe + code + caret at the top of the column, right-aligned
    with the map controls (it is the widest); the menu drops down over them */

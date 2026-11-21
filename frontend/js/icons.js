@@ -5,6 +5,7 @@ const ICON_PATHS = {
     check: '<path d="m5 12.5 4.5 4.5L19 7.5"/>',
     loader: '<path d="M12 3a9 9 0 1 0 9 9"/>',
     x: '<path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/>',
+    route: '<circle cx="6" cy="19" r="2"/><circle cx="18" cy="5" r="2"/><path d="M8 19h6.5a3.5 3.5 0 0 0 0-7h-5a3.5 3.5 0 0 1 0-7H16"/>',
     pen: '<path d="M4 20h4L19 9l-4-4L4 16v4z"/><path d="m13.5 6.5 4 4"/>',
     plus: '<path d="M12 5v14M5 12h14"/>',
     upload: '<path d="M12 20V9"/><path d="m7 14 5-5 5 5"/><path d="M5 4h14"/>',

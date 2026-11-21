@@ -435,7 +435,8 @@ function renderRoute() {
     const has = lines.length > 0;
     el('routeLoaded').hidden = !has;
     setButton(el('gpxBtn'), 'upload', t('gpx.load'));
-    setButton(el('drawBtn'), 'pen', t('gpx.draw'));
+    setButton(el('drawBtn'), 'route', t('gpx.draw'));
+    setButton(el('editRouteBtn'), 'pen', t('gpx.edit'));
     setButton(el('gpxDownloadBtn'), 'download', t('gpx.download'));
     setButton(el('gpxRemoveBtn'), 'x', t('gpx.remove'));
     el('gpxInfo').textContent = has ? `${routeLabel()} · ${formatKm(routeLengthM(lines), locale())}` : '';
@@ -462,13 +463,15 @@ function renderRouteBar() {
     el('routeBar').hidden = !mode;
     document.body.toggleAttribute('data-route-mode', !!mode);
     if (!mode) return;
-    el('routeStatus').textContent = t('gpx.drawing', { km: formatKm(routeLengthM(toolLines), locale()) });
-    el('routeFinish').disabled = !(toolLines[0]?.length >= 2);
+    const km = formatKm(routeLengthM(toolLines), locale());
+    el('routeStatus').textContent = t(mode === 'draw' ? 'gpx.drawing' : 'gpx.editing', { km });
+    el('routeUndo').hidden = mode !== 'draw';
+    el('routeFinish').disabled = mode === 'draw' && !(toolLines[0]?.length >= 2);
 }
 
-const routeTools = createRouteTools(map, {
+const routeTools = createRouteTools(map, gpxLayer, {
     onChange: lines => { toolLines = lines; renderRouteBar(); },
-    onDone: (mode, lines) => setRoute(t('gpx.myRoute'), lines),
+    onDone: (mode, lines) => setRoute(mode === 'draw' ? t('gpx.myRoute') : routeName, lines),
     onModeChange: mode => {
         translate.setActive(!mode);
         toolLines = [];
@@ -476,20 +479,20 @@ const routeTools = createRouteTools(map, {
     },
 });
 
-el('drawBtn').addEventListener('click', () => {
-    // Phones: get the sheets out of the way of the map
-    if (sheet.phone.matches) {
-        panes.setShared(false);
-        sheet.setSheet('peek');
-    }
-    routeTools.startDraw();
-});
+// Phones: get the sheets out of the way of the map
+function showMapForRoute() {
+    if (!sheet.phone.matches) return;
+    panes.setShared(false);
+    sheet.setSheet('peek');
+}
+el('drawBtn').addEventListener('click', () => { showMapForRoute(); routeTools.startDraw(); });
+el('editRouteBtn').addEventListener('click', () => { showMapForRoute(); routeTools.startEdit(); });
 el('routeUndo').addEventListener('click', () => routeTools.removeLast());
 el('routeFinish').addEventListener('click', () => routeTools.finish());
 el('routeCancel').addEventListener('click', () => routeTools.cancel());
 
 el('gpxBtn').addEventListener('click', () => gpxInput.click());
-el('gpxRemoveBtn').addEventListener('click', clearRoute);
+el('gpxRemoveBtn').addEventListener('click', () => { routeTools.cancel(); clearRoute(); });
 el('gpxShow').addEventListener('change', saveRoute);
 
 el('gpxDownloadBtn').addEventListener('click', () => {
@@ -510,6 +513,7 @@ gpxInput.addEventListener('change', () => {
             return;
         }
         notices.close('gpx');
+        routeTools.cancel();
         // Prefer the track/route name; waypoints (Points) also carry names
         const line = features.find(f => f.getGeometry()?.getType() !== 'Point' && f.get('name'));
         setRoute(line?.get('name') || file.name.replace(/\.gpx$/i, ''), lines);
