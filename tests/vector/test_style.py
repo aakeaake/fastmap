@@ -122,16 +122,3 @@ def test_25k_keeps_all_names():
         ly.source_layer == "nimisto" and filter_matches(ly.filter, EvalContext(lake, 13.5, "Point"))
         for ly in style.layers
     )
-
-
-@pytest.mark.parametrize("scale", [25000, 50000])
-def test_shoreline_is_dark_and_visible(scale):
-    from fastmap.vector.colors import parse_color
-
-    profile = PROFILES[scale]
-    layer = next(ly for ly in style_for(profile).layers if ly.id == "vesisto_alue_reuna")
-    zoom = scale_to_zoom(scale, 6_687_500) + profile.zoom_offset
-    ctx = EvalContext({}, zoom, "Polygon")
-    r, g, b, _ = parse_color(layer.get("line-color", ctx))
-    assert (r + g + b) / 3 < 0.35  # darker than the upstream #0080ff (~0.50)
-    assert layer.number("line-width", ctx, 1.0) * profile.px_mm >= 0.14  # mm on paper

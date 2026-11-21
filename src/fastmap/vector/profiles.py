@@ -29,14 +29,6 @@ _INDEX_CONTOUR = ["==", ["%", ["get", "korkeusarvo"], 20000], 0]  # 20 m index l
 # MML tags each place name with the smallest map scale it belongs on
 # (mittakaavarelevanssi); names tagged 25 000 are 1:25 000 detail, and untagged
 # (0) entries are service points (churches, museums, malls), not map names.
-_SHORE_COLOR = "#0055b3"  # darker than mmlv2's #0080ff: lakes need a distinct edge
-
-
-def _shoreline(width_px: float) -> dict:
-    """Shoreline paint: dark blue, at least ``width_px`` style px wide."""
-    return {"paint": {"line-color": _SHORE_COLOR, "line-width": width_px}}
-
-
 _NAMES_FOR_50K = {"filter": [">=", ["coalesce", ["get", "mittakaavarelevanssi"], 0], 50000]}
 
 PROFILES: dict[int, ScaleProfile] = {
@@ -50,7 +42,6 @@ PROFILES: dict[int, ScaleProfile] = {
             "korkeus_apuviiva": {"paint": {"line-opacity": 1}},
             # lake surface heights, shown on the raster
             "mml-vedenpinta": {"minzoom": 13},
-            "vesisto_alue_reuna": _shoreline(1.4),  # ~0.16 mm
         },
         text_scale=0.85,  # names the size of the raster's (F5)
         halo_scale=0.4,  # thin halo (F1): at most ~0.09 mm
@@ -77,7 +68,6 @@ PROFILES: dict[int, ScaleProfile] = {
             },
             "korkeus_apuviiva": {"visibility": "none"},  # no 2.5 m contours at 1:50 000
             "mml-vedenpinta": {"minzoom": 13},  # lake surface heights, as on the reference
-            "vesisto_alue_reuna": _shoreline(2.2),  # ~0.15 mm
             # only names meant for 1:50 000 maps (national parks and municipalities
             # have their own layers and keep their names)
             "nimisto-maasto-vedet": _NAMES_FOR_50K,
