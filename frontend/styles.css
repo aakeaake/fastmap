@@ -75,6 +75,8 @@ button { font: inherit; color: inherit; }
 .section-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 6px; }
 .section h2 { font-size: 14px; font-weight: 650; margin: 0; }
 .section-note { font-size: 12px; color: var(--ink-3); margin: 2px 0 0; }
+.cover-count { margin-top: 8px; font-variant-numeric: tabular-nums; }
+.cover-count.warn { color: var(--danger); }
 .section h3 { font-size: 13px; font-weight: 650; margin: 16px 0 0; }
 .section h3:first-of-type { margin-top: 12px; }
 
@@ -205,10 +207,13 @@ button { font: inherit; color: inherit; }
 #railShared[aria-expanded="true"] { background: var(--accent-soft); color: var(--accent); }
 
 /* --- Route & precision pane ---------------------------------------- */
-#gpxBtn { margin-top: 6px; }
+.btn-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; }
+.btn-row .btn { width: auto; flex: 1 1 auto; }
+#routeLoaded[hidden] { display: none; }
 #gpxInfo { font-size: 13px; color: var(--ink-2); margin-top: 6px; overflow-wrap: anywhere; }
-#gpxInfo:empty { display: none; }
 #gpxColor { width: 100%; height: 32px; padding: 2px; box-sizing: border-box; border: 1px solid var(--line-strong); border-radius: var(--radius-sm); background: var(--surface); }
+.pane label.check { display: flex; align-items: center; gap: 8px; color: var(--ink); cursor: pointer; }
+.pane label.check input { margin: 0; width: 16px; height: 16px; }
 .range-row { display: flex; align-items: center; gap: 10px; }
 .range-row input { flex: 1; margin: 0; }
 .range-row output { font-size: 13px; color: var(--ink-2); min-width: 4ch; text-align: right; font-variant-numeric: tabular-nums; }
@@ -312,6 +317,21 @@ button { font: inherit; color: inherit; }
 }
 .map-tool .icon { width: 18px; height: 18px; }
 .map-tool:hover { background: var(--surface-2); }
+/* Route toolbar: takes the language button's place at the top right
+   while drawing or editing (the language button hides meanwhile) */
+.route-bar {
+    position: absolute; z-index: 960;
+    top: var(--edge-t); right: var(--edge-r);
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: flex-end;
+    padding: 4px 4px 4px 12px; border-radius: var(--radius);
+    background: var(--surface); box-shadow: var(--shadow-sm);
+}
+.route-bar[hidden], body[data-route-mode] .lang { display: none; }
+.route-status { font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.route-actions { display: flex; gap: 6px; }
+.route-bar .btn:disabled { cursor: not-allowed; }
+.route-bar .btn[hidden] { display: none; }
+.route-bar .btn { width: auto; min-height: 0; height: var(--tool); padding: 0 12px; }
 /* Language: globe + code + caret at the top of the column, right-aligned
    with the map controls (it is the widest); the menu drops down over them */
 .lang {
@@ -440,6 +460,9 @@ button { font: inherit; color: inherit; }
     body:has(#sharedPane:not([hidden])) .map-tool,
     body:has(#sharedPane:not([hidden])) .ol-zoom { display: none; }
     body:has(#panel[data-sheet="full"]) #attribution { padding: 0 4px; }
+    /* Left of the zoom column; wraps into two rows on narrow screens */
+    .route-bar { left: var(--edge-l); right: calc(var(--edge-r) + var(--tool) + 8px); padding: 6px; justify-content: space-between; }
+    .route-status { padding-left: 6px; }
 
     /* When a sheet covers (nearly) the whole map, there is no room above it:
        move the stack to the top of the screen, above the sheets, flowing
