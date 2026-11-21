@@ -91,6 +91,15 @@ def _validate_layer(layer: StyleLayer) -> None:
         raise StyleError(f"layer {layer.id!r}: {exc}") from exc
 
 
+def _scaled(value: Any, factor: float) -> Any:
+    """A paint value multiplied by ``factor``: number, legacy stops or expression."""
+    if isinstance(value, (int, float)):
+        return value * factor
+    if isinstance(value, dict) and "stops" in value:
+        return {**value, "stops": [[z, v * factor] for z, v in value["stops"]]}
+    return ["*", factor, copy.deepcopy(value)]
+
+
 def _apply_overrides(layers: list[StyleLayer], overrides: dict) -> None:
     by_id = {layer.id: layer for layer in layers}
     for layer_id, ov in overrides.items():
@@ -106,6 +115,10 @@ def _apply_overrides(layers: list[StyleLayer], overrides: dict) -> None:
             extra = copy.deepcopy(ov["filter"])
             layer.filter = extra if layer.filter is None else ["all", layer.filter, extra]
         layer.paint.update(copy.deepcopy(ov.get("paint", {})))
+        if "line-width-scale" in ov:  # applied after any paint override
+            layer.paint["line-width"] = _scaled(
+                layer.paint.get("line-width", 1), ov["line-width-scale"]
+            )
         layer.layout.update(copy.deepcopy(ov.get("layout", {})))
         _validate_layer(layer)
 

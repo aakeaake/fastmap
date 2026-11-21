@@ -31,6 +31,26 @@ _INDEX_CONTOUR = ["==", ["%", ["get", "korkeusarvo"], 20000], 0]  # 20 m index l
 # (0) entries are service points (churches, museums, malls), not map names.
 _NAMES_FOR_50K = {"filter": [">=", ["coalesce", ["get", "mittakaavarelevanssi"], 0], 50000]}
 
+# Fell-vegetation ticks (symbol class 32715): the heath and open-land colours
+# already show this, so the symbol is left out at every scale.
+_NO_FELL_TICKS = {"filter": ["!=", ["get", "kohdeluokka"], 32715]}
+
+# At 1:50 000 the lines are drawn finer (px_mm), so the thin linework people
+# navigate by (trails, fences, borders) gets wider again.
+_WIDER = {"line-width-scale": 1.5}
+_WIDER_AT_50K = {
+    lid: _WIDER
+    for lid in (
+        "mml-polku",
+        "mml-ajopolku",
+        "mml-kavely-pyoratie",
+        "mml-aita",
+        "mml-aita-helmet",
+        "protected_area-outline-outer-mml",
+        "hallintorajat",
+    )
+}
+
 PROFILES: dict[int, ScaleProfile] = {
     25000: ScaleProfile(
         25000,
@@ -42,6 +62,7 @@ PROFILES: dict[int, ScaleProfile] = {
             "korkeus_apuviiva": {"paint": {"line-opacity": 1}},
             # lake surface heights, shown on the raster
             "mml-vedenpinta": {"minzoom": 13},
+            "mml-symboli": _NO_FELL_TICKS,
         },
         text_scale=0.85,  # names the size of the raster's (F5)
         halo_scale=0.4,  # thin halo (F1): at most ~0.09 mm
@@ -73,6 +94,8 @@ PROFILES: dict[int, ScaleProfile] = {
             "nimisto-maasto-vedet": _NAMES_FOR_50K,
             "nimisto-maasto-vedet-mat-prio": _NAMES_FOR_50K,
             "nimisto": _NAMES_FOR_50K,
+            "mml-symboli": _NO_FELL_TICKS,
+            **_WIDER_AT_50K,
         },
         text_scale=1.5,  # small names as on the reference, readable at px_mm 0.07 (F5)
         halo_scale=0.4,  # hairline halo (F1): at most ~0.06 mm

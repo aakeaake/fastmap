@@ -122,3 +122,33 @@ def test_25k_keeps_all_names():
         ly.source_layer == "nimisto" and filter_matches(ly.filter, EvalContext(lake, 13.5, "Point"))
         for ly in style.layers
     )
+
+
+@pytest.mark.parametrize("scale", [25000, 50000])
+def test_fell_vegetation_ticks_are_not_drawn(scale):
+    style = style_for(PROFILES[scale])
+    layer = next(ly for ly in style.layers if ly.id == "mml-symboli")
+    ctx = EvalContext({"kohdeluokka": 32715}, 13.5, "Point")
+    assert not filter_matches(layer.filter, ctx)
+    assert filter_matches(layer.filter, EvalContext({"kohdeluokka": 32710}, 13.5, "Point"))
+
+
+def test_line_width_scale_override_multiplies_the_width():
+    base = next(ly for ly in load_style().layers if ly.id == "mml-polku")
+    wide = next(
+        ly
+        for ly in load_style(overrides={"mml-polku": {"line-width-scale": 1.5}}).layers
+        if ly.id == "mml-polku"
+    )
+    ctx = EvalContext({}, 13.5, "LineString")
+    assert wide.number("line-width", ctx, 1) == pytest.approx(
+        1.5 * base.number("line-width", ctx, 1)
+    )
+
+
+def test_50k_trails_fences_and_borders_are_wider_than_the_style():
+    base = {ly.id: ly for ly in load_style().layers}
+    wide = {ly.id: ly for ly in style_for(PROFILES[50000]).layers}
+    ctx = EvalContext({"kohdeluokka": 44211}, 13.5, "LineString")
+    for lid in ("mml-polku", "mml-ajopolku", "mml-aita", "protected_area-outline-outer-mml"):
+        assert wide[lid].number("line-width", ctx, 1) > 1.3 * base[lid].number("line-width", ctx, 1)

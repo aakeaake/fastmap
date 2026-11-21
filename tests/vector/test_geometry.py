@@ -210,3 +210,16 @@ def test_outline_crossing_a_seam_stays_one_line():
     assert lines.geom_type == "LineString"
     assert lines.is_closed
     assert lines.length == pytest.approx(merged[0].geometry.exterior.length)
+
+
+def test_adjacent_protected_areas_of_one_class_dissolve():
+    # two protected-area polygons (different mtk_ids, same class) sharing an edge
+    a = _f("alueraja", "Polygon", box(0, 0, 100, 100), mtk_id=1, kohdeluokka=72202)
+    b = _f("alueraja", "Polygon", box(100, 0, 200, 100), mtk_id=2, kohdeluokka=72202)
+    other = _f("alueraja", "Polygon", box(200, 0, 300, 100), mtk_id=3, kohdeluokka=72100)
+    out = merge_by_mtk_id([a, b, other])
+    by_class = {f.props["kohdeluokka"]: f for f in out}
+    assert len(out) == 2
+    merged = by_class[72202].geometry
+    assert merged.geom_type == "Polygon" and merged.area == pytest.approx(20000)
+    assert not merged.boundary.intersects(LineString([(100, 10), (100, 90)]))
