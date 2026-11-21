@@ -20,7 +20,7 @@ import Draw from 'ol/interaction/Draw.js';
 import Modify from 'ol/interaction/Modify.js';
 import MultiPoint from 'ol/geom/MultiPoint.js';
 import CircleStyle from 'ol/style/Circle.js';
-import { altKeyOnly, doubleClick, singleClick } from 'ol/events/condition.js';
+import { altKeyOnly, doubleClick, never, singleClick } from 'ol/events/condition.js';
 import { defaults } from 'ol/interaction/defaults.js';
 import GPX from 'ol/format/GPX.js';
 import proj4 from 'proj4';
@@ -183,7 +183,10 @@ export function createRouteTools(map, routeLayer, { onChange, onDone, onModeChan
     const drawnLines = () => (points.length ? [points] : []);
 
     function startDraw() {
-        const draw = new Draw({ type: 'LineString' });
+        // A drag always pans: no dragging the new point after a long press
+        // (dragVertexDelay; finite so setTimeout does not overflow) and no
+        // Shift-drag freehand drawing
+        const draw = new Draw({ type: 'LineString', dragVertexDelay: 1e9, freehandCondition: never });
         // The sketch's last point follows the pointer; the rest are placed
         draw.on('drawstart', ev => {
             const geom = ev.feature.getGeometry();

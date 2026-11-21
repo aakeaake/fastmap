@@ -427,7 +427,11 @@ function saveRoute() {
             const data = serializeRoute({ name: routeName, lines, showOnPrint: el('gpxShow').checked });
             localStorage.setItem(ROUTE_KEY, JSON.stringify(data));
         }
-    } catch { /* storage blocked or full: the route still works until reload */ }
+    } catch {
+        // Storage blocked or full: the route still works until reload, but
+        // an older saved route must not come back in its place
+        try { localStorage.removeItem(ROUTE_KEY); } catch { /* ignore */ }
+    }
 }
 
 function renderRoute() {
