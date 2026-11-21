@@ -2,6 +2,21 @@
 
 All notable changes to FastMap. Versions are tagged `vX.Y.Z` on `main`.
 
+## Unreleased
+
+### Added
+- "Maastokartta, vector (beta)" map option. It draws MML's open vector
+  tiles (Topographic Database) into the PDF as vector paths, so lines and
+  text stay sharp at any print size. Supported at exactly 1:25 000 and
+  1:50 000; other scales are rejected with 422, and the UI only offers
+  it at those scales. Styled after the raster Maastokartta and tuned for
+  print at both scales. The browser preview still shows raster tiles.
+- `tools/compare_vector.py` renders a sheet as raster and as vector and
+  writes side-by-side PNGs for tuning.
+
+### Changed
+- Requires `mapbox-vector-tile` and `shapely>=2.1`.
+
 ## 0.1.9 — 2026-11-18
 
 ### Fixed
