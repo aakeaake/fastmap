@@ -98,16 +98,24 @@ export function createMap(target, { isActive }) {
         source: new VectorSource(),
         style: new Style({ stroke: new Stroke({ color: 'rgba(255, 0, 255, 0.6)', width: 5 }) }),
     });
+    // The atlas area: thin orange outline, light fill, under the route and sheets
+    const areaLayer = new VectorLayer({
+        source: new VectorSource(),
+        style: new Style({
+            stroke: new Stroke({ color: '#e07000', width: 2 }),
+            fill: new Fill({ color: 'rgba(224, 112, 0, 0.08)' }),
+        }),
+    });
     const lockedLayer = new VectorLayer({ source: new VectorSource(), style: styleFor });
     const activeLayer = new VectorLayer({ source: new VectorSource(), style: styleFor });
     const view = new View({ projection: PROJ, center: DEF_CENTER, resolution: 128, extent: MAX_EXTENT });
     const map = new Map({
         target,
-        layers: [baseLayer, gpxLayer, lockedLayer, activeLayer],
+        layers: [baseLayer, areaLayer, gpxLayer, lockedLayer, activeLayer],
         view,
         interactions: defaults({ doubleClickZoom: false }),
     });
-    return { map, view, baseLayer, gpxLayer, lockedLayer, activeLayer };
+    return { map, view, baseLayer, areaLayer, gpxLayer, lockedLayer, activeLayer };
 }
 
 // Drag rectangles on `layer`. Labels ride along; callbacks get the map ids.
@@ -120,15 +128,17 @@ export function addTranslate(map, layer, { onMove, onEnd }) {
     return translate;
 }
 
-// --- Route drawing and editing -----------------------------------------------------
+// --- Route and area drawing and editing ---------------------------------------------
 // Drawing mode: a quick click adds a point, a drag pans, wheel/pinch zooms
-// (OpenLayers Draw defaults). The route layer is not touched; the caller
-// gets the result.
-// Editing mode: the route's points are shown on `routeLayer`; drag a point
-// to move it, drag a segment to add one, Alt-click (double-tap on touch)
-// deletes one. Cancel puts the route back as it was.
-//   onChange(lines)       the points so far (for the live length)
-//   onDone(mode, lines)   Finish (or double-click when drawing)
+// (OpenLayers Draw defaults). The layer is not touched; the caller gets the
+// result.
+// Editing mode: the shape's points are shown on `layer`; drag a point to
+// move it, drag a segment to add one, Alt-click (double-tap on touch)
+// deletes one. Cancel puts the shape back as it was.
+// `type` 'LineString' (the route: shapes are lists of lines) or 'Polygon'
+// (the area: shapes are one ring, not closed).
+//   onChange(shape)       the points so far (for the live length / area)
+//   onDone(mode, shape)   Finish (or double-click when drawing)
 //   onModeChange(mode)    'draw' | 'edit' | null
 const KEYS = { Enter: 'finish', Backspace: 'removeLast', Escape: 'cancel' };
 const typing = t => t instanceof HTMLElement && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName));
@@ -140,13 +150,28 @@ const VERTEX_STYLE = new Style({
     geometry: f => new MultiPoint(f.getGeometry().getCoordinates().flat()),
 });
 
-const xyLines = geom => geom.getCoordinates().map(line => line.map(p => [p[0], p[1]]));
+const xy = p => [p[0], p[1]];
+const xyLines = geom => geom.getCoordinates().map(line => line.map(xy));
 
-export function createRouteTools(map, routeLayer, { onChange, onDone, onModeChange }) {
+// The area as one feature (the ring closed), and back (the closing point dropped)
+export const areaFeature = ring => new Feature(new Polygon([[...ring, ring[0]]]));
+export const featureRing = feature => feature.getGeometry().getCoordinates()[0].slice(0, -1).map(xy);
+
+export function createRouteTools(map, routeLayer, opts) {
+    return createShapeTools(map, routeLayer, { ...opts, type: 'LineString' });
+}
+
+export function createShapeTools(map, layer, { type, onChange, onDone, onModeChange }) {
+    const polygon = type === 'Polygon';
+    const minPoints = polygon ? 3 : 2;
+    // The layer's feature: a Polygon (area) or a MultiLineString (route)
+    const shapeOf = feature => (polygon ? featureRing(feature) : xyLines(feature.getGeometry()));
+    // The finished sketch: a Polygon, or a single LineString
+    const drawnShape = feature => (polygon ? featureRing(feature) : [feature.getGeometry().getCoordinates().map(xy)]);
     let mode = null;
     let interaction = null;
     let editEnd = null;     // undoes what startEdit() set up
-    let edited = null;      // the route feature while editing
+    let edited = null;      // the feature while editing
     let before = null;      // its geometry when editing started (for Cancel)
     let points = [];        // placed points while drawing
     let quietUntil = 0;     // the double-click that finished drawing must not centre a sheet
@@ -181,50 +206,52 @@ export function createRouteTools(map, routeLayer, { onChange, onDone, onModeChan
         onModeChange(null);
     }
 
-    const drawnLines = () => (points.length ? [points] : []);
+    const drawn = () => (polygon ? points : points.length ? [points] : []);
 
     function startDraw() {
         // A drag always pans: no dragging the new point after a long press
         // (dragVertexDelay; finite so setTimeout does not overflow) and no
         // Shift-drag freehand drawing
-        const draw = new Draw({ type: 'LineString', dragVertexDelay: 1e9, freehandCondition: never });
-        // The sketch's last point follows the pointer; the rest are placed
+        const draw = new Draw({ type, dragVertexDelay: 1e9, freehandCondition: never });
+        // The sketch's last point follows the pointer; the rest are placed.
+        // A polygon sketch's ring also ends with the closing point.
         draw.on('drawstart', ev => {
             const geom = ev.feature.getGeometry();
             const update = () => {
-                const next = geom.getCoordinates().slice(0, -1).map(p => [p[0], p[1]]);
+                const coords = polygon ? geom.getCoordinates()[0].slice(0, -2) : geom.getCoordinates().slice(0, -1);
+                const next = coords.map(xy);
                 if (next.length === points.length) return;
                 points = next;
-                onChange(drawnLines());
+                onChange(drawn());
             };
             geom.on('change', update);
             update();
         });
         draw.on('drawabort', () => { points = []; onChange([]); });
         draw.on('drawend', ev => {
-            const line = ev.feature.getGeometry().getCoordinates().map(p => [p[0], p[1]]);
+            const shape = drawnShape(ev.feature);
             exit();
-            if (line.length >= 2) onDone('draw', [line]);
+            if (polygon ? shape.length >= 3 : shape[0].length >= 2) onDone('draw', shape);
         });
         points = [];
         enter('draw', draw);
         onChange([]);
     }
 
-    // The route is one MultiLineString feature (see routeFeature)
+    // The shape is the layer's one feature (see routeFeature, areaFeature)
     function startEdit() {
         if (mode) api.cancel();
-        const feature = routeLayer.getSource().getFeatures()[0];
+        const feature = layer.getSource().getFeatures()[0];
         if (!feature) return;
         edited = feature;
         before = feature.getGeometry().clone();
         const modify = new Modify({
-            source: routeLayer.getSource(),
+            source: layer.getSource(),
             deleteCondition: e => (altKeyOnly(e) && singleClick(e))
                 || (e.originalEvent.pointerType === 'touch' && doubleClick(e)),
         });
-        const vertices = new VectorLayer({ source: routeLayer.getSource(), style: VERTEX_STYLE });
-        const changed = () => onChange(xyLines(feature.getGeometry()));
+        const vertices = new VectorLayer({ source: layer.getSource(), style: VERTEX_STYLE });
+        const changed = () => onChange(shapeOf(feature));
         feature.on('change', changed);
         enter('edit', modify);
         map.addLayer(vertices);
@@ -239,11 +266,11 @@ export function createRouteTools(map, routeLayer, { onChange, onDone, onModeChan
         startDraw,
         startEdit,
         finish() {
-            if (mode === 'draw' && points.length >= 2) interaction.finishDrawing();
+            if (mode === 'draw' && points.length >= minPoints) interaction.finishDrawing();
             if (mode === 'edit') {
-                const lines = xyLines(edited.getGeometry());
+                const shape = shapeOf(edited);
                 exit();
-                onDone('edit', lines);
+                onDone('edit', shape);
             }
         },
         removeLast() {
@@ -252,9 +279,10 @@ export function createRouteTools(map, routeLayer, { onChange, onDone, onModeChan
         cancel() {
             if (!mode) return;
             if (mode === 'draw') interaction.abortDrawing();
-            const [feature, geometry] = mode === 'edit' ? [edited, before] : [];
+            // Put the shape back before closing, so what re-renders on
+            // close (counts, buttons) sees the restored shape
+            if (mode === 'edit') edited.setGeometry(before);
             exit();
-            feature?.setGeometry(geometry);
         },
         active: () => mode,
         // Map clicks belong to the route tools (also just after they close)

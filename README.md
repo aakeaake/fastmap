@@ -135,10 +135,16 @@ MML requests are retried up to 3 attempts (not read timeouts). See
   footer line), so what you see is exactly what prints.
 * **Grid** turns on grid lines (vertical, or full, each with optional
   coordinates) with a selectable spacing.
-* **Route and precision** opens a second pane with the settings shared by all
-  maps: load or remove a **GPX route** (shown on the preview and printed on
-  the PDFs) and its colour, width and opacity, plus print **DPI** and **map
-  level**.
+* **Route, area and precision** opens a second pane with the settings shared
+  by all maps: load or remove a **GPX route** (shown on the preview and
+  printed on the PDFs) and its colour, width and opacity, plus print **DPI**
+  and **map level**.
+* **Atlas of an area** (same pane): draw an area on the map (click the
+  corners, double-click to finish; edit or remove it later). **Create atlas**
+  replaces the maps with a grid of sheets covering it, titled by row and
+  column ("Atlas A1", "Atlas B3": rows from the north, columns from the west),
+  with your paper, scale, margin, orientation and overlap (0–20 %). An atlas
+  holds at most 25 maps; **Undo** brings the old maps back.
 * **Download** at the bottom of the pane: the list's ↓ button downloads one
   map; **Download all** renders every map as one multi-page PDF (mixed page
   sizes allowed) or a ZIP of separate PDFs. Progress, the finished file and

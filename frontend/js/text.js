@@ -1,4 +1,5 @@
 // User-facing strings built from data, in the given language. Pure.
+import { ATLAS_MAX } from './atlas.js';
 import { LOCALES, translate } from './strings.js';
 
 const num = (n, lang) => n.toLocaleString(LOCALES[lang] ?? LOCALES.en);
@@ -21,9 +22,21 @@ export function deletedLabel(count, lang = 'en') {
     return count === 1 ? translate(lang, 'deleted.one') : translate(lang, 'deleted.many', { count });
 }
 
-export function createdLabel(count, name, lang = 'en') {
-    return count === 1 ? translate(lang, 'cover.createdOne', { name })
-        : translate(lang, 'cover.created', { count: num(count, lang), name });
+// "Created 7 maps for <name>"; `kind` 'cover' (a route) or 'atlas'
+export function createdLabel(count, name, lang = 'en', kind = 'cover') {
+    return count === 1 ? translate(lang, `${kind}.createdOne`, { name })
+        : translate(lang, `${kind}.created`, { count: num(count, lang), name });
+}
+
+// "12 maps · 3 rows × 5 columns", or the too-many warning above ATLAS_MAX;
+// with `atLeast`, `count` is a lower bound (the grid was too big to lay out)
+export function atlasCountLabel(count, rows, cols, lang = 'en', atLeast = false) {
+    if (atLeast) return translate(lang, 'atlas.tooManyAtLeast', { count: num(count, lang) });
+    if (count > ATLAS_MAX) return translate(lang, 'atlas.tooMany', { count: num(count, lang) });
+    const phrase = (n, key) => (n === 1 ? translate(lang, `${key}One`) : translate(lang, key, { count: num(n, lang) }));
+    return translate(lang, count === 1 ? 'atlas.countOne' : 'atlas.count', {
+        count: num(count, lang), rows: phrase(rows, 'atlas.rows'), cols: phrase(cols, 'atlas.cols'),
+    });
 }
 
 // On-screen credit "© Maanmittauslaitos, CC BY 4.0, MM/YYYY" (the licensor's name, the
