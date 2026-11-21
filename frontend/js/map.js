@@ -8,6 +8,8 @@ import VectorSource from 'ol/source/Vector.js';
 import Feature from 'ol/Feature.js';
 import Polygon from 'ol/geom/Polygon.js';
 import Point from 'ol/geom/Point.js';
+import MultiLineString from 'ol/geom/MultiLineString.js';
+import { toLonLat } from 'ol/proj.js';
 import Style from 'ol/style/Style.js';
 import Stroke from 'ol/style/Stroke.js';
 import Fill from 'ol/style/Fill.js';
@@ -114,3 +116,11 @@ export function addTranslate(map, layer, { onMove, onEnd }) {
 export function readGpx(text) {
     return new GPX().readFeatures(text, { dataProjection: 'EPSG:4326', featureProjection: PROJ });
 }
+
+// The route as one feature on the route layer (one line per GPX segment)
+export function routeFeature(lines) {
+    return new Feature(new MultiLineString(lines));
+}
+
+// EPSG:3067 point -> [lon, lat]
+export const toWgs84 = xy => toLonLat(xy, PROJ);

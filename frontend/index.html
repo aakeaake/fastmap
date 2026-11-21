@@ -145,9 +145,17 @@
         <p class="section-note" data-i18n="shared.note">Apply to all maps.</p>
 
         <h3 data-i18n="gpx.heading">GPX route</h3>
-        <button id="gpxBtn" class="btn btn-secondary" type="button"></button>
+        <div id="routeEmpty" class="btn-row">
+            <button id="gpxBtn" class="btn btn-secondary" type="button"></button>
+        </div>
         <input type="file" id="gpxInput" accept=".gpx" hidden>
-        <div id="gpxInfo"></div>
+        <div id="routeLoaded" hidden>
+            <div id="gpxInfo"></div>
+            <div class="btn-row">
+                <button id="gpxDownloadBtn" class="btn btn-secondary" type="button"></button>
+                <button id="gpxRemoveBtn" class="btn btn-secondary" type="button"></button>
+            </div>
+        </div>
 
         <h3 data-i18n="gpx.style">Route style</h3>
         <label class="check"><input id="gpxShow" type="checkbox" checked> <span data-i18n="gpx.showOnPrint">Show route on printouts</span></label>

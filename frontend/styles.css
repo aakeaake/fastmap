@@ -205,9 +205,9 @@ button { font: inherit; color: inherit; }
 #railShared[aria-expanded="true"] { background: var(--accent-soft); color: var(--accent); }
 
 /* --- Route & precision pane ---------------------------------------- */
-#gpxBtn { margin-top: 6px; }
+.btn-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; }
+.btn-row[hidden], #routeLoaded[hidden] { display: none; }
 #gpxInfo { font-size: 13px; color: var(--ink-2); margin-top: 6px; overflow-wrap: anywhere; }
-#gpxInfo:empty { display: none; }
 #gpxColor { width: 100%; height: 32px; padding: 2px; box-sizing: border-box; border: 1px solid var(--line-strong); border-radius: var(--radius-sm); background: var(--surface); }
 .pane label.check { display: flex; align-items: center; gap: 8px; color: var(--ink); cursor: pointer; }
 .pane label.check input { margin: 0; width: 16px; height: 16px; }
