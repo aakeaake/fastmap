@@ -50,3 +50,14 @@ test('hidden always hides, even on elements whose class sets display', () => {
     const css = readFileSync(new URL('../../frontend/styles.css', import.meta.url), 'utf8');
     assert.match(css, /\[hidden\]\s*\{\s*display:\s*none\s*!important;?\s*\}/);
 });
+
+test('route and atlas both have a name field', () => {
+    const route = html.slice(html.indexOf('id="modeRoute"'), html.indexOf('id="modeAtlas"'));
+    assert.match(route, /<input id="routeName" type="text" maxlength="100"/);
+    assert.match(html, /<input id="atlasName" type="text" maxlength="100"/);
+});
+
+test('a drawn route is called Route / Reitti', () => {
+    assert.equal(STRINGS.en['gpx.myRoute'], 'Route');
+    assert.equal(STRINGS.fi['gpx.myRoute'], 'Reitti');
+});

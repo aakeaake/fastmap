@@ -603,10 +603,10 @@ fetch('/api/attribution')
 // One route at a time, uploaded or drawn: one feature on gpxLayer, saved in
 // the browser with its name and the show-on-printouts choice.
 const gpxInput = el('gpxInput');
-let routeName = '';   // name of the route; '' when unnamed or none
+let routeName = '';   // name of the route as typed; '' when none
 
 const routeLines = () => gpxRoutes(gpxLayer.getSource().getFeatures());
-const routeLabel = () => routeName || t('gpx.myRoute');
+const routeLabel = () => routeName.trim() || t('gpx.myRoute');
 
 function saveRoute() {
     const lines = routeLines();
@@ -642,6 +642,7 @@ function setRoute(name, lines) {
     source.clear();
     if (lines.length) source.addFeature(routeFeature(lines));
     routeName = lines.length ? name : '';
+    el('routeName').value = routeName;
     saveRoute();
     renderRoute();
 }
@@ -873,6 +874,7 @@ function renderCover() {
     const show = routeLines().length > 0 && !anyTool();
     section.hidden = !show;
     if (!show) return;
+    el('routeName').placeholder = t('gpx.myRoute');
     const n = coverSheets().length;
     const count = n.toLocaleString(locale());
     el('coverCount').textContent = n > MAX_BATCH ? t('cover.tooMany', { count })
@@ -893,6 +895,15 @@ function createCover() {
     replaceSet('route', items, readBlock('route'), () => createdLabel(n, name, getLang()));
 }
 el('coverBtn').addEventListener('click', createCover);
+
+// The name is used in titles, the info line and the GPX file name; it does
+// not change the sheets, so only the info line is redrawn
+el('routeName').addEventListener('input', () => {
+    routeName = el('routeName').value;
+    saveRoute();
+    const lines = routeLines();
+    if (lines.length) el('gpxInfo').textContent = `${routeLabel()} · ${formatKm(routeLengthM(lines), locale())}`;
+});
 
 // --- Atlas of the area -------------------------------------------------------------
 // A grid of sheets over the drawn area (atlas.js), labelled A1, A2, … Shown
