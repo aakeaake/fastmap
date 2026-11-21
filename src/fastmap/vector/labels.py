@@ -22,7 +22,6 @@ from reportlab.pdfbase.pdfmetrics import stringWidth
 from reportlab.pdfgen.canvas import Canvas
 from shapely.geometry import LineString
 
-from .colors import parse_color
 from .draw import MapFrame, _matching
 from .expressions import EvalContext
 from .fonts import font_for, register_fonts
@@ -161,15 +160,15 @@ def _alpha(color: tuple[float, float, float, float], opacity: float):
 
 def _icon_fields(layer: StyleLayer, ctx: EvalContext, px_pt: float) -> dict:
     name = layer.get("icon-image", ctx)
-    opacity = float(layer.get("icon-opacity", ctx, 1.0))
+    opacity = layer.number("icon-opacity", ctx, 1.0)
     if not name or name in _BLANK or opacity <= 0:
         return {}
-    size = float(layer.get("icon-size", ctx, 1.0))
+    size = layer.number("icon-size", ctx, 1.0)
     ox, oy = (layer.get("icon-offset", ctx) or [0, 0])[:2]
     return {
         "icon": name,
         "icon_size": size,
-        "icon_rotate": float(layer.get("icon-rotate", ctx, 0.0)),
+        "icon_rotate": layer.number("icon-rotate", ctx, 0.0),
         "icon_offset_pt": (float(ox) * size * px_pt, float(oy) * size * px_pt),
         "icon_opacity": opacity,
         "icon_allow_overlap": bool(layer.get("icon-allow-overlap", ctx, False)),
@@ -187,34 +186,32 @@ def _layer_candidates(
             continue  # point placement needs points, line placement needs lines/rings
         icon = _icon_fields(layer, ctx, px_pt) if with_icons and not line_placement else {}
         text = _text(layer, ctx)
-        size_pt = float(layer.get("text-size", ctx, 16)) * px_pt * text_scale
-        opacity = float(layer.get("text-opacity", ctx, 1.0))
+        size_pt = layer.number("text-size", ctx, 16) * px_pt * text_scale
+        opacity = layer.number("text-opacity", ctx, 1.0)
         if size_pt <= 0 or opacity <= 0:
             text = ""
         if not text and not icon:
             continue
         font = font_for(layer.get("text-font", ctx, ["Noto Sans Regular"]))
         if text and not line_placement:
-            max_ems = float(layer.get("text-max-width", ctx, DEFAULT_MAX_WIDTH_EMS))
+            max_ems = layer.number("text-max-width", ctx, DEFAULT_MAX_WIDTH_EMS)
             text = _wrap(text, font, max_ems)
         variable = layer.get("text-variable-anchor", ctx) or []
         common = dict(
             text=text,
             font=font,
             size_pt=size_pt,
-            color=_alpha(parse_color(layer.get("text-color", ctx, "#000000")), opacity),
-            halo_color=_alpha(
-                parse_color(layer.get("text-halo-color", ctx, "rgba(0,0,0,0)")), opacity
-            ),
-            halo_pt=float(layer.get("text-halo-width", ctx, 0.0)) * px_pt * halo_scale,
+            color=_alpha(layer.color("text-color", ctx, "#000000"), opacity),
+            halo_color=_alpha(layer.color("text-halo-color", ctx, "rgba(0,0,0,0)"), opacity),
+            halo_pt=layer.number("text-halo-width", ctx, 0.0) * px_pt * halo_scale,
             priority=_priority(layer, ctx, index),
             icon=None,
             allow_overlap=bool(layer.get("text-allow-overlap", ctx, False)),
             ignore_placement=bool(layer.get("text-ignore-placement", ctx, False)),
-            padding_pt=float(layer.get("text-padding", ctx, DEFAULT_PADDING_PX)) * px_pt,
+            padding_pt=layer.number("text-padding", ctx, DEFAULT_PADDING_PX) * px_pt,
             variable_anchors=list(variable) or [layer.get("text-anchor", ctx, "center")],
-            spacing_pt=float(layer.get("symbol-spacing", ctx, DEFAULT_SPACING_PX)) * px_pt,
-            max_angle=float(layer.get("text-max-angle", ctx, DEFAULT_MAX_ANGLE)),
+            spacing_pt=layer.number("symbol-spacing", ctx, DEFAULT_SPACING_PX) * px_pt,
+            max_angle=layer.number("text-max-angle", ctx, DEFAULT_MAX_ANGLE),
             px_mm=px_mm,
         )
         common.update(icon)

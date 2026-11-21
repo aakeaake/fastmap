@@ -37,3 +37,9 @@ def test_names():
 def test_invalid():
     with pytest.raises(ValueError):
         parse_color("not-a-colour")
+
+
+def test_parse_color_rejects_unhashable_and_non_string():
+    for bad in (None, [1, 2], {"a": 1}, 5):
+        with pytest.raises(ValueError):
+            parse_color(bad)

@@ -441,11 +441,11 @@ def draw_icon_layers(
             name = layer.get("icon-image", ctx)
             if not name or name in _BLANK:
                 continue
-            opacity = float(layer.get("icon-opacity", ctx, 1.0))
+            opacity = layer.number("icon-opacity", ctx, 1.0)
             if opacity <= 0:
                 continue
-            size = float(layer.get("icon-size", ctx, 1.0))
-            rotation = float(layer.get("icon-rotate", ctx, 0.0))
+            size = layer.number("icon-size", ctx, 1.0)
+            rotation = layer.number("icon-rotate", ctx, 0.0)
             geom = f.geometry
             for pt in getattr(geom, "geoms", [geom]):
                 if pt.is_empty:

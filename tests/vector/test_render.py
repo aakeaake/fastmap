@@ -253,3 +253,28 @@ def test_no_outline_along_tile_seam(tmp_path, monkeypatch, layer, kohdeluokka, m
     # outline (keeping it continuous); real cut edges must not be stroked
     seam = [s for s in segs if on_x(s, 200) and abs(s[0][1] - s[1][1]) >= 0.5]
     assert seam == [], f"outline stroked along the tile seam: {seam}"
+
+
+def _line_content(tmp_path, paint):
+    from shapely.geometry import LineString
+
+    from fastmap.vector.draw import draw_fill_line_layers
+    from fastmap.vector.model import Feature
+
+    style = _style({"id": "l", "type": "line", "source-layer": "tie", "paint": paint})
+    frame = MapFrame(Extent(0, 0, 100, 100), 0, 0, 100, 100)
+    feats = [Feature("tie", "LineString", LineString([(10, 10), (90, 10)]), {})]
+    return _canvas_content(
+        tmp_path,
+        lambda c: draw_fill_line_layers(c, frame, style, {"tie": feats}, 14, 0.5, None),
+    )
+
+
+def test_line_width_none_falls_back_to_default(tmp_path):
+    content = _line_content(tmp_path, {"line-width": ["get", "missing"]})
+    assert f"{0.5 * mm:.5g}".encode() in content
+
+
+def test_line_color_none_falls_back_to_black(tmp_path):
+    content = _line_content(tmp_path, {"line-color": ["get", "missing"], "line-width": 2})
+    assert b"0 0 0 RG" in content

@@ -36,11 +36,15 @@ def _clamp(v: float) -> float:
     return min(1.0, max(0.0, v))
 
 
-@lru_cache(maxsize=1024)
 def parse_color(value: str) -> tuple[float, float, float, float]:
     """CSS colour -> (r, g, b, a), each 0-1. Raises ValueError if unparseable."""
     if not isinstance(value, str):
         raise ValueError(f"not a colour: {value!r}")
+    return _parse_color(value)
+
+
+@lru_cache(maxsize=1024)
+def _parse_color(value: str) -> tuple[float, float, float, float]:
     s = value.strip().lower()
     s = _NAMES.get(s, s)
     try:

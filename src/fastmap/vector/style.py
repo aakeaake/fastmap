@@ -10,6 +10,7 @@ from functools import cache
 from pathlib import Path
 from typing import Any
 
+from .colors import parse_color
 from .expressions import (
     EvalContext,
     StyleError,
@@ -47,10 +48,32 @@ class StyleLayer:
         return self.minzoom <= zoom < self.maxzoom and self.layout.get("visibility") != "none"
 
     def get(self, prop: str, ctx: EvalContext, default: Any = None) -> Any:
+        """Evaluated property; the default if it is absent, None or fails to evaluate.
+
+        MapLibre falls back to the property default when a feature's data breaks an
+        expression, so one bad feature never fails the map.
+        """
         for section in (self.paint, self.layout):
             if prop in section:
-                return evaluate_property(prop, section[prop], ctx)
+                try:
+                    value = evaluate_property(prop, section[prop], ctx)
+                except (StyleError, TypeError, ValueError):
+                    return default
+                return default if value is None else value
         return default
+
+    def number(self, prop: str, ctx: EvalContext, default: float) -> float:
+        value = self.get(prop, ctx, default)
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return float(default)
+
+    def color(self, prop: str, ctx: EvalContext, default: str) -> tuple:
+        try:
+            return parse_color(self.get(prop, ctx, default))
+        except ValueError:
+            return parse_color(default)
 
 
 @dataclass

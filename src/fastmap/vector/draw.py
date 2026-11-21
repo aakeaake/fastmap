@@ -13,7 +13,6 @@ from shapely.geometry.polygon import orient
 
 from fastmap.services.print_layout import Extent
 
-from .colors import parse_color
 from .expressions import EvalContext, filter_matches
 from .geometry import outline as polygon_outline
 from .model import Feature
@@ -75,8 +74,8 @@ def background_color(style: Style, zoom: float) -> tuple[float, float, float, fl
     ctx = EvalContext({}, zoom, "Polygon")
     for layer in style.layers:
         if layer.type == "background" and layer.visible_at(zoom):
-            r, g, b, a = parse_color(layer.get("background-color", ctx, "#000000"))
-            return (r, g, b, a * float(layer.get("background-opacity", ctx, 1.0)))
+            r, g, b, a = layer.color("background-color", ctx, "#000000")
+            return (r, g, b, a * layer.number("background-opacity", ctx, 1.0))
     return (1.0, 1.0, 1.0, 1.0)
 
 
@@ -148,7 +147,7 @@ def _draw_fill_layer(c, frame, layer, features, zoom, px_mm, symbols, tile_m) ->
         return
     groups: dict[tuple, list] = {}
     for f, ctx in _matching(layer, features, zoom, ("Polygon",)):
-        opacity = float(layer.get("fill-opacity", ctx, 1.0))
+        opacity = layer.number("fill-opacity", ctx, 1.0)
         if opacity <= 0:
             continue
         sort_key = _sort_key(layer, "fill-sort-key", ctx)
@@ -158,10 +157,10 @@ def _draw_fill_layer(c, frame, layer, features, zoom, px_mm, symbols, tile_m) ->
                 continue
             key = (sort_key, name, opacity)
         else:
-            fill = parse_color(layer.get("fill-color", ctx, "#000000"))
+            fill = layer.color("fill-color", ctx, "#000000")
             outline = None
             if "fill-outline-color" in layer.paint and layer.get("fill-antialias", ctx, True):
-                outline = parse_color(layer.get("fill-outline-color", ctx))
+                outline = layer.color("fill-outline-color", ctx, "rgba(0,0,0,0)")
                 if outline[3] <= 0:
                     outline = None
             if fill[3] <= 0 and outline is None:
@@ -198,9 +197,9 @@ def _draw_line_layer(c, frame, layer, features, zoom, px_mm, tile_m) -> None:
     px_pt = px_mm * mm
     groups: dict[tuple, list] = {}
     for f, ctx in _matching(layer, features, zoom, ("LineString", "Polygon")):
-        color = parse_color(layer.get("line-color", ctx, "#000000"))
-        opacity = float(layer.get("line-opacity", ctx, 1.0))
-        width = float(layer.get("line-width", ctx, 1.0)) * px_pt
+        color = layer.color("line-color", ctx, "#000000")
+        opacity = layer.number("line-opacity", ctx, 1.0)
+        width = layer.number("line-width", ctx, 1.0) * px_pt
         alpha = color[3] * opacity
         if alpha <= 0 or width <= 0:
             continue
@@ -210,7 +209,7 @@ def _draw_line_layer(c, frame, layer, features, zoom, px_mm, tile_m) -> None:
             dash_pt = ()
         cap = _CAPS.get(layer.get("line-cap", ctx, "butt"), 0)
         join = _JOINS.get(layer.get("line-join", ctx, "miter"), 0)
-        offset = float(layer.get("line-offset", ctx, 0.0)) * px_pt
+        offset = layer.number("line-offset", ctx, 0.0) * px_pt
         lines = _as_lines(f.geometry, tile_m)
         if lines.is_empty:
             continue

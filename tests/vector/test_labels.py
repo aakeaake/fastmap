@@ -261,3 +261,21 @@ def test_collect_applies_text_and_halo_scale():
     assert c.size_pt == pytest.approx(10 * px_pt * 0.6)
     assert c.halo_pt == pytest.approx(2 * px_pt * 0.25)
     assert c.padding_pt == pytest.approx(2 * px_pt)  # collision padding is not text size
+
+
+def test_point_without_priority_still_gets_label_with_default_size():
+    style = _style(
+        {
+            "id": "names",
+            "type": "symbol",
+            "source-layer": "nimisto",
+            "layout": {
+                "text-field": "{nimi}",
+                "text-size": ["interpolate", ["linear"], ["get", "prioriteetti"], 1, 20, 5, 10],
+            },
+        }
+    )
+    feats = {"nimisto": [Feature("nimisto", "Point", Point(100, 100), {"nimi": "Kaurasuo"})]}
+    cands = collect_candidates(style, feats, 14, FRAME, 0.28)
+    assert [c.text for c in cands] == ["Kaurasuo"]
+    assert cands[0].size_pt == pytest.approx(16 * 0.28 * 72 / 25.4)
