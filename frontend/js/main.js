@@ -82,6 +82,7 @@ function areaChanged(e) {
 }
 
 function newMap() {
+    if (state.mode !== 'maps') return;   // only Maps mode places sheets by hand
     // inherit the active map's settings so consecutive maps stay consistent
     const cur = active();
     const settings = cur ? {
@@ -178,7 +179,11 @@ function undo() {
     const { mode, data } = undoSnapshot;
     hideToast();
     removeMode(mode);
-    restoreFrom(data, { mode });
+    // The sheets come back at today's margin (one margin for all maps); a
+    // route or atlas then says its settings changed if the margin did
+    for (const e of restoreFrom(data, { mode })) {
+        if (e.margin !== state.margin) { e.margin = state.margin; placeEntry(e); }
+    }
     if (mode !== state.mode) {
         setMode(mode);   // show the set that came back
     } else {
@@ -515,7 +520,10 @@ function marginChanged() {
     persist();
 }
 el('margin').addEventListener('input', marginChanged);
-el('margin').addEventListener('change', marginChanged);
+el('margin').addEventListener('change', () => {
+    marginChanged();
+    el('margin').value = state.margin;   // show the value in use (clamped to 0–30)
+});
 
 // --- Modes: Maps, Route, Atlas ----------------------------------------------------
 // Each mode keeps its own maps; only the current mode's are on the map, in
@@ -818,7 +826,8 @@ function blockChanged(mode) {
 // "Create" or, when the block no longer matches the sheets, "Update"
 function renderSetButton(mode, disabled) {
     const p = BLOCK_PREFIX[mode];
-    const changed = modeMaps(mode).length > 0 && settingsChanged(readBlock(mode), state.madeWith[mode]);
+    const changed = modeMaps(mode).length > 0
+        && settingsChanged(readBlock(mode), state.madeWith[mode], state.margin);
     el(`${p}Changed`).hidden = !changed;
     el(`${p}Btn`).textContent = t(`${p}.${changed ? 'update' : 'create'}`);
     el(`${p}Btn`).disabled = disabled;
@@ -842,7 +851,7 @@ function replaceSet(mode, items, settings, undoLabel) {
     };
     removeMode(mode);
     const created = items.map(({ center, orientation, title }) => createEntry(center, { ...base, orientation, title }));
-    state.madeWith[mode] = settings;
+    state.madeWith[mode] = { ...settings, margin: state.margin };
     setActiveId(created[0].id);
     showMode();
     setActive(created[0].id);

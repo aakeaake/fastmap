@@ -90,3 +90,19 @@ test('selections must name a map of their own mode; made-with needs sheets', () 
 test('junk saved data gives null', () => {
     for (const bad of [null, 3, 'x', { maps: 'no' }]) assert.equal(readSavedLayout(bad), null);
 });
+
+test('a margin change since the sheets were made counts as a change', () => {
+    const a = defaultSetSettings('atlas');
+    const made = { ...a, margin: 7 };
+    assert.equal(settingsChanged(a, made, 7), false);
+    assert.equal(settingsChanged(a, made, 20), true);
+    assert.equal(settingsChanged(a, { ...a }, 20), false);   // made before margins were recorded
+});
+
+test('made-with keeps its margin through a save and load', () => {
+    const made = { ...defaultSetSettings('route'), margin: 12 };
+    assert.equal(sanitizeSetSettings('route', made).margin, 12);
+    assert.equal('margin' in sanitizeSetSettings('route', defaultSetSettings('route')), false);
+    const r = readSavedLayout({ madeWith: { route: made }, maps: [map(3, { mode: 'route' })] });
+    assert.equal(r.madeWith.route.margin, 12);
+});

@@ -30,6 +30,9 @@
     accent-color: var(--accent);
 }
 
+/* `hidden` always wins over a class that sets display */
+[hidden] { display: none !important; }
+
 html, body { height: 100%; margin: 0; overflow: hidden; font-family: var(--font); color: var(--ink); background: var(--surface-2); }
 ::selection { background: var(--accent-soft); color: var(--ink); }
 #map { position: absolute; inset: 0; }

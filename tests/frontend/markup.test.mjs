@@ -45,3 +45,8 @@ test('margin lives in Advanced, map type next to scale', () => {
     const maps = html.slice(html.indexOf('id="modeMaps"'), html.indexOf('id="modeRoute"'));
     assert.ok(maps.includes('id="mapType"') && !maps.includes('id="margin"'));
 });
+
+test('hidden always hides, even on elements whose class sets display', () => {
+    const css = readFileSync(new URL('../../frontend/styles.css', import.meta.url), 'utf8');
+    assert.match(css, /\[hidden\]\s*\{\s*display:\s*none\s*!important;?\s*\}/);
+});

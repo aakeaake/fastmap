@@ -43,13 +43,16 @@ export function sanitizeSetSettings(mode, data) {
         gridMode: GRID_MODES.includes(data.gridMode) ? data.gridMode : d.gridMode,
         gridSpacing: GRID_SPACINGS.includes(data.gridSpacing) ? data.gridSpacing : d.gridSpacing,
         overlapPct: overlapsOf(mode).includes(data.overlapPct) ? data.overlapPct : d.overlapPct,
+        // a set's made-with record also keeps the margin its sheets were sized with
+        ...(Number.isFinite(data.margin) ? { margin: parseMargin(data.margin) } : {}),
     };
 }
 
-// Does the block differ from the settings the set's sheets were made with?
-// (No sheets, nothing made: no change to report.)
-export function settingsChanged(block, madeWith) {
+// Does the block (and the current margin) differ from what the set's sheets
+// were made with? (No sheets, nothing made: no change to report.)
+export function settingsChanged(block, madeWith, margin) {
     if (!madeWith) return false;
+    if (Number.isFinite(madeWith.margin) && margin !== undefined && margin !== madeWith.margin) return true;
     return SET_FIELDS.some(k => block[k] !== madeWith[k]);
 }
 
