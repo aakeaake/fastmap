@@ -46,3 +46,11 @@ test('buildPayload: title, precision and GPX style when set', () => {
     assert.equal(p.gpx_width, 5);   // non-numeric width falls back to 5
     assert.equal(p.gpx_opacity, 0.35);
 });
+
+test('buildPayload leaves the route out when it is not to be printed', () => {
+    const shared = { ...auto, routes: [[[1, 2], [3, 4]]], showRoute: false };
+    const p = buildPayload(entry, [0, 0, 10, 10], shared);
+    assert.equal('gpx_routes' in p, false);
+    assert.equal('gpx_color' in p, false);
+    assert.deepEqual(buildPayload(entry, [0, 0, 10, 10], { ...shared, showRoute: true }).gpx_routes, [[[1, 2], [3, 4]]]);
+});

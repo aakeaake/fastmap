@@ -4,11 +4,14 @@ import { centerToShow, containsExtent, visibleCenter as visibleCenterOf, visible
 import { applyTranslations, getLang, locale, onLangChange, setLang, t } from './i18n.js';
 import { hydrateIcons, icon, setButton } from './icons.js';
 import { JobError, runJob } from './jobs.js';
-import { addTranslate, createMap, makeBaseSource, readGpx } from './map.js';
+import {
+    addTranslate, createMap, createRouteTools, makeBaseSource, readGpx, routeFeature, toWgs84,
+} from './map.js';
 import { createLangMenu } from './lang-menu.js';
 import { createNotices } from './notices.js';
 import { createPanes } from './panes.js';
 import { buildPayload, gpxRoutes } from './payload.js';
+import { ROUTE_KEY, formatKm, routeLengthM, sanitizeSavedRoute, serializeRoute, toGpx } from './route.js';
 import { parseMargin } from './saved.js';
 import { createSheet } from './sheet.js';
 import {
@@ -345,7 +348,7 @@ function revealEntry(e) {
 }
 
 // --- Map interactions ------------------------------------------------------------
-addTranslate(map, activeLayer, {
+const translate = addTranslate(map, activeLayer, {
     onMove: ids => ids.forEach(id => { const e = getEntry(id); if (e) syncLabel(e); }),
     onEnd: ids => {
         ids.forEach(id => downloadedIds.delete(id));
@@ -356,6 +359,7 @@ addTranslate(map, activeLayer, {
 
 // Double-click centres the selected rectangle there (no zoom)
 map.on('dblclick', ev => {
+    if (routeTools.paused()) return;
     const cur = active();
     if (!cur) return;
     placeEntry(cur, ev.coordinate);
@@ -406,23 +410,98 @@ fetch('/api/attribution')
     })
     .catch(() => {});
 
-// --- GPX route -------------------------------------------------------------------
-const gpxBtn = el('gpxBtn');
+// --- Route -----------------------------------------------------------------------
+// One route at a time, uploaded or drawn: one feature on gpxLayer, saved in
+// the browser with its name and the show-on-printouts choice.
 const gpxInput = el('gpxInput');
-let gpxName = '';   // name of the loaded route, '' when none
+let routeName = '';   // name of the route; '' when unnamed or none
 
-function renderGpx() {
-    if (gpxName) setButton(gpxBtn, 'x', t('gpx.remove'));
-    else setButton(gpxBtn, 'upload', t('gpx.load'));
-    el('gpxInfo').textContent = gpxName;
-    el('sharedSummary').textContent = gpxName ? t('shared.summaryRoute', { name: gpxName }) : t('shared.summary');
+const routeLines = () => gpxRoutes(gpxLayer.getSource().getFeatures());
+const routeLabel = () => routeName || t('gpx.myRoute');
+
+function saveRoute() {
+    const lines = routeLines();
+    try {
+        if (!lines.length) localStorage.removeItem(ROUTE_KEY);
+        else {
+            const data = serializeRoute({ name: routeName, lines, showOnPrint: el('gpxShow').checked });
+            localStorage.setItem(ROUTE_KEY, JSON.stringify(data));
+        }
+    } catch {
+        // Storage blocked or full: the route still works until reload, but
+        // an older saved route must not come back in its place
+        try { localStorage.removeItem(ROUTE_KEY); } catch { /* ignore */ }
+    }
 }
 
-gpxBtn.addEventListener('click', () => {
-    if (!gpxLayer.getSource().getFeatures().length) { gpxInput.click(); return; }
-    gpxLayer.getSource().clear();
-    gpxName = '';
-    renderGpx();
+function renderRoute() {
+    const lines = routeLines();
+    const has = lines.length > 0;
+    el('routeLoaded').hidden = !has;
+    setButton(el('gpxBtn'), 'upload', t('gpx.load'));
+    setButton(el('drawBtn'), 'route', t('gpx.draw'));
+    setButton(el('editRouteBtn'), 'pen', t('gpx.edit'));
+    setButton(el('gpxDownloadBtn'), 'download', t('gpx.download'));
+    setButton(el('gpxRemoveBtn'), 'x', t('gpx.remove'));
+    el('gpxInfo').textContent = has ? `${routeLabel()} · ${formatKm(routeLengthM(lines), locale())}` : '';
+    el('sharedSummary').textContent = has ? t('shared.summaryRoute', { name: routeLabel() }) : t('shared.summary');
+}
+
+// Replace the route (no lines = no route)
+function setRoute(name, lines) {
+    const source = gpxLayer.getSource();
+    source.clear();
+    if (lines.length) source.addFeature(routeFeature(lines));
+    routeName = lines.length ? name : '';
+    saveRoute();
+    renderRoute();
+}
+
+const clearRoute = () => setRoute('', []);
+
+// Drawing: toolbar at the top right of the map. Sheet dragging and
+// double-click-to-centre pause while it is open.
+let toolLines = [];
+function renderRouteBar() {
+    const mode = routeTools.active();
+    el('routeBar').hidden = !mode;
+    document.body.toggleAttribute('data-route-mode', !!mode);
+    if (!mode) return;
+    const km = formatKm(routeLengthM(toolLines), locale());
+    el('routeStatus').textContent = t(mode === 'draw' ? 'gpx.drawing' : 'gpx.editing', { km });
+    el('routeUndo').hidden = mode !== 'draw';
+    el('routeFinish').disabled = mode === 'draw' && !(toolLines[0]?.length >= 2);
+}
+
+const routeTools = createRouteTools(map, gpxLayer, {
+    onChange: lines => { toolLines = lines; renderRouteBar(); },
+    onDone: (mode, lines) => setRoute(mode === 'draw' ? t('gpx.myRoute') : routeName, lines),
+    onModeChange: mode => {
+        translate.setActive(!mode);
+        toolLines = [];
+        renderRouteBar();
+    },
+});
+
+// Phones: get the sheets out of the way of the map
+function showMapForRoute() {
+    if (!sheet.phone.matches) return;
+    panes.setShared(false);
+    sheet.setSheet('peek');
+}
+el('drawBtn').addEventListener('click', () => { showMapForRoute(); routeTools.startDraw(); });
+el('editRouteBtn').addEventListener('click', () => { showMapForRoute(); routeTools.startEdit(); });
+el('routeUndo').addEventListener('click', () => routeTools.removeLast());
+el('routeFinish').addEventListener('click', () => routeTools.finish());
+el('routeCancel').addEventListener('click', () => routeTools.cancel());
+
+el('gpxBtn').addEventListener('click', () => gpxInput.click());
+el('gpxRemoveBtn').addEventListener('click', () => { routeTools.cancel(); clearRoute(); });
+el('gpxShow').addEventListener('change', saveRoute);
+
+el('gpxDownloadBtn').addEventListener('click', () => {
+    const text = toGpx(routeLabel(), routeLines(), toWgs84);
+    saveBlob(new Blob([text], { type: 'application/gpx+xml' }), `${routeLabel()}.gpx`);
 });
 
 gpxInput.addEventListener('change', () => {
@@ -432,22 +511,30 @@ gpxInput.addEventListener('change', () => {
     reader.onload = () => {
         let features;
         try { features = readGpx(reader.result); } catch { features = []; }
-        if (!gpxRoutes(features).length) {
+        const lines = gpxRoutes(features);
+        if (!lines.length) {
             notices.show('gpx', 'error', () => t('gpx.noRoute', { file: file.name }));
             return;
         }
         notices.close('gpx');
-        gpxLayer.getSource().clear();
-        gpxLayer.getSource().addFeatures(features);
+        routeTools.cancel();
         // Prefer the track/route name; waypoints (Points) also carry names
         const line = features.find(f => f.getGeometry()?.getType() !== 'Point' && f.get('name'));
-        gpxName = line?.get('name') || file.name.replace(/\.gpx$/i, '');
-        renderGpx();
+        setRoute(line?.get('name') || file.name.replace(/\.gpx$/i, ''), lines);
         view.fit(gpxLayer.getSource().getExtent(), { padding: [50, 50, 50, 50] });
     };
     reader.readAsText(file);
     gpxInput.value = '';
 });
+
+// Saved route from an earlier visit; junk is ignored
+(() => {
+    let saved = null;
+    try { saved = sanitizeSavedRoute(JSON.parse(localStorage.getItem(ROUTE_KEY))); } catch { /* ignore */ }
+    if (!saved) return;
+    el('gpxShow').checked = saved.showOnPrint;
+    setRoute(saved.name, saved.lines);
+})();
 
 el('gpxOpacity').addEventListener('input', () => {
     el('gpxOpacityVal').textContent = `${el('gpxOpacity').value} %`;
@@ -495,7 +582,8 @@ function sharedSettings() {
     return {
         dpi: el('dpi').value,
         zoomLevel: el('zoomLevel').value,
-        routes: gpxRoutes(gpxLayer.getSource().getFeatures()),
+        routes: routeLines(),
+        showRoute: el('gpxShow').checked,
         gpxColor: el('gpxColor').value,
         gpxWidth: el('gpxWidth').value,
         gpxOpacity: el('gpxOpacity').value,
@@ -586,7 +674,8 @@ function renderScriptText() {
     if (!el('toast').hidden) el('toastMsg').textContent = toastText();
     notices.refresh();
     formatOptions();
-    renderGpx();
+    renderRoute();
+    renderRouteBar();
     langMenu.sync();
     renderList();
 }

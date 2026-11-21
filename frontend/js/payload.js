@@ -24,7 +24,8 @@ export function gpxRoutes(features) {
 
 // One map's request body.
 // `shared` holds the settings common to all maps, as read from the form:
-//   { dpi, zoomLevel, routes, gpxColor, gpxWidth, gpxOpacity }
+//   { dpi, zoomLevel, routes, showRoute, gpxColor, gpxWidth, gpxOpacity }
+// showRoute false leaves the route off the printout.
 // dpi / zoomLevel are '' for automatic; gpxWidth / gpxOpacity are strings.
 export function buildPayload(entry, extent, shared) {
     const payload = {
@@ -40,7 +41,7 @@ export function buildPayload(entry, extent, shared) {
     if (shared.dpi) payload.dpi = parseInt(shared.dpi, 10);
     if (shared.zoomLevel) payload.zoom_level = parseInt(shared.zoomLevel, 10);
     if (entry.title) payload.title = entry.title;
-    if (shared.routes?.length) {
+    if (shared.showRoute !== false && shared.routes?.length) {
         payload.gpx_routes = shared.routes;
         payload.gpx_color = shared.gpxColor;
         payload.gpx_width = parseInt(shared.gpxWidth, 10) || 5;
