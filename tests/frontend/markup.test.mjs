@@ -52,9 +52,35 @@ test('hidden always hides, even on elements whose class sets display', () => {
 });
 
 test('route and atlas both have a name field', () => {
-    const route = html.slice(html.indexOf('id="modeRoute"'), html.indexOf('id="modeAtlas"'));
-    assert.match(route, /<input id="routeName" type="text" maxlength="100"/);
+    const card = html.slice(html.indexOf('id="routeCard"'), html.indexOf('<!-- end routeCard -->'));
+    assert.match(card, /<input id="routeName" type="text" maxlength="100"/);
     assert.match(html, /<input id="atlasName" type="text" maxlength="100"/);
+});
+
+test('the route lives in its own card, opened from a map button', () => {
+    assert.match(html, /id="routeToolBtn"[^>]*aria-controls="routeCard"/);
+    assert.match(html, /id="routeCard"[^>]*role="dialog"/);
+    const route = html.slice(html.indexOf('id="modeRoute"'), html.indexOf('id="modeAtlas"'));
+    for (const id of ['gpxBtn', 'drawBtn', 'routeName', 'gpxColor', 'gpxWidth', 'routeStyle']) {
+        assert.ok(!route.includes(`id="${id}"`), `${id} not in Route mode`);
+    }
+    for (const id of ['routeNone', 'openRouteToolBtn', 'routeLine', 'routeToolLink']) assert.ok(route.includes(`id="${id}"`), id);
+    // Text, not number: a number field drops or mangles a decimal comma
+    // ("1,5" -> "15" in some browsers) before parseWidthMm can read it
+    assert.match(html, /<input id="gpxWidth" type="text" inputmode="decimal"[^>]*value="1.1"/);
+    assert.equal(STRINGS.en['gpx.width'], 'Width (mm)');
+    assert.equal(STRINGS.fi['gpx.width'], 'Leveys (mm)');
+});
+
+test('every mode can clear all its sheets', () => {
+    for (const id of ['clearAllBtn', 'routeClearAll', 'atlasClearAll']) {
+        assert.match(html, new RegExp(`id="${id}"[^>]*data-i18n="maps.clearAll"`), id);
+    }
+});
+
+test('the route button looks pressed while its card is open', () => {
+    const css = readFileSync(new URL('../../frontend/styles.css', import.meta.url), 'utf8');
+    assert.match(css, /#routeToolBtn\[aria-expanded="true"\]\s*\{[^}]*background/);
 });
 
 test('a drawn route is called Route / Reitti', () => {

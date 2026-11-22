@@ -8,7 +8,7 @@ import { hydrateIcons, icon, setButton } from './icons.js';
 import { JobError, runJob } from './jobs.js';
 import {
     addTranslate, areaFeature, createMap, createRouteTools, createShapeTools, featureRing, makeBaseSource, readGpx,
-    routeFeature, toWgs84,
+    routeFeature, routeLayerStyle, toWgs84,
 } from './map.js';
 import { AREA_KEY, formatKm2, ringAreaM2, sanitizeSavedArea, serializeArea } from './area.js';
 import { ATLAS_MAX, atlasTitle, planAtlas } from './atlas.js';
@@ -16,10 +16,14 @@ import { effectiveLayer } from './layer.js';
 import { createLangMenu } from './lang-menu.js';
 import { createNotices } from './notices.js';
 import { createPanes } from './panes.js';
+import { createRouteCard } from './route-card.js';
 import { MAX_BATCH, coverTitle, planCover } from './cover.js';
-import { sanitizeSetSettings, settingsChanged } from './modes.js';
+import { routeChanged, sanitizeSetSettings, settingsChanged } from './modes.js';
 import { buildPayload, gpxRoutes } from './payload.js';
-import { ROUTE_KEY, formatKm, routeLengthM, sanitizeSavedRoute, serializeRoute, toGpx } from './route.js';
+import { ROUTE_KEY, formatKm, routeKey, routeLengthM, sanitizeSavedRoute, serializeRoute, toGpx } from './route.js';
+import {
+    DEFAULT_STYLE, ROUTE_STYLE_KEY, parseWidthMm, rgba, sanitizeRouteStyle, screenWidthPx,
+} from './route-style.js';
 import { parseMargin } from './saved.js';
 import { formatNumber } from './format.js';
 import { createSheet } from './sheet.js';
@@ -134,14 +138,42 @@ function removeMode(mode) {
     state.activeIds[mode] = null;
 }
 
-// Clear the current mode's maps (Maps mode starts again with one new map)
+// Clear the current mode's maps (Maps mode starts again with one new map).
+// Route and Atlas keep their route / area and settings; focus moves on from
+// the index, which is gone, to Create (or the way to a route / area).
 function clearAll() {
     const snapshot = snapshotOf();
     const count = modeMaps().length;
     removeMode(state.mode);
     if (state.mode === 'maps') newMap();
-    else { renderList(); persist(); }
+    else {
+        renderList();
+        persist();
+        focusSetStart();
+    }
     offerUndo(() => deletedLabel(count, getLang()), snapshot);
+}
+
+// On screen and usable: laid out, not visibility-hidden (the phone sheet's
+// lowest height hides its body that way), not disabled
+const shown = b => !!b && b.offsetParent !== null && !b.disabled
+    && (b.checkVisibility?.({ visibilityProperty: true }) ?? true);
+
+// Focus the first of `els` that can take it; false if none did
+function focusFirst(...els) {
+    for (const b of els) {
+        if (!shown(b)) continue;
+        b.focus();
+        if (document.activeElement === b) return true;
+    }
+    return false;
+}
+
+// Route / Atlas with no sheet to focus: Create, else the way to a route / area
+function focusSetStart() {
+    const route = state.mode === 'route';
+    focusFirst(el(route ? 'coverBtn' : 'atlasBtn'), el(route ? 'openRouteToolBtn' : 'areaDrawBtn'),
+        el('modeTabs').querySelector(`[data-mode="${state.mode}"]`));
 }
 
 // Select the mode's saved selection, else its last map
@@ -180,9 +212,17 @@ function hideToast() {
     undoSnapshot = null;
 }
 
-// Put back the snapshot's mode only; other modes keep any later changes
+// Put back the snapshot's mode only; other modes keep any later changes.
+// A removed route comes back on its own: no sheets change.
 function undo() {
     if (!undoSnapshot) return;
+    if (undoSnapshot.route) {
+        const { name, lines } = undoSnapshot.route;
+        hideToast();
+        setRoute(name, lines);
+        focusFirst(el(routeCard.isOpen() ? 'editRouteBtn' : 'routeToolBtn'), el('grabber'));
+        return;
+    }
     const { mode, data } = undoSnapshot;
     hideToast();
     revealedId = null;
@@ -204,9 +244,8 @@ function undo() {
     persist();
     if (state.mode === 'maps') el('mapList').querySelector(`[data-key="select-${active()?.id}"]`)?.focus();
     else {
-        const btn = el(state.mode === 'route' ? 'coverBtn' : 'atlasBtn');
-        (el(`${state.mode}Index`).querySelector('[tabindex="0"]')
-            ?? (btn.offsetParent !== null ? btn : el('modeTabs').querySelector(`[data-mode="${state.mode}"]`)))?.focus();
+        // The sheets that came back, else Create, else the way to a route / area
+        if (!focusFirst(el(`${state.mode}Index`).querySelector('[tabindex="0"]'))) focusSetStart();
     }
 }
 
@@ -761,7 +800,7 @@ el('railModes').addEventListener('click', ev => {
     const b = ev.target.closest('[data-mode]');
     if (b) setMode(b.dataset.mode);
 });
-el('clearAllBtn').addEventListener('click', clearAll);
+for (const id of ['clearAllBtn', 'routeClearAll', 'atlasClearAll']) el(id).addEventListener('click', clearAll);
 el('undoBtn').addEventListener('click', undo);
 
 // Usage hint: dismissible, remembered per browser
@@ -785,16 +824,27 @@ fetch('/api/attribution')
 // the browser with its name and the show-on-printouts choice.
 const gpxInput = el('gpxInput');
 let routeName = '';   // name of the route as typed; '' when none
+// How the route prints and shows on the map; kept when the route goes
+let routeStyle = { ...DEFAULT_STYLE };
 
 const routeLines = () => gpxRoutes(gpxLayer.getSource().getFeatures());
 const routeLabel = () => routeName.trim() || t('gpx.myRoute');
+const routeInfo = lines => `${routeLabel()} · ${formatKm(routeLengthM(lines), locale())}`;
+
+// The route card opens from the route button, and from Route mode
+const routeCard = createRouteCard({
+    button: el('routeToolBtn'), card: el('routeCard'), closeBtn: el('routeCardClose'), panel: el('panel'), sheet,
+});
+el('routeToolBtn').addEventListener('click', () => routeCard.toggle());
+el('openRouteToolBtn').addEventListener('click', () => routeCard.open());
+el('routeToolLink').addEventListener('click', () => routeCard.open());
 
 function saveRoute() {
     const lines = routeLines();
     try {
         if (!lines.length) localStorage.removeItem(ROUTE_KEY);
         else {
-            const data = serializeRoute({ name: routeName, lines, showOnPrint: el('gpxShow').checked });
+            const data = serializeRoute({ name: routeName, lines, showOnPrint: routeStyle.show });
             localStorage.setItem(ROUTE_KEY, JSON.stringify(data));
         }
     } catch {
@@ -807,18 +857,34 @@ function saveRoute() {
 function renderRoute() {
     const lines = routeLines();
     const has = lines.length > 0;
+    el('routeEmpty').hidden = has;
     el('routeLoaded').hidden = !has;
+    el('routeNone').hidden = has;
+    el('routeLine').hidden = !has;
+    el('routeName').placeholder = t('gpx.myRoute');
     setButton(el('gpxBtn'), 'upload', t('gpx.load'));
     setButton(el('drawBtn'), 'route', t('gpx.draw'));
     setButton(el('editRouteBtn'), 'pen', t('gpx.edit'));
     setButton(el('gpxDownloadBtn'), 'download', t('gpx.download'));
-    setButton(el('gpxRemoveBtn'), 'x', t('gpx.remove'));
-    el('gpxInfo').textContent = has ? `${routeLabel()} · ${formatKm(routeLengthM(lines), locale())}` : '';
+    el('gpxInfo').textContent = has ? formatKm(routeLengthM(lines), locale()) : '';   // the name is in the field above
+    el('routeLineText').textContent = has ? routeInfo(lines) : '';
+    renderRouteColor();
     renderCover();
 }
 
-// Replace the route (no lines = no route)
+// The route button's stripe and Route mode's swatch show the route's
+// colour; the icon stays dark, so a light colour cannot hide the button
+function renderRouteColor() {
+    const color = routeLines().length ? routeStyle.color : '';
+    el('routeToolBtn').style.setProperty('--route-color', color);
+    el('routeToolBtn').toggleAttribute('data-route', !!color);
+    el('routeSwatch').style.background = color;
+}
+
+// Replace the route (no lines = no route). A new route ends the offer to
+// undo a Remove: that Undo would throw the new route away.
 function setRoute(name, lines) {
+    if (undoSnapshot?.route) hideToast();
     const source = gpxLayer.getSource();
     source.clear();
     if (lines.length) source.addFeature(routeFeature(lines));
@@ -843,6 +909,8 @@ function renderRouteBar() {
     renderAtlas();
     el('routeBar').hidden = !mode;
     document.body.toggleAttribute('data-route-mode', !!mode);
+    // The route card waits until the drawing is finished or cancelled
+    for (const id of ['routeToolBtn', 'openRouteToolBtn', 'routeToolLink']) el(id).disabled = !!mode;
     if (!mode) return;
     if (areaTools.active()) {
         const area = formatKm2(ringAreaM2(toolShape), locale());
@@ -856,10 +924,21 @@ function renderRouteBar() {
     el('routeUndo').hidden = mode !== 'draw';
 }
 
+let lastTool = 'route';   // the tool that was open last: where focus goes after
+
 function toolModeChanged() {
-    translate.setActive(!anyTool());
+    const on = !!anyTool();
+    if (on) lastTool = areaTools.active() ? 'area' : 'route';
+    translate.setActive(!on);
+    panes.foldWhileDrawing(on);
     toolShape = [];
     renderRouteBar();
+    // The button that started it (in the card or the folded panel) is gone:
+    // keep keyboard focus on something visible
+    if (document.activeElement !== document.body && shown(document.activeElement)) return;
+    if (on) el('routeStatus').focus();
+    else if (lastTool === 'route') focusFirst(el('routeToolBtn'));
+    else focusFirst(el('areaEditBtn'), el('areaDrawBtn'), el('grabber'));
 }
 
 const routeTools = createRouteTools(map, gpxLayer, {
@@ -880,15 +959,71 @@ function showMapForRoute() {
     if (!sheet.phone.matches) return;
     sheet.setSheet('peek');
 }
-el('drawBtn').addEventListener('click', () => { areaTools.cancel(); showMapForRoute(); routeTools.startDraw(); });
-el('editRouteBtn').addEventListener('click', () => { areaTools.cancel(); showMapForRoute(); routeTools.startEdit(); });
+// The card makes way for the map while drawing or editing
+el('drawBtn').addEventListener('click', () => {
+    areaTools.cancel(); routeCard.close({ focus: false }); showMapForRoute(); routeTools.startDraw();
+});
+el('editRouteBtn').addEventListener('click', () => {
+    areaTools.cancel(); routeCard.close({ focus: false }); showMapForRoute(); routeTools.startEdit();
+});
 el('routeUndo').addEventListener('click', () => openTool().removeLast());
 el('routeFinish').addEventListener('click', () => openTool().finish());
 el('routeCancel').addEventListener('click', () => openTool().cancel());
 
 el('gpxBtn').addEventListener('click', () => gpxInput.click());
-el('gpxRemoveBtn').addEventListener('click', () => { routeTools.cancel(); clearRoute(); });
-el('gpxShow').addEventListener('change', () => { saveRoute(); renderCover(); });
+// Remove is the way to a new route, so it can be undone; the sheets stay
+function removeRoute() {
+    routeTools.cancel();
+    const snapshot = { route: { name: routeName, lines: routeLines() } };
+    clearRoute();
+    offerUndo(() => t('route.removed'), snapshot);
+    if (routeCard.isOpen()) el('drawBtn').focus();   // the Remove button is gone
+}
+el('gpxRemoveBtn').addEventListener('click', removeRoute);
+
+// --- Route style ----------------------------------------------------------------
+// The card's "On printouts" fields. A change applies at once to the map, the
+// preview strip, the route button, the saved style and the next PDF.
+function setRouteStyle(patch) {
+    routeStyle = sanitizeRouteStyle({ ...routeStyle, ...patch });
+    const { color, opacity, widthMm } = routeStyle;
+    const px = screenWidthPx(widthMm);
+    gpxLayer.setStyle(routeLayerStyle(rgba(color, opacity), px));
+    const strip = el('routePreview').firstElementChild;
+    strip.style.background = color;
+    strip.style.opacity = String(opacity / 100);
+    strip.style.height = `${px}px`;
+    renderRouteColor();
+    try { localStorage.setItem(ROUTE_STYLE_KEY, JSON.stringify(routeStyle)); } catch { /* ignore */ }
+    saveRoute();   // the route also keeps its show choice (older versions read it)
+    renderCover();
+}
+
+// The fields show the style in use (at start, and a width made valid)
+function writeStyleForm() {
+    el('gpxShow').checked = routeStyle.show;
+    el('gpxColor').value = routeStyle.color;
+    // In the language's decimal mark ("1,1" in Finnish); either mark is read
+    el('gpxWidth').value = formatNumber(routeStyle.widthMm, locale(), { maximumFractionDigits: 1 });
+    el('gpxOpacity').value = String(routeStyle.opacity);
+    el('gpxOpacityVal').textContent = `${routeStyle.opacity} %`;
+}
+
+el('gpxShow').addEventListener('change', () => setRouteStyle({ show: el('gpxShow').checked }));
+el('gpxColor').addEventListener('input', () => setRouteStyle({ color: el('gpxColor').value }));
+el('gpxOpacity').addEventListener('input', () => {
+    setRouteStyle({ opacity: Number(el('gpxOpacity').value) });
+    el('gpxOpacityVal').textContent = `${routeStyle.opacity} %`;
+});
+// While typing, only a readable number applies; leaving the field settles it
+el('gpxWidth').addEventListener('input', () => {
+    const v = el('gpxWidth').value.trim();
+    if (v !== '' && Number.isFinite(Number(v.replace(',', '.')))) setRouteStyle({ widthMm: parseWidthMm(v) });
+});
+el('gpxWidth').addEventListener('change', () => {
+    setRouteStyle({ widthMm: parseWidthMm(el('gpxWidth').value) });
+    writeStyleForm();
+});
 
 // --- Atlas area ------------------------------------------------------------------
 // One area at a time, drawn: one Polygon feature on areaLayer, saved in the
@@ -1005,12 +1140,16 @@ function blockChanged(mode) {
     if (state.mode === mode) syncPanel();
 }
 
-// "Create" or, when the block no longer matches the sheets, "Update"
+// "Create" or, when the block or the route no longer matches the sheets,
+// "Update" (with a note saying which)
 function renderSetButton(mode, disabled) {
     const p = BLOCK_PREFIX[mode];
-    const changed = modeMaps(mode).length > 0
-        && settingsChanged(readBlock(mode), state.madeWith[mode], state.margin);
+    const made = state.madeWith[mode];
+    const hasSheets = modeMaps(mode).length > 0;
+    const routeMoved = hasSheets && mode === 'route' && routeChanged(made, routeKey(routeLines()));
+    const changed = routeMoved || (hasSheets && settingsChanged(readBlock(mode), made, state.margin));
     el(`${p}Changed`).hidden = !changed;
+    el(`${p}Changed`).textContent = t(routeMoved ? 'cover.routeChanged' : 'set.changed');
     el(`${p}Btn`).textContent = t(`${p}.${changed ? 'update' : 'create'}`);
     el(`${p}Btn`).disabled = disabled;
     const todo = changed || !modeMaps(mode).length;
@@ -1058,13 +1197,12 @@ function renderCover() {
     const show = routeLines().length > 0 && !anyTool();
     section.hidden = !show;
     if (!show) return;
-    el('routeName').placeholder = t('gpx.myRoute');
     const n = coverSheets().length;
     const count = formatNumber(n, locale());
     el('coverCount').textContent = n > MAX_BATCH ? t('cover.tooMany', { count })
         : n === 1 ? t('cover.countOne') : t('cover.count', { count });
     el('coverCount').classList.toggle('warn', n > MAX_BATCH);
-    el('coverRouteHidden').hidden = el('gpxShow').checked;
+    el('coverRouteHidden').hidden = routeStyle.show;
     renderSetButton('route', !n || n > MAX_BATCH);
 }
 
@@ -1076,7 +1214,9 @@ function createCover() {
     const items = sheets.map((sheet, i) => ({
         center: sheet.center, orientation: sheet.orientation, title: coverTitle(name, i + 1, n),
     }));
-    replaceSet('route', items, readBlock('route'), () => createdLabel(n, name, getLang()));
+    // The sheets remember the route they cover, to notice a later edit
+    const made = { ...readBlock('route'), routeKey: routeKey(routeLines()) };
+    replaceSet('route', items, made, () => createdLabel(n, name, getLang()));
 }
 el('coverBtn').addEventListener('click', createCover);
 
@@ -1086,7 +1226,7 @@ el('routeName').addEventListener('input', () => {
     routeName = el('routeName').value;
     saveRoute();
     const lines = routeLines();
-    if (lines.length) el('gpxInfo').textContent = `${routeLabel()} · ${formatKm(routeLengthM(lines), locale())}`;
+    if (lines.length) el('routeLineText').textContent = routeInfo(lines);
 });
 
 // --- Atlas of the area -------------------------------------------------------------
@@ -1163,18 +1303,18 @@ gpxInput.addEventListener('change', () => {
     gpxInput.value = '';
 });
 
-// Saved route from an earlier visit; junk is ignored
+// Saved route and style from an earlier visit; junk is ignored. A route
+// saved before the style had its own key brings its show choice along.
 (() => {
     let saved = null;
+    let style = null;
     try { saved = sanitizeSavedRoute(JSON.parse(localStorage.getItem(ROUTE_KEY))); } catch { /* ignore */ }
-    if (!saved) return;
-    el('gpxShow').checked = saved.showOnPrint;
-    setRoute(saved.name, saved.lines);
+    try { style = JSON.parse(localStorage.getItem(ROUTE_STYLE_KEY)); } catch { /* ignore */ }
+    routeStyle = sanitizeRouteStyle(style, saved?.showOnPrint ?? true);
+    writeStyleForm();
+    if (saved) setRoute(saved.name, saved.lines);
+    setRouteStyle({});
 })();
-
-el('gpxOpacity').addEventListener('input', () => {
-    el('gpxOpacityVal').textContent = `${el('gpxOpacity').value} %`;
-});
 
 // --- PDF downloads -------------------------------------------------------------------
 const notices = createNotices(el('notices'), {
@@ -1213,16 +1353,16 @@ function jobFinished() {
     }
 }
 
-// Settings shared by every map, read from the route & precision pane
+// Settings shared by every map: precision (Advanced) and the route style
 function sharedSettings() {
     return {
         dpi: el('dpi').value,
         zoomLevel: el('zoomLevel').value,
         routes: routeLines(),
-        showRoute: el('gpxShow').checked,
-        gpxColor: el('gpxColor').value,
-        gpxWidth: el('gpxWidth').value,
-        gpxOpacity: el('gpxOpacity').value,
+        showRoute: routeStyle.show,
+        gpxColor: routeStyle.color,
+        gpxWidthMm: routeStyle.widthMm,
+        gpxOpacity: routeStyle.opacity,
     };
 }
 
@@ -1317,6 +1457,7 @@ function renderScriptText() {
     renderRoute();
     renderArea();
     renderRouteBar();
+    writeStyleForm();
     langMenu.sync();
     renderModeUi();
     renderList();

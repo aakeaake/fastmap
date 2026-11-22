@@ -356,6 +356,25 @@ def test_gpx_point_needs_two_coordinates():
         MapRequest(center_x=385000, center_y=6672000, scale=50000, gpx_routes=[[[385000]]])
 
 
+def test_gpx_width_accepts_decimals():
+    """The app sends the width in mm converted to points (1.1 mm = 3.12 pt)."""
+    from fastmap.schemas.map_request import MapRequest
+
+    req = MapRequest(center_x=385000, center_y=6672000, scale=50000, gpx_width=3.12)
+    assert req.gpx_width == 3.12
+
+
+def test_gpx_width_default_and_bounds_unchanged():
+    from pydantic import ValidationError
+
+    from fastmap.schemas.map_request import MapRequest
+
+    assert MapRequest(center_x=385000, center_y=6672000, scale=50000).gpx_width == 5
+    for bad in (0.9, 20.5):
+        with pytest.raises(ValidationError):
+            MapRequest(center_x=385000, center_y=6672000, scale=50000, gpx_width=bad)
+
+
 def test_generate_map_with_elevation_gpx_ok():
     resp = client.post(
         "/generate-map",

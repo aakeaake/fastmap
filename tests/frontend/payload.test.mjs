@@ -21,7 +21,7 @@ const entry = {
     title: '', scale: 20000, paperSize: 'A4', orientation: 'portrait', layer: 'maastokartta',
     margin: 7, gridMode: 'off', gridSpacing: 1000,
 };
-const auto = { dpi: '', zoomLevel: '', routes: [], gpxColor: '#ff00ff', gpxWidth: '5', gpxOpacity: '60' };
+const auto = { dpi: '', zoomLevel: '', routes: [], gpxColor: '#ff00ff', gpxWidthMm: '1.1', gpxOpacity: '60' };
 
 test('bboxOf', () => {
     assert.deepEqual(bboxOf([1, 2, 3, 4]), { minx: 1, miny: 2, maxx: 3, maxy: 4 });
@@ -37,14 +37,20 @@ test('buildPayload: automatic settings send only the map', () => {
 
 test('buildPayload: title, precision and GPX style when set', () => {
     const p = buildPayload({ ...entry, title: 'Nuuksio' }, [0, 0, 1, 1],
-        { ...auto, dpi: '200', zoomLevel: '12', routes: [[[0, 0], [1, 1]]], gpxWidth: 'x', gpxOpacity: '35' });
+        { ...auto, dpi: '200', zoomLevel: '12', routes: [[[0, 0], [1, 1]]], gpxWidthMm: 'x', gpxOpacity: '35' });
     assert.equal(p.title, 'Nuuksio');
     assert.equal(p.dpi, 200);
     assert.equal(p.zoom_level, 12);
     assert.deepEqual(p.gpx_routes, [[[0, 0], [1, 1]]]);
     assert.equal(p.gpx_color, '#ff00ff');
-    assert.equal(p.gpx_width, 5);   // non-numeric width falls back to 5
+    assert.equal(p.gpx_width, 3.12);   // non-numeric width falls back to 1.1 mm
     assert.equal(p.gpx_opacity, 0.35);
+});
+
+test('buildPayload sends the width in mm as points', () => {
+    const p = buildPayload(entry, [0, 0, 1, 1], { ...auto, routes: [[[0, 0], [1, 1]]], gpxWidthMm: 2, gpxOpacity: 60 });
+    assert.equal(p.gpx_width, 5.67);
+    assert.equal(p.gpx_opacity, 0.6);
 });
 
 test('buildPayload leaves the route out when it is not to be printed', () => {
