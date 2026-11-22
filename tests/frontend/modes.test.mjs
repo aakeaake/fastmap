@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-    MODES, defaultSetSettings, readSavedLayout, sanitizeMode, sanitizeSetSettings, settingsChanged,
+    MODES, defaultSetSettings, readSavedLayout, routeChanged, sanitizeMode, sanitizeSetSettings, settingsChanged,
 } from '../../frontend/js/modes.js';
 
 test('three modes', () => {
@@ -105,4 +105,15 @@ test('made-with keeps its margin through a save and load', () => {
     assert.equal('margin' in sanitizeSetSettings('route', defaultSetSettings('route')), false);
     const r = readSavedLayout({ madeWith: { route: made }, maps: [map(3, { mode: 'route' })] });
     assert.equal(r.madeWith.route.margin, 12);
+});
+
+test('a route set remembers which route its sheets were made for', () => {
+    const made = { ...defaultSetSettings('route'), routeKey: 'abc123' };
+    assert.equal(sanitizeSetSettings('route', made).routeKey, 'abc123');
+    assert.equal('routeKey' in sanitizeSetSettings('route', { ...made, routeKey: 42 }), false);
+    assert.equal(routeChanged(made, 'abc123'), false);
+    assert.equal(routeChanged(made, 'def456'), true);
+    // sets made before the key existed, or no set: nothing to report
+    assert.equal(routeChanged(defaultSetSettings('route'), 'def456'), false);
+    assert.equal(routeChanged(null, 'def456'), false);
 });

@@ -18,9 +18,9 @@ import { createNotices } from './notices.js';
 import { createPanes } from './panes.js';
 import { createRouteCard } from './route-card.js';
 import { MAX_BATCH, coverTitle, planCover } from './cover.js';
-import { sanitizeSetSettings, settingsChanged } from './modes.js';
+import { routeChanged, sanitizeSetSettings, settingsChanged } from './modes.js';
 import { buildPayload, gpxRoutes } from './payload.js';
-import { ROUTE_KEY, formatKm, routeLengthM, sanitizeSavedRoute, serializeRoute, toGpx } from './route.js';
+import { ROUTE_KEY, formatKm, routeKey, routeLengthM, sanitizeSavedRoute, serializeRoute, toGpx } from './route.js';
 import {
     DEFAULT_STYLE, ROUTE_STYLE_KEY, parseWidthMm, rgba, sanitizeRouteStyle, screenWidthPx,
 } from './route-style.js';
@@ -1115,12 +1115,16 @@ function blockChanged(mode) {
     if (state.mode === mode) syncPanel();
 }
 
-// "Create" or, when the block no longer matches the sheets, "Update"
+// "Create" or, when the block or the route no longer matches the sheets,
+// "Update" (with a note saying which)
 function renderSetButton(mode, disabled) {
     const p = BLOCK_PREFIX[mode];
-    const changed = modeMaps(mode).length > 0
-        && settingsChanged(readBlock(mode), state.madeWith[mode], state.margin);
+    const made = state.madeWith[mode];
+    const hasSheets = modeMaps(mode).length > 0;
+    const routeMoved = hasSheets && mode === 'route' && routeChanged(made, routeKey(routeLines()));
+    const changed = routeMoved || (hasSheets && settingsChanged(readBlock(mode), made, state.margin));
     el(`${p}Changed`).hidden = !changed;
+    el(`${p}Changed`).textContent = t(routeMoved ? 'cover.routeChanged' : 'set.changed');
     el(`${p}Btn`).textContent = t(`${p}.${changed ? 'update' : 'create'}`);
     el(`${p}Btn`).disabled = disabled;
     const todo = changed || !modeMaps(mode).length;
@@ -1185,7 +1189,9 @@ function createCover() {
     const items = sheets.map((sheet, i) => ({
         center: sheet.center, orientation: sheet.orientation, title: coverTitle(name, i + 1, n),
     }));
-    replaceSet('route', items, readBlock('route'), () => createdLabel(n, name, getLang()));
+    // The sheets remember the route they cover, to notice a later edit
+    const made = { ...readBlock('route'), routeKey: routeKey(routeLines()) };
+    replaceSet('route', items, made, () => createdLabel(n, name, getLang()));
 }
 el('coverBtn').addEventListener('click', createCover);
 

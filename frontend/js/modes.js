@@ -45,6 +45,8 @@ export function sanitizeSetSettings(mode, data) {
         overlapPct: overlapsOf(mode).includes(data.overlapPct) ? data.overlapPct : d.overlapPct,
         // a set's made-with record also keeps the margin its sheets were sized with
         ...(Number.isFinite(data.margin) ? { margin: parseMargin(data.margin) } : {}),
+        // and a route set the route it covered (route.js routeKey)
+        ...(typeof data.routeKey === 'string' ? { routeKey: data.routeKey } : {}),
     };
 }
 
@@ -54,6 +56,12 @@ export function settingsChanged(block, madeWith, margin) {
     if (!madeWith) return false;
     if (Number.isFinite(madeWith.margin) && margin !== undefined && margin !== madeWith.margin) return true;
     return SET_FIELDS.some(k => block[k] !== madeWith[k]);
+}
+
+// Was the route edited since the set's sheets were made? (Sets saved before
+// the route was recorded, or no set: no change to report.)
+export function routeChanged(madeWith, key) {
+    return !!madeWith && typeof madeWith.routeKey === 'string' && madeWith.routeKey !== key;
 }
 
 // Saved maps data -> { maps: [{ settings, coords }], activeIds, margin,

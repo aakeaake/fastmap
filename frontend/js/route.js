@@ -16,6 +16,18 @@ export function routeLengthM(lines) {
     return m;
 }
 
+// A short fingerprint of the route (points rounded to the metre), so a set
+// of sheets can tell whether the route changed since they were made
+export function routeKey(lines) {
+    const text = lines.map(line => line.map(p => `${Math.round(p[0])},${Math.round(p[1])}`).join(';')).join('|');
+    let h = 0x811c9dc5;   // FNV-1a, 32 bit
+    for (let i = 0; i < text.length; i++) {
+        h ^= text.charCodeAt(i);
+        h = Math.imul(h, 0x01000193) >>> 0;
+    }
+    return `${lines.length}-${h.toString(16)}`;
+}
+
 export function formatKm(m, locale) {
     return `${formatNumber(m / 1000, locale, { minimumFractionDigits: 1, maximumFractionDigits: 1 })} km`;
 }

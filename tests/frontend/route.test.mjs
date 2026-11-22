@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-    ROUTE_KEY, formatKm, routeLengthM, sanitizeSavedRoute, serializeRoute, toGpx,
+    ROUTE_KEY, formatKm, routeKey, routeLengthM, sanitizeSavedRoute, serializeRoute, toGpx,
 } from '../../frontend/js/route.js';
 
 test('the saved route has its own storage key', () => {
@@ -49,4 +49,15 @@ test('sanitizeSavedRoute round-trips and rejects junk', () => {
     // missing showOnPrint defaults to true, non-string name to ''
     assert.deepEqual(sanitizeSavedRoute({ v: 1, name: 5, lines: [[[1, 2], [3, 4]]] }),
                      { name: '', lines: [[[1, 2], [3, 4]]], showOnPrint: true });
+});
+
+test('routeKey: the same route gives the same short key, a changed one another', () => {
+    const lines = [[[385000.2, 6672000.4], [386000, 6673000]]];
+    const key = routeKey(lines);
+    assert.equal(typeof key, 'string');
+    assert.ok(key.length <= 16);
+    assert.equal(routeKey([[[385000.4, 6672000.1], [386000, 6673000]]]), key);   // under a metre: same
+    assert.notEqual(routeKey([[[385000, 6672000], [386050, 6673000]]]), key);    // a point moved
+    assert.notEqual(routeKey([[[385000, 6672000], [386000, 6673000], [387000, 6673000]]]), key);
+    assert.notEqual(routeKey([[[385000, 6672000]], [[386000, 6673000]]]), key);  // split into two lines
 });
