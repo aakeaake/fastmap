@@ -184,9 +184,17 @@ function hideToast() {
     undoSnapshot = null;
 }
 
-// Put back the snapshot's mode only; other modes keep any later changes
+// Put back the snapshot's mode only; other modes keep any later changes.
+// A removed route comes back on its own: no sheets change.
 function undo() {
     if (!undoSnapshot) return;
+    if (undoSnapshot.route) {
+        const { name, lines } = undoSnapshot.route;
+        hideToast();
+        setRoute(name, lines);
+        el(routeCard.isOpen() ? 'editRouteBtn' : 'routeToolBtn').focus();
+        return;
+    }
     const { mode, data } = undoSnapshot;
     hideToast();
     revealedId = null;
@@ -923,7 +931,15 @@ el('routeFinish').addEventListener('click', () => openTool().finish());
 el('routeCancel').addEventListener('click', () => openTool().cancel());
 
 el('gpxBtn').addEventListener('click', () => gpxInput.click());
-el('gpxRemoveBtn').addEventListener('click', () => { routeTools.cancel(); clearRoute(); });
+// Remove is the way to a new route, so it can be undone; the sheets stay
+function removeRoute() {
+    routeTools.cancel();
+    const snapshot = { route: { name: routeName, lines: routeLines() } };
+    clearRoute();
+    offerUndo(() => t('route.removed'), snapshot);
+    if (routeCard.isOpen()) el('drawBtn').focus();   // the Remove button is gone
+}
+el('gpxRemoveBtn').addEventListener('click', removeRoute);
 
 // --- Route style ----------------------------------------------------------------
 // The card's "On printouts" fields. A change applies at once to the map, the
