@@ -1,5 +1,6 @@
 // Request bodies for the PDF endpoints. Pure: features are duck-typed
 // (anything with getGeometry() whose geometry has getType/getCoordinates).
+import { mmToPt, parseWidthMm } from './route-style.js';
 
 export function bboxOf([minx, miny, maxx, maxy]) {
     return { minx, miny, maxx, maxy };
@@ -24,9 +25,10 @@ export function gpxRoutes(features) {
 
 // One map's request body.
 // `shared` holds the settings common to all maps, as read from the form:
-//   { dpi, zoomLevel, routes, showRoute, gpxColor, gpxWidth, gpxOpacity }
+//   { dpi, zoomLevel, routes, showRoute, gpxColor, gpxWidthMm, gpxOpacity }
 // showRoute false leaves the route off the printout.
-// dpi / zoomLevel are '' for automatic; gpxWidth / gpxOpacity are strings.
+// dpi / zoomLevel are '' for automatic; gpxWidthMm is the width in mm and
+// gpxOpacity a percent (numbers or strings). The API takes points.
 export function buildPayload(entry, extent, shared) {
     const payload = {
         bbox: bboxOf(extent),
@@ -44,7 +46,7 @@ export function buildPayload(entry, extent, shared) {
     if (shared.showRoute !== false && shared.routes?.length) {
         payload.gpx_routes = shared.routes;
         payload.gpx_color = shared.gpxColor;
-        payload.gpx_width = parseInt(shared.gpxWidth, 10) || 5;
+        payload.gpx_width = mmToPt(parseWidthMm(shared.gpxWidthMm));
         payload.gpx_opacity = parseInt(shared.gpxOpacity, 10) / 100;
     }
     return payload;
