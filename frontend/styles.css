@@ -517,6 +517,13 @@ button { font: inherit; color: inherit; }
     #sheetSummary .sum-base { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
     #sheetSummary .sum-rest { flex: none; white-space: pre; }
     #panel[data-sheet="peek"] .sheet-body { visibility: hidden; }
+    /* The route card in the sheet's place: the mode panel hides meanwhile */
+    #panel[data-card] #modeTabs, #panel[data-card] #sheetBody, #panel[data-card] .download { display: none; }
+    #panel .route-card {
+        position: static; width: auto; max-height: none; flex: 1 1 auto; min-height: 0;
+        box-shadow: none; border-radius: 0; border-top: 1px solid var(--surface-3);
+    }
+    #panel[data-sheet="peek"] .route-card { visibility: hidden; }
     .download { padding-bottom: max(14px, env(safe-area-inset-bottom)); }
 
     .toast {
@@ -535,7 +542,6 @@ button { font: inherit; color: inherit; }
     /* Fully open: the map strip is too small for the map controls.
        The attribution stays: tiles are still on screen (CC BY 4.0). */
     body:has(#panel[data-sheet="full"]) .map-tool,
-    body:has(#panel[data-sheet="full"]) .route-card,
     body:has(#panel[data-sheet="full"]) .lang,
     body:has(#panel[data-sheet="full"]) .ol-zoom { display: none; }
     body:has(#panel[data-sheet="full"]) #attribution { padding: 0 4px; }
