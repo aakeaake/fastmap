@@ -386,6 +386,13 @@ button { font: inherit; color: inherit; }
 /* Route tool: its button sits under move-here; the card opens beside the
    column, level with the zoom buttons (the language button is above) */
 #routeToolBtn { top: calc(var(--edge-t) + 4 * var(--tool) + 1px + 24px); }
+/* The route's colour as a stripe under the icon (none without a route); a
+   faint edge keeps a light colour visible on the white button */
+#routeToolBtn[data-route]::after {
+    content: ""; position: absolute; left: 25%; right: 25%; bottom: 4px; height: 3px; border-radius: 99px;
+    background: var(--route-color); box-shadow: 0 0 0 1px rgba(16, 24, 32, .25);
+}
+#routeToolBtn[data-route] .icon { transform: translateY(-3px); }
 /* Pressed while its card is open (the icon keeps the route's colour) */
 #routeToolBtn[aria-expanded="true"] { background: var(--accent-soft); box-shadow: inset 0 0 0 2px var(--accent), var(--shadow-sm); }
 .route-card {
@@ -413,7 +420,7 @@ body:has(#routeCard:not([hidden])) #routeToolLink { display: none; }
 /* Route mode: the route in one line, with the way to its card */
 .route-line { display: flex; align-items: center; gap: 8px; margin-top: 8px; padding: 6px 4px 6px 10px; border-radius: var(--radius-sm); background: var(--surface-2); }
 .route-line-text { flex: 1; min-width: 0; font-size: 13px; color: var(--ink); overflow-wrap: anywhere; }
-.swatch { flex: none; width: 18px; height: 4px; border-radius: 99px; background: var(--ink-3); }
+.swatch { flex: none; width: 18px; height: 4px; border-radius: 99px; background: var(--ink-3); box-shadow: 0 0 0 1px rgba(16, 24, 32, .2); }
 .btn-link { color: var(--accent); margin-right: 0; }
 .btn-link:hover { color: var(--accent-strong); }
 .btn-text:disabled { color: var(--ink-3); text-decoration: none; cursor: not-allowed; }

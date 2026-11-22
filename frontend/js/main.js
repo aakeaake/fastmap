@@ -872,10 +872,12 @@ function renderRoute() {
     renderCover();
 }
 
-// The route button's line and Route mode's swatch show the route's colour
+// The route button's stripe and Route mode's swatch show the route's
+// colour; the icon stays dark, so a light colour cannot hide the button
 function renderRouteColor() {
     const color = routeLines().length ? routeStyle.color : '';
-    el('routeToolBtn').style.color = color;
+    el('routeToolBtn').style.setProperty('--route-color', color);
+    el('routeToolBtn').toggleAttribute('data-route', !!color);
     el('routeSwatch').style.background = color;
 }
 
