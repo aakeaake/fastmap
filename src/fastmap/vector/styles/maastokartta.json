@@ -1318,17 +1318,9 @@
    "source": "mml",
    "source-layer": "vesisto_alue",
    "filter": [
-    "all",
-    [
-     "==",
-     "$type",
-     "Polygon"
-    ],
-    [
-     "!in",
-     "kohdeluokka",
-     36211
-    ]
+    "==",
+    "$type",
+    "Polygon"
    ],
    "layout": {
     "visibility": "visible"

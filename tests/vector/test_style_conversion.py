@@ -59,3 +59,14 @@ def test_shoreline_draws_over_water_and_swamp_fills():
     i = _index()
     for fill in ("water-mml", "maasto_alue_vesi", "maasto_alue_vesi-suo-vaikea"):
         assert i[fill] < i["vesisto_alue_reuna"], fill
+
+
+def test_sea_is_filled_like_other_water():
+    # mmlv2 leaves sea (36211) to Trailmap's OSM water layer, which fastmap drops;
+    # the MML water fill must draw it.
+    from fastmap.vector.expressions import EvalContext, filter_matches
+
+    water = next(ly for ly in _style()["layers"] if ly["id"] == "water-mml")
+    for kohdeluokka in (36200, 36211):  # lake, sea
+        ctx = EvalContext({"kohdeluokka": kohdeluokka}, 13.5, "Polygon")
+        assert filter_matches(water["filter"], ctx), kohdeluokka

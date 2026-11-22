@@ -14,6 +14,12 @@ DROP_ID_PREFIXES = ("osm-",)
 # mmlv2 hides MML footpaths because Trailmap shows OSM paths; fastmap has none.
 FORCE_VISIBLE = {"mml-polku"}
 UPSTREAM_REF = "MaRaSu/mmlv2@82b5ab0"
+# Layer filters replaced outright. mmlv2's MML water fill leaves out sea (36211)
+# because Trailmap fills the sea from OSM water, which fastmap drops; fastmap
+# fills all MML water areas, sea included.
+FILTERS = {
+    "water-mml": ["==", "$type", "Polygon"],
+}
 # Draw-order fixes for print, applied in order as (layer, "before"|"after", anchor):
 # swamps go under the contours (as on the printed Maastokartta), and the shoreline
 # goes over the water and swamp fills, which otherwise cover half of it.
@@ -48,6 +54,8 @@ def convert(style: dict) -> dict:
             if layer.get("source") not in KEEP_SOURCES:
                 continue
             layer = {**layer, "source": TARGET_SOURCE}
+        if lid in FILTERS:
+            layer = {**layer, "filter": FILTERS[lid]}
         if lid in FORCE_VISIBLE:
             layer = {**layer, "layout": {**layer.get("layout", {}), "visibility": "visible"}}
         out_layers.append(layer)

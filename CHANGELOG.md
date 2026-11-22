@@ -11,6 +11,9 @@ All notable changes to FastMap. Versions are tagged `vX.Y.Z` on `main`.
   about a quarter smaller (indexed images with an exact palette).
 
 ### Fixed
+- Vector maps fill the sea blue. The style left sea areas out of the water
+  fill (its source fills them from OpenStreetMap, which fastmap doesn't use),
+  so the sea printed white with only a shoreline.
 - The Route/Atlas sheet index is a radio group for screen readers (arrow
   keys move the selection), and a download no longer makes them re-read the
   focused cell.
