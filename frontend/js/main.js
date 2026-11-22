@@ -868,8 +868,10 @@ function renderRouteColor() {
     el('routeSwatch').style.background = color;
 }
 
-// Replace the route (no lines = no route)
+// Replace the route (no lines = no route). A new route ends the offer to
+// undo a Remove: that Undo would throw the new route away.
 function setRoute(name, lines) {
+    if (undoSnapshot?.route) hideToast();
     const source = gpxLayer.getSource();
     source.clear();
     if (lines.length) source.addFeature(routeFeature(lines));
@@ -976,7 +978,8 @@ function setRouteStyle(patch) {
 function writeStyleForm() {
     el('gpxShow').checked = routeStyle.show;
     el('gpxColor').value = routeStyle.color;
-    el('gpxWidth').value = String(routeStyle.widthMm);
+    // In the language's decimal mark ("1,1" in Finnish); either mark is read
+    el('gpxWidth').value = formatNumber(routeStyle.widthMm, locale(), { maximumFractionDigits: 1 });
     el('gpxOpacity').value = String(routeStyle.opacity);
     el('gpxOpacityVal').textContent = `${routeStyle.opacity} %`;
 }
@@ -1423,6 +1426,7 @@ function renderScriptText() {
     renderRoute();
     renderArea();
     renderRouteBar();
+    writeStyleForm();
     langMenu.sync();
     renderModeUi();
     renderList();
