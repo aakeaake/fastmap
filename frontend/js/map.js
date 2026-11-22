@@ -27,6 +27,7 @@ import GPX from 'ol/format/GPX.js';
 import proj4 from 'proj4';
 import { register } from 'ol/proj/proj4.js';
 import { previewTileLayer } from './layer.js';
+import { DEFAULT_STYLE, rgba, screenWidthPx } from './route-style.js';
 import {
     ACTIVE_COLOR, CASING, DEF_CENTER, LOCKED_COLOR, MAX_EXTENT, PROJ, PROJ_DEF, RESOLUTIONS, TILE_ORIGIN,
 } from './constants.js';
@@ -84,6 +85,12 @@ export function makeFeatures(id, coords) {
     return { feature, labelFeature };
 }
 
+// The route on the map: its print colour (rgba, with the opacity) and a
+// screen width that roughly follows the print width (route-style.js)
+export function routeLayerStyle(color, widthPx) {
+    return new Style({ stroke: new Stroke({ color, width: widthPx }) });
+}
+
 // --- Map --------------------------------------------------------------------
 // `isActive(mapId)` decides which style a rectangle and its label get.
 export function createMap(target, { isActive }) {
@@ -97,7 +104,7 @@ export function createMap(target, { isActive }) {
     const baseLayer = new TileLayer({ source: makeBaseSource('maastokartta') });
     const gpxLayer = new VectorLayer({
         source: new VectorSource(),
-        style: new Style({ stroke: new Stroke({ color: 'rgba(255, 0, 255, 0.6)', width: 5 }) }),
+        style: routeLayerStyle(rgba(DEFAULT_STYLE.color, DEFAULT_STYLE.opacity), screenWidthPx(DEFAULT_STYLE.widthMm)),
     });
     // The atlas area: thin orange outline, light fill, under the route and sheets
     const areaLayer = new VectorLayer({

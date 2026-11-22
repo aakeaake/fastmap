@@ -8,7 +8,7 @@ import { hydrateIcons, icon, setButton } from './icons.js';
 import { JobError, runJob } from './jobs.js';
 import {
     addTranslate, areaFeature, createMap, createRouteTools, createShapeTools, featureRing, makeBaseSource, readGpx,
-    routeFeature, toWgs84,
+    routeFeature, routeLayerStyle, toWgs84,
 } from './map.js';
 import { AREA_KEY, formatKm2, ringAreaM2, sanitizeSavedArea, serializeArea } from './area.js';
 import { ATLAS_MAX, atlasTitle, planAtlas } from './atlas.js';
@@ -21,6 +21,9 @@ import { MAX_BATCH, coverTitle, planCover } from './cover.js';
 import { sanitizeSetSettings, settingsChanged } from './modes.js';
 import { buildPayload, gpxRoutes } from './payload.js';
 import { ROUTE_KEY, formatKm, routeLengthM, sanitizeSavedRoute, serializeRoute, toGpx } from './route.js';
+import {
+    DEFAULT_STYLE, ROUTE_STYLE_KEY, parseWidthMm, rgba, sanitizeRouteStyle, screenWidthPx,
+} from './route-style.js';
 import { parseMargin } from './saved.js';
 import { formatNumber } from './format.js';
 import { createSheet } from './sheet.js';
@@ -789,6 +792,8 @@ fetch('/api/attribution')
 // the browser with its name and the show-on-printouts choice.
 const gpxInput = el('gpxInput');
 let routeName = '';   // name of the route as typed; '' when none
+// How the route prints and shows on the map; kept when the route goes
+let routeStyle = { ...DEFAULT_STYLE };
 
 const routeLines = () => gpxRoutes(gpxLayer.getSource().getFeatures());
 const routeLabel = () => routeName.trim() || t('gpx.myRoute');
@@ -807,7 +812,7 @@ function saveRoute() {
     try {
         if (!lines.length) localStorage.removeItem(ROUTE_KEY);
         else {
-            const data = serializeRoute({ name: routeName, lines, showOnPrint: el('gpxShow').checked });
+            const data = serializeRoute({ name: routeName, lines, showOnPrint: routeStyle.show });
             localStorage.setItem(ROUTE_KEY, JSON.stringify(data));
         }
     } catch {
@@ -838,7 +843,7 @@ function renderRoute() {
 
 // The route button's line and Route mode's swatch show the route's colour
 function renderRouteColor() {
-    const color = routeLines().length ? el('gpxColor').value : '';
+    const color = routeLines().length ? routeStyle.color : '';
     el('routeToolBtn').style.color = color;
     el('routeSwatch').style.background = color;
 }
@@ -919,8 +924,49 @@ el('routeCancel').addEventListener('click', () => openTool().cancel());
 
 el('gpxBtn').addEventListener('click', () => gpxInput.click());
 el('gpxRemoveBtn').addEventListener('click', () => { routeTools.cancel(); clearRoute(); });
-el('gpxShow').addEventListener('change', () => { saveRoute(); renderCover(); });
-el('gpxColor').addEventListener('input', renderRouteColor);
+
+// --- Route style ----------------------------------------------------------------
+// The card's "On printouts" fields. A change applies at once to the map, the
+// preview strip, the route button, the saved style and the next PDF.
+function setRouteStyle(patch) {
+    routeStyle = sanitizeRouteStyle({ ...routeStyle, ...patch });
+    const { color, opacity, widthMm } = routeStyle;
+    const px = screenWidthPx(widthMm);
+    gpxLayer.setStyle(routeLayerStyle(rgba(color, opacity), px));
+    const strip = el('routePreview').firstElementChild;
+    strip.style.background = color;
+    strip.style.opacity = String(opacity / 100);
+    strip.style.height = `${px}px`;
+    renderRouteColor();
+    try { localStorage.setItem(ROUTE_STYLE_KEY, JSON.stringify(routeStyle)); } catch { /* ignore */ }
+    saveRoute();   // the route also keeps its show choice (older versions read it)
+    renderCover();
+}
+
+// The fields show the style in use (at start, and a width made valid)
+function writeStyleForm() {
+    el('gpxShow').checked = routeStyle.show;
+    el('gpxColor').value = routeStyle.color;
+    el('gpxWidth').value = String(routeStyle.widthMm);
+    el('gpxOpacity').value = String(routeStyle.opacity);
+    el('gpxOpacityVal').textContent = `${routeStyle.opacity} %`;
+}
+
+el('gpxShow').addEventListener('change', () => setRouteStyle({ show: el('gpxShow').checked }));
+el('gpxColor').addEventListener('input', () => setRouteStyle({ color: el('gpxColor').value }));
+el('gpxOpacity').addEventListener('input', () => {
+    setRouteStyle({ opacity: Number(el('gpxOpacity').value) });
+    el('gpxOpacityVal').textContent = `${routeStyle.opacity} %`;
+});
+// While typing, only a readable number applies; leaving the field settles it
+el('gpxWidth').addEventListener('input', () => {
+    const v = el('gpxWidth').value.trim();
+    if (v !== '' && Number.isFinite(Number(v.replace(',', '.')))) setRouteStyle({ widthMm: parseWidthMm(v) });
+});
+el('gpxWidth').addEventListener('change', () => {
+    setRouteStyle({ widthMm: parseWidthMm(el('gpxWidth').value) });
+    writeStyleForm();
+});
 
 // --- Atlas area ------------------------------------------------------------------
 // One area at a time, drawn: one Polygon feature on areaLayer, saved in the
@@ -1095,7 +1141,7 @@ function renderCover() {
     el('coverCount').textContent = n > MAX_BATCH ? t('cover.tooMany', { count })
         : n === 1 ? t('cover.countOne') : t('cover.count', { count });
     el('coverCount').classList.toggle('warn', n > MAX_BATCH);
-    el('coverRouteHidden').hidden = el('gpxShow').checked;
+    el('coverRouteHidden').hidden = routeStyle.show;
     renderSetButton('route', !n || n > MAX_BATCH);
 }
 
@@ -1194,18 +1240,18 @@ gpxInput.addEventListener('change', () => {
     gpxInput.value = '';
 });
 
-// Saved route from an earlier visit; junk is ignored
+// Saved route and style from an earlier visit; junk is ignored. A route
+// saved before the style had its own key brings its show choice along.
 (() => {
     let saved = null;
+    let style = null;
     try { saved = sanitizeSavedRoute(JSON.parse(localStorage.getItem(ROUTE_KEY))); } catch { /* ignore */ }
-    if (!saved) return;
-    el('gpxShow').checked = saved.showOnPrint;
-    setRoute(saved.name, saved.lines);
+    try { style = JSON.parse(localStorage.getItem(ROUTE_STYLE_KEY)); } catch { /* ignore */ }
+    routeStyle = sanitizeRouteStyle(style, saved?.showOnPrint ?? true);
+    writeStyleForm();
+    if (saved) setRoute(saved.name, saved.lines);
+    setRouteStyle({});
 })();
-
-el('gpxOpacity').addEventListener('input', () => {
-    el('gpxOpacityVal').textContent = `${el('gpxOpacity').value} %`;
-});
 
 // --- PDF downloads -------------------------------------------------------------------
 const notices = createNotices(el('notices'), {
@@ -1244,16 +1290,16 @@ function jobFinished() {
     }
 }
 
-// Settings shared by every map, read from the route & precision pane
+// Settings shared by every map: precision (Advanced) and the route style
 function sharedSettings() {
     return {
         dpi: el('dpi').value,
         zoomLevel: el('zoomLevel').value,
         routes: routeLines(),
-        showRoute: el('gpxShow').checked,
-        gpxColor: el('gpxColor').value,
-        gpxWidth: el('gpxWidth').value,
-        gpxOpacity: el('gpxOpacity').value,
+        showRoute: routeStyle.show,
+        gpxColor: routeStyle.color,
+        gpxWidthMm: routeStyle.widthMm,
+        gpxOpacity: routeStyle.opacity,
     };
 }
 
