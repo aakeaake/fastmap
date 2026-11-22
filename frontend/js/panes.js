@@ -9,9 +9,15 @@ export function createPanes({ phone, onNewMap, onDownloadAll, onLayout = () => {
     delete ui.shared;   // the second pane is gone
     const saveUi = () => { try { localStorage.setItem(UI_KEY, JSON.stringify(ui)); } catch { /* ignore */ } };
 
-    function setCollapsed(collapsed, { focus = false } = {}) {
-        ui.collapsed = collapsed;
-        saveUi();
+    let tempFolded = false;   // folded for drawing, not by the user
+
+    // `save` false: a temporary fold, not the user's preference
+    function setCollapsed(collapsed, { focus = false, save = true } = {}) {
+        if (save) {
+            ui.collapsed = collapsed;
+            saveUi();
+            tempFolded = false;   // the user's own choice stands
+        }
         el('leftCol').toggleAttribute('data-collapsed', collapsed);
         el('rail').hidden = !collapsed;
         el('collapseBtn').setAttribute('aria-expanded', String(!collapsed));
@@ -33,6 +39,19 @@ export function createPanes({ phone, onNewMap, onDownloadAll, onLayout = () => {
 
     el('collapseBtn').addEventListener('click', () => setCollapsed(true, { focus: true }));
     el('expandBtn').addEventListener('click', () => setCollapsed(false, { focus: true }));
+
+    // Desktop: give the map the width while a route or area is drawn or
+    // edited; the panel comes back after, unless the user had folded it
+    function foldWhileDrawing(on) {
+        if (on) {
+            if (phone.matches || ui.collapsed || tempFolded) return;
+            setCollapsed(true, { save: false });
+            tempFolded = true;
+        } else if (tempFolded) {
+            tempFolded = false;
+            setCollapsed(false, { save: false });
+        }
+    }
     el('railNew').addEventListener('click', onNewMap);
     el('railDownload').addEventListener('click', onDownloadAll);
 
@@ -42,6 +61,7 @@ export function createPanes({ phone, onNewMap, onDownloadAll, onLayout = () => {
     return {
         setCollapsed,
         coveredLeft,
+        foldWhileDrawing,
         getMode: () => (MODES.includes(ui.mode) ? ui.mode : 'maps'),
         setModePref: mode => { ui.mode = mode; saveUi(); },
     };

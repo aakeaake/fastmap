@@ -897,6 +897,7 @@ function renderRouteBar() {
 
 function toolModeChanged() {
     translate.setActive(!anyTool());
+    panes.foldWhileDrawing(!!anyTool());
     toolShape = [];
     renderRouteBar();
 }
