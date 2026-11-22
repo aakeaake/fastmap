@@ -1,0 +1,211 @@
+{
+ "notes": {
+  "file": "fastmap's map symbols, drawn as vector paths (no raster images). The look follows mmlv2's tools/v4/make_patterns.py pattern/symbol set, the mtb-trailmap sprite and the user's reference print map. \"note\"/\"notes\" fields are explanations only.",
+  "units": "Pattern and own-icon geometry is in image px at pixel ratio 2, y down: one unit is px_mm / 2 mm on paper (times the style's icon-size for icons).",
+  "patterns": "Fill patterns by kind. hatch: diagonal stripes, direction 1 is '/', -1 is '\\', period along x; hlines: horizontal lines; triangles: filled triangles of side size at points in a tile. The drawing code for each kind is in symbols.py.",
+  "icons": "Either a reference-map symbol, {path, anchor} or an own drawing, {size, layers}.",
+  "path": "PDF path operators (m l c h S s f rg RG q Q) copied from the user's reference print map, in its units of 0.04 mm on paper, y up. anchor 'origin': the symbol's own origin sits on the map point (the base of a tree, a mast's dot). Printed at the reference's paper size at 1:25 000 and scaled like the other icons at other scales; the style's icon-size does not apply. Lines are 0.1 mm.",
+  "layers": "Each layer is {rgb: [r, g, b], ops: [...]}. ops: ['seg', [[x, y], ...], width] round-capped polyline; ['bar', [x, y], [x, y], width] butt-capped line; ['poly', [[x, y], ...]] filled polygon; ['disc', cx, cy, r] filled circle; ['ring', cx, cy, r, width] stroked circle."
+ },
+ "patterns": {
+  "mmlhc_varvikko": {
+   "kind": "hatch",
+   "rgb": [242, 204, 0],
+   "tile": 32,
+   "period": 16,
+   "width": 6,
+   "direction": 1
+  },
+  "mmlhc_varvikko_fine": {
+   "kind": "hatch",
+   "rgb": [242, 204, 0],
+   "tile": 24,
+   "period": 12,
+   "width": 2.2,
+   "direction": 1
+  },
+  "mmlhc_avoin_metsamaa": {
+   "kind": "hatch",
+   "rgb": [184, 217, 0],
+   "tile": 32,
+   "period": 16,
+   "width": 5,
+   "direction": -1
+  },
+  "mmlhc_avoin_metsamaa_fine": {
+   "kind": "hatch",
+   "rgb": [184, 217, 0],
+   "tile": 24,
+   "period": 12,
+   "width": 2,
+   "direction": -1
+  },
+  "mmlhc_suo_vaikea": {
+   "kind": "hlines",
+   "rgb": [64, 176, 230],
+   "period": 8,
+   "width": 2.4
+  },
+  "mmlhc_kivikko": {
+   "kind": "triangles",
+   "rgb": [0, 0, 0],
+   "tile": 48,
+   "size": 9,
+   "points": [[10, 12], [34, 20], [18, 38], [42, 44]]
+  }
+ },
+ "icons": {
+  "mmlhc_sym_32710": {
+   "note": "conifer",
+   "path": "-10 0 m 0 40 l 10 0 l S",
+   "anchor": "origin"
+  },
+  "mmlhc_sym_32714": {
+   "note": "mixed forest",
+   "path": "-10 0 m 0 20 l 10 0 l -6.4 20.3 m -8.7 22.2 -10 25 -10 28 c -10 33.5 -5.5 38 0 38 c 5.5 38 10 33.5 10 28 c 10 25 8.7 22.2 6.4 20.3 c S",
+   "anchor": "origin"
+  },
+  "mmlhc_sym_34600": {
+   "size": [14, 14],
+   "layers": [
+    {
+     "rgb": [0, 0, 0],
+     "ops": [["seg", [[7, 2], [7, 12]], 1.6], ["seg", [[1.5, 12], [12.5, 12]], 1.6]]
+    }
+   ]
+  },
+  "mmlhc_sym_34100": {
+   "note": "small open rock: the colour of the large open-rock fill (#d1c7d1), a dot ~0.6 mm across at 1:25 000; its own style layer draws it under the contours",
+   "size": [10, 10],
+   "layers": [
+    {
+     "rgb": [209, 199, 209],
+     "ops": [["disc", 5, 5, 3.6]]
+    }
+   ]
+  },
+  "mmlhc_sym_12200": {
+   "size": [20, 20],
+   "layers": [
+    {
+     "rgb": [0, 0, 0],
+     "ops": [["seg", [[3, 3], [17, 17]], 1.6], ["seg", [[17, 3], [3, 17]], 1.6]]
+    }
+   ]
+  },
+  "mmlhc_sym_36392": {
+   "size": [16, 28],
+   "layers": [
+    {
+     "rgb": [0, 128, 255],
+     "ops": [["seg", [[8, 26], [8, 6]], 2.4], ["poly", [[2, 10], [8, 1], [14, 10]]]]
+    }
+   ]
+  },
+  "mmlhc_sym_32713": {
+   "note": "deciduous forest",
+   "path": "-8.6 -1.3 m -12.6 1.5 -15 6.1 -15 11 c -15 19.3 -8.3 26 0 26 c 8.3 26 15 19.3 15 11 c 15 6.1 12.6 1.5 8.6 -1.3 c S",
+   "anchor": "origin"
+  },
+  "mmlhc_sym_32891": {
+   "size": [16, 20],
+   "layers": [
+    {
+     "rgb": [0, 0, 0],
+     "ops": [["seg", [[5, 3], [5, 17]], 1.6], ["seg", [[11, 3], [11, 17]], 1.6]]
+    }
+   ]
+  },
+  "mmlhc_sym_36100": {
+   "note": "spring: a \"U\" around a blue dot",
+   "path": "8 10 m 8 0 l 8 -4.4 4.4 -8 0 -8 c -4.4 -8 -8 -4.4 -8 0 c -8 10 l S q 0 .53725 .81176 rg 0 6 m 3.3 6 6 3.3 6 0 c 6 -3.3 3.3 -6 0 -6 c -3.3 -6 -6 -3.3 -6 0 c -6 3.3 -3.3 6 0 6 c f Q",
+   "anchor": "origin"
+  },
+  "mmlhc_sym_36400": {
+   "size": [20, 22],
+   "layers": [
+    {
+     "rgb": [0, 128, 255],
+     "ops": [["seg", [[3, 2], [10, 20], [17, 2]], 1.6]]
+    }
+   ]
+  },
+  "mmlhc_poi_44800": {
+   "note": "radio mast",
+   "path": "-15 0 m 15 0 l 0 -15 m 0 35 l -7 25 m 0 35 l 7 25 l S 0 7 m 3.8 7 7 3.8 7 0 c 7 -3.8 3.8 -7 0 -7 c -3.8 -7 -7 -3.8 -7 0 c -7 3.8 -3.8 7 0 7 c f",
+   "anchor": "origin"
+  },
+  "mmlhc_sym_32715": {
+   "size": [28, 20],
+   "layers": [
+    {
+     "rgb": [0, 0, 0],
+     "ops": [["seg", [[3, 2], [9.5, 18]], 2.4], ["seg", [[25, 2], [18.5, 18]], 2.4]]
+    }
+   ]
+  },
+  "mmlhc_sym_44591": {
+   "size": [40, 8],
+   "layers": [
+    {
+     "rgb": [0, 0, 0],
+     "ops": [["seg", [[3, 4], [37, 4]], 4]]
+    }
+   ]
+  },
+  "mmlhc_sym_45200": {
+   "size": [28, 32],
+   "layers": [
+    {
+     "rgb": [0, 0, 0],
+     "ops": [["seg", [[4, 3], [4, 29]], 3.6], ["seg", [[24, 3], [24, 29]], 3.6]]
+    }
+   ]
+  },
+  "mmlhc_poi_45710": {
+   "note": "fireplace: a flame over two embers",
+   "path": "-2 0 m -25 -5 l -15 -16 l 2 0 m 14 -15 l 24 -5 l 0 0 m -18 20 0 20 0 40 c 18 20 0 20 0 0 c f",
+   "anchor": "origin"
+  },
+  "triangle_11": {
+   "note": "mtb-trailmap sprite symbol",
+   "size": [34, 34],
+   "layers": [
+    {
+     "rgb": [68, 68, 68],
+     "ops": [["poly", [[17, 8], [26, 24], [8, 24]]]]
+    }
+   ]
+  },
+  "tm_mml_22392_suurjannitelinjan_pylvas": {
+   "note": "mtb-trailmap sprite symbol",
+   "size": [64, 64],
+   "layers": [
+    {
+     "rgb": [0, 0, 0],
+     "ops": [["seg", [[12, 12], [52, 52]], 4.5], ["seg", [[52, 12], [12, 52]], 4.5], ["disc", 12, 12, 3.6], ["disc", 52, 12, 3.6], ["disc", 12, 52, 3.6], ["disc", 52, 52, 3.6]]
+    }
+   ]
+  },
+  "mml-vesikivi_pinnassa": {
+   "note": "mtb-trailmap sprite symbol: butt-capped bars, square ends",
+   "size": [64, 64],
+   "layers": [
+    {
+     "rgb": [0, 0, 0],
+     "ops": [["bar", [12, 32], [52, 32], 4.5], ["bar", [32, 12], [32, 52], 4.5]]
+    }
+   ]
+  },
+  "mml-vesikivi_vedenpaallinen": {
+   "note": "mtb-trailmap sprite symbol: butt-capped bars, square ends",
+   "size": [64, 64],
+   "layers": [
+    {
+     "rgb": [0, 0, 0],
+     "ops": [["bar", [12, 47], [52, 47], 4.5], ["bar", [32, 12], [32, 47], 4.5]]
+    }
+   ]
+  }
+ }
+}

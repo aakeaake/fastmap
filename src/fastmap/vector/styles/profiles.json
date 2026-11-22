@@ -1,0 +1,111 @@
+{
+ "note": "How maastokartta.json is drawn at each print scale. px_mm is the paper size of one style pixel (line widths, icons, spacing); zoom_offset is added to the scale's style zoom; text_scale and halo_scale multiply text sizes and halo widths on top of px_mm. overrides are per-layer style overrides: visibility, minzoom, maxzoom, filter (ANDed with the layer's own), paint, layout, line-width-scale and line-width-add (px, applied after scale). \"note\" and \"notes\" fields are explanations only.",
+ "25000": {
+  "tile_level": 12,
+  "px_mm": 0.115,
+  "zoom_offset": 0.15,
+  "text_scale": 0.85,
+  "halo_scale": 0.4,
+  "notes": {
+   "px_mm": "contour/road weights match the MML raster 1:25 000",
+   "zoom_offset": "style zoom >= 13 everywhere in Finland (contours, symbols)",
+   "text_scale": "names the size of the raster's (F5)",
+   "halo_scale": "thin halo (F1): at most ~0.09 mm"
+  },
+  "overrides": {
+   "korkeus_apuviiva": {
+    "note": "2.5 m dashed contours fully drawn, as on the raster (the style fades them below zoom 13.5), as long dashes with short gaps (1.6 mm / 0.4 mm, like the reference print map) at their ~0.11 mm width here",
+    "paint": {"line-opacity": 1, "line-dasharray": [14.5, 3.6]}
+   },
+   "mml-vedenpinta": {
+    "note": "lake surface heights, shown on the raster",
+    "minzoom": 13
+   },
+   "mml-symboli": {
+    "note": "fell-vegetation ticks (symbol class 32715) left out: the heath and open-land colours already show this",
+    "filter": ["!=", ["get", "kohdeluokka"], 32715]
+   },
+   "vesisto_alue_reuna": {
+    "note": "narrow shoreline: ~0.1 mm",
+    "line-width-scale": 0.6
+   },
+   "road-case-surface": {
+    "note": "road edges 0.1 mm, like the reference print map: the casing is 2 x 0.121 mm wider than the fill here, so it shrinks by 2 x 0.021 mm, i.e. -2 * (0.121 - 0.100) / 0.115 px (same for all road casings)",
+    "line-width-add": -0.36521739130434766
+   },
+   "road-case-tunnel": {"note": "road edges 0.1 mm (see road-case-surface)", "line-width-add": -0.36521739130434766},
+   "road-case-bridge1": {"note": "road edges 0.1 mm (see road-case-surface)", "line-width-add": -0.36521739130434766},
+   "road-case-bridge2": {"note": "road edges 0.1 mm (see road-case-surface)", "line-width-add": -0.36521739130434766},
+   "road-case-bridge3": {"note": "road edges 0.1 mm (see road-case-surface)", "line-width-add": -0.36521739130434766},
+   "road-case-bridge4": {"note": "road edges 0.1 mm (see road-case-surface)", "line-width-add": -0.36521739130434766},
+   "road-case-bridge5": {"note": "road edges 0.1 mm (see road-case-surface)", "line-width-add": -0.36521739130434766}
+  }
+ },
+ "50000": {
+  "tile_level": 11,
+  "px_mm": 0.07,
+  "zoom_offset": 1.15,
+  "text_scale": 1.5,
+  "halo_scale": 0.4,
+  "notes": {
+   "px_mm": "thin, light lines like the 1:50 000 reference (F2)",
+   "zoom_offset": "the 1:25 000 style zoom, i.e. the same detail drawn finer",
+   "text_scale": "small names as on the reference, readable at px_mm 0.07 (F5)",
+   "halo_scale": "hairline halo (F1): at most ~0.06 mm"
+  },
+  "overrides": {
+   "korkeus_viiva": {
+    "note": "5 m contours, 20 m index contours (korkeusarvo divisible by 20000) thicker: the reference's interval",
+    "paint": {
+     "line-width": [
+      "interpolate",
+      ["linear"],
+      ["zoom"],
+      12,
+      ["case", ["==", ["%", ["get", "korkeusarvo"], 20000], 0], 2.4, 1.0],
+      14,
+      ["case", ["==", ["%", ["get", "korkeusarvo"], 20000], 0], 2.8, 1.2]
+     ]
+    }
+   },
+   "korkeus_apuviiva": {
+    "note": "no 2.5 m contours at 1:50 000",
+    "visibility": "none"
+   },
+   "mml-vedenpinta": {
+    "note": "lake surface heights, as on the reference",
+    "minzoom": 13
+   },
+   "nimisto-maasto-vedet": {
+    "note": "only names meant for 1:50 000 maps: MML tags each place name with the smallest map scale it belongs on (mittakaavarelevanssi); names tagged 25 000 are 1:25 000 detail, and untagged (0) entries are service points (churches, museums, malls), not map names. National parks and municipalities have their own layers and keep their names.",
+    "filter": [">=", ["coalesce", ["get", "mittakaavarelevanssi"], 0], 50000]
+   },
+   "nimisto-maasto-vedet-mat-prio": {
+    "note": "only names meant for 1:50 000 maps (see nimisto-maasto-vedet)",
+    "filter": [">=", ["coalesce", ["get", "mittakaavarelevanssi"], 0], 50000]
+   },
+   "nimisto": {
+    "note": "only names meant for 1:50 000 maps (see nimisto-maasto-vedet)",
+    "filter": [">=", ["coalesce", ["get", "mittakaavarelevanssi"], 0], 50000]
+   },
+   "mml-symboli": {
+    "note": "fell-vegetation ticks (symbol class 32715) left out: the heath and open-land colours already show this",
+    "filter": ["!=", ["get", "kohdeluokka"], 32715]
+   },
+   "vesisto_alue_reuna": {
+    "note": "narrow shoreline: ~0.07 mm",
+    "line-width-scale": 0.7
+   },
+   "mml-polku": {
+    "note": "lines are finer at 1:50 000 (px_mm), so the thin linework people navigate by (trails, fences, borders) gets wider again",
+    "line-width-scale": 1.5
+   },
+   "mml-ajopolku": {"note": "navigation linework wider again (see mml-polku)", "line-width-scale": 1.5},
+   "mml-kavely-pyoratie": {"note": "navigation linework wider again (see mml-polku)", "line-width-scale": 1.5},
+   "mml-aita": {"note": "navigation linework wider again (see mml-polku)", "line-width-scale": 1.5},
+   "mml-aita-helmet": {"note": "navigation linework wider again (see mml-polku)", "line-width-scale": 1.5},
+   "protected_area-outline-outer-mml": {"note": "navigation linework wider again (see mml-polku)", "line-width-scale": 1.5},
+   "hallintorajat": {"note": "navigation linework wider again (see mml-polku)", "line-width-scale": 1.5}
+  }
+ }
+}

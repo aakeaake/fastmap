@@ -26,7 +26,17 @@ _JOINS = {"miter": 0, "round": 1, "bevel": 2}
 
 
 class PatternDrawer(Protocol):
-    """What draw_fill_line_layers needs from Symbols."""
+    """What draw_fill_line_layers needs from Symbols: patterns and icon layers."""
+
+    def draw_icon_layer(
+        self,
+        c: Canvas,
+        frame: MapFrame,
+        layer: StyleLayer,
+        features: list[Feature],
+        zoom: float,
+        px_mm: float,
+    ) -> None: ...
 
     def draw_pattern(
         self,
@@ -286,18 +296,29 @@ def draw_fill_line_layers(
 ) -> None:
     """Draw every visible fill and line layer of ``style`` in style order.
 
+    Unconditional icon layers (``symbols.is_drawn_icon_layer``) are drawn in
+    their style position too, so e.g. small rock patches can sit under the
+    contours; icons that need collision placement are left to the labels.
     Features sharing the same evaluated paint are batched into one path.
-    Fill-pattern layers go to ``symbols`` (skipped when it is None); symbol,
+    Fill-pattern layers and icons go to ``symbols`` (skipped when it is None);
     background and raster layers are not drawn here. Polygon outlines leave
     out stretches along the edges of ``tile_m`` tile cells (clipping seams).
     """
+    from .symbols import is_drawn_icon_layer
+
     for layer in style.layers:
-        if layer.type not in ("fill", "line") or not layer.visible_at(zoom):
+        if not layer.visible_at(zoom):
+            continue
+        icons = layer.type == "symbol" and is_drawn_icon_layer(layer)
+        if layer.type not in ("fill", "line") and not icons:
             continue
         features = features_by_layer.get(layer.source_layer or "", [])
         if not features:
             continue
-        if layer.type == "fill":
+        if icons:
+            if symbols is not None:
+                symbols.draw_icon_layer(c, frame, layer, features, zoom, px_mm)
+        elif layer.type == "fill":
             _draw_fill_layer(c, frame, layer, features, zoom, px_mm, symbols, tile_m)
         else:
             _draw_line_layer(c, frame, layer, features, zoom, px_mm, tile_m)

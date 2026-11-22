@@ -2,7 +2,8 @@
  "version": 8,
  "name": "NLS Basemap",
  "metadata": {
-  "fastmap:source": "MaRaSu/mmlv2@82b5ab0"
+  "fastmap:style": "fastmap's own Maastokartta print style, maintained by hand in this file",
+  "fastmap:derived-from": "MaRaSu/mmlv2@82b5ab0"
  },
  "sources": {
   "mml": {
@@ -586,9 +587,9 @@
      32500,
      "#ffffd9",
      32611,
-     "#ffd980",
+     "#FFD98F",
      32612,
-     "#ffd980",
+     "#FFD98F",
      32800,
      "#fff266",
      32900,
@@ -628,7 +629,7 @@
      32111,
      "#FFFFD9",
      32611,
-     "#FFD980",
+     "#FFD98F",
      32200,
      "hsl(87, 45%, 72%)",
      32612,
@@ -756,6 +757,48 @@
      32.0
     ]
    }
+  },
+  {
+   "id": "mml-kallio-piste",
+   "type": "symbol",
+   "source": "mml",
+   "source-layer": "maasto_piste",
+   "minzoom": 13,
+   "filter": [
+    "==",
+    [
+     "get",
+     "kohdeluokka"
+    ],
+    34100
+   ],
+   "layout": {
+    "icon-image": "mmlhc_sym_34100",
+    "icon-size": [
+     "interpolate",
+     [
+      "exponential",
+      1
+     ],
+     [
+      "zoom"
+     ],
+     13,
+     1.3,
+     14,
+     1.6,
+     15,
+     2.0,
+     16,
+     3.2,
+     17,
+     5.0
+    ],
+    "icon-allow-overlap": true,
+    "icon-ignore-placement": true,
+    "visibility": "visible"
+   },
+   "paint": {}
   },
   {
    "id": "korkeus_viiva",
@@ -1318,23 +1361,15 @@
    "source": "mml",
    "source-layer": "vesisto_alue",
    "filter": [
-    "all",
-    [
-     "==",
-     "$type",
-     "Polygon"
-    ],
-    [
-     "!in",
-     "kohdeluokka",
-     36211
-    ]
+    "==",
+    "$type",
+    "Polygon"
    ],
    "layout": {
     "visibility": "visible"
    },
    "paint": {
-    "fill-color": "#80ffff"
+    "fill-color": "#6DCFF6"
    }
   },
   {
@@ -1346,7 +1381,7 @@
     "visibility": "visible"
    },
    "paint": {
-    "line-color": "#0080ff",
+    "line-color": "#0071BC",
     "line-width": [
      "interpolate",
      [
@@ -1706,7 +1741,7 @@
     "visibility": "visible"
    },
    "paint": {
-    "line-color": "#0080ff",
+    "line-color": "#0071BC",
     "line-width": [
      "interpolate",
      [
@@ -10770,7 +10805,6 @@
      "kohdeluokka"
     ],
     [
-     34100,
      34600,
      36100,
      36400
@@ -10785,8 +10819,6 @@
       "get",
       "kohdeluokka"
      ],
-     34100,
-     "mmlhc_sym_34100",
      34600,
      "mmlhc_sym_34600",
      36100,

@@ -211,3 +211,47 @@ def test_evaluation_is_cached_only_inside_a_render(monkeypatch):
         layer.get("line-width", ctx)
         layer.get("line-width", ctx)
     assert len(calls) == 3
+
+
+def test_25k_auxiliary_contours_have_long_dashes_and_short_gaps():
+    profile = PROFILES[25000]
+    layer = next(ly for ly in style_for(profile).layers if ly.id == "korkeus_apuviiva")
+    ctx = EvalContext({}, scale_to_zoom(25000, 6_687_500) + profile.zoom_offset, "LineString")
+    width_mm = layer.number("line-width", ctx, 1) * profile.px_mm
+    dash, gap = (d * width_mm for d in layer.get("line-dasharray", ctx))
+    assert dash == pytest.approx(1.6, rel=0.15) and gap == pytest.approx(0.4, rel=0.15)
+
+
+def _mm(layer, profile, props, scale):
+    ctx = EvalContext(props, scale_to_zoom(scale, 6_687_500) + profile.zoom_offset, "LineString")
+    return layer.number("line-width", ctx, 1) * profile.px_mm
+
+
+@pytest.mark.parametrize("kohdeluokka", [12111, 12121, 12131])
+def test_25k_road_edges_are_0_1_mm_like_the_reference(kohdeluokka):
+    profile = PROFILES[25000]
+    layers = {ly.id: ly for ly in style_for(profile).layers}
+    props = {"kohdeluokka": kohdeluokka, "tasosijainti": 0}
+    case = _mm(layers["road-case-surface"], profile, props, 25000)
+    fill = _mm(layers["road-fill-surface"], profile, props, 25000)
+    assert (case - fill) / 2 == pytest.approx(0.10, abs=0.005)
+
+
+@pytest.mark.parametrize(("scale", "want_mm"), [(25000, 0.10), (50000, 0.07)])
+def test_shorelines_are_narrow(scale, want_mm):
+    profile = PROFILES[scale]
+    layer = next(ly for ly in style_for(profile).layers if ly.id == "vesisto_alue_reuna")
+    assert _mm(layer, profile, {}, scale) == pytest.approx(want_mm, abs=0.01)
+
+
+def test_line_width_add_override_adds_to_the_width():
+    base = next(ly for ly in load_style().layers if ly.id == "road-case-surface")
+    trimmed = next(
+        ly
+        for ly in load_style(overrides={"road-case-surface": {"line-width-add": -0.5}}).layers
+        if ly.id == "road-case-surface"
+    )
+    ctx = EvalContext({"kohdeluokka": 12121, "tasosijainti": 0}, 13.5, "LineString")
+    assert trimmed.number("line-width", ctx, 1) == pytest.approx(
+        base.number("line-width", ctx, 1) - 0.5
+    )
