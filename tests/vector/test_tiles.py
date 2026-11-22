@@ -17,11 +17,30 @@ def _resp(status):
     return r
 
 
-def test_tile_range_matches_raster_grid():
+def test_load_fetches_exactly_the_tiles_covering_the_extent(monkeypatch):
     ext = Extent(371000, 6687000, 372000, 6688000)
     c0, r0, c1, r1 = mml_source.tile_range(ext, 12)
-    assert tiles.tile_range(ext, 12, pad=2) == (c0 - 2, r0 - 2, c1 + 2, r1 + 2)
-    assert tiles.tile_range(ext, 12) == (c0 - 1, r0 - 1, c1 + 1, r1 + 1)
+    fetched = []
+    monkeypatch.setattr(tiles, "fetch_tile", lambda level, r, c: fetched.append((r, c)))
+    tiles.load_tiles(ext, 12)
+    want = {(r, c) for r in range(r0, r1 + 1) for c in range(c0, c1 + 1)}
+    assert sorted(fetched) == sorted(want)
+
+
+def test_tiles_are_decoded_on_the_calling_thread(offline_tiles, monkeypatch):
+    import threading
+
+    threads = set()
+    real = tiles.decode_tile
+
+    def spy(*args, **kwargs):
+        threads.add(threading.get_ident())
+        return real(*args, **kwargs)
+
+    monkeypatch.setattr(tiles, "decode_tile", spy)
+    e, n = offline_tiles
+    assert tiles.load_tiles(Extent(e - 600, n - 600, e + 600, n + 600), 12)
+    assert threads == {threading.get_ident()}
 
 
 def test_decode_places_feature_in_metres(offline_tiles):
@@ -139,3 +158,43 @@ def test_decode_keeps_hole_touching_the_buffer():
     g = feats[0].geometry
     assert g.contains(at(200, 500))
     assert not g.contains(at(1000, 500))
+
+
+def test_keep_drops_features_before_they_are_built(offline_tiles):
+    from fastmap.vector.style import StyleLayer
+
+    e, n = offline_tiles
+    ext = Extent(e - 300, n - 300, e + 300, n + 300)
+    every = tiles.load_tiles(ext, 12)
+    seen = []
+
+    class Recording(tiles.FeatureFilter):
+        def __call__(self, layer, props, geom_type):
+            seen.append((layer, geom_type))
+            return super().__call__(layer, props, geom_type)
+
+    korkeus = StyleLayer("k", "line", "korkeus", 0, 24, None)
+    only = tiles.load_tiles(ext, 12, keep=Recording({"korkeus": [korkeus]}, 13.5))
+    assert only and all(f.layer == "korkeus" for f in only)
+    assert len(only) == sum(1 for f in every if f.layer == "korkeus")
+    # other tile layers are skipped whole, before their features are read
+    assert seen and {layer for layer, _ in seen} == {"korkeus"}
+    assert {gt for _, gt in seen} <= {"Point", "LineString", "Polygon"}
+
+
+def test_feature_order_does_not_depend_on_download_order(offline_tiles, monkeypatch):
+    import random
+    import time
+
+    e, n = offline_tiles
+    ext = Extent(e - 600, n - 600, e + 600, n + 600)
+    first = [(f.layer, f.props.get("mtk_id")) for f in tiles.load_tiles(ext, 12)]
+    real = tiles.fetch_tile
+
+    def slow_random(level, row, col):
+        time.sleep(random.random() * 0.02)  # tiles finish in a shuffled order
+        return real(level, row, col)
+
+    monkeypatch.setattr(tiles, "fetch_tile", slow_random)
+    again = [(f.layer, f.props.get("mtk_id")) for f in tiles.load_tiles(ext, 12)]
+    assert again == first

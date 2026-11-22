@@ -16,6 +16,7 @@ from reportlab.lib.units import mm
 from reportlab.pdfgen.canvas import FILL_NON_ZERO, Canvas
 
 from .draw import MapFrame
+from .geometry import parts
 from .model import Feature
 from .style import Style, StyleLayer
 
@@ -447,7 +448,7 @@ def draw_icon_layers(
             size = layer.number("icon-size", ctx, 1.0)
             rotation = layer.number("icon-rotate", ctx, 0.0)
             geom = f.geometry
-            for pt in getattr(geom, "geoms", [geom]):
+            for pt in parts(geom):
                 if pt.is_empty:
                     continue
                 x, y = frame.to_pt(pt.x, pt.y)

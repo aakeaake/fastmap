@@ -16,11 +16,12 @@ from __future__ import annotations
 
 import math
 import re
-from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
+from typing import Protocol
 from zoneinfo import ZoneInfo
 
+from PIL import Image
 from reportlab import rl_config
 from reportlab.lib.colors import Color, black
 from reportlab.lib.units import mm
@@ -34,6 +35,7 @@ from fastmap.services.mml_source import (
     pick_wmts_level,
     render_extent_image,
 )
+from fastmap.services.pdf_image import draw_palette_image
 from fastmap.services.print_layout import (
     FOOTER_MM,
     Extent,
@@ -265,16 +267,27 @@ def _vector_scale(extent: Extent, paper_size: str, orientation: str, margin_mm: 
     return nominal
 
 
-def _raster_drawer(img) -> Callable[[canvas.Canvas, float, float, float, float], None]:
+class MapDrawer(Protocol):
+    """Draws a map image or vector map into a page rectangle.
+
+    ``x, y`` is the rectangle's lower-left corner and ``w, h`` its size, in PDF
+    points; the map must fill it exactly, which is what keeps the scale true.
+    """
+
+    def __call__(self, c: canvas.Canvas, x: float, y: float, w: float, h: float) -> None: ...
+
+
+def _raster_drawer(img: Image.Image) -> MapDrawer:
     def draw(c: canvas.Canvas, x: float, y: float, w: float, h: float) -> None:
-        c.drawImage(ImageReader(img), x, y, w, h)
+        if img.mode == "P":
+            draw_palette_image(c, img, x, y, w, h)  # 1 byte/pixel instead of RGB's 3
+        else:
+            c.drawImage(ImageReader(img), x, y, w, h)
 
     return draw
 
 
-def _vector_drawer(
-    extent: Extent, scale: int
-) -> Callable[[canvas.Canvas, float, float, float, float], None]:
+def _vector_drawer(extent: Extent, scale: int) -> MapDrawer:
     def draw(c: canvas.Canvas, x: float, y: float, w: float, h: float) -> None:
         c.saveState()
         try:
@@ -287,7 +300,7 @@ def _vector_drawer(
 
 def _draw_page(
     c: canvas.Canvas,
-    draw_map: Callable[[canvas.Canvas, float, float, float, float], None],
+    draw_map: MapDrawer,
     extent: Extent,
     *,
     paper_size: str,

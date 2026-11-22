@@ -48,6 +48,12 @@ class Extent:
     def center(self) -> tuple[float, float]:
         return ((self.minx + self.maxx) / 2, (self.miny + self.maxy) / 2)
 
+    def buffered(self, margin_m: float) -> Extent:
+        """This extent grown by ``margin_m`` on every side."""
+        return Extent(
+            self.minx - margin_m, self.miny - margin_m, self.maxx + margin_m, self.maxy + margin_m
+        )
+
     def as_tuple(self) -> tuple[float, float, float, float]:
         return (self.minx, self.miny, self.maxx, self.maxy)
 

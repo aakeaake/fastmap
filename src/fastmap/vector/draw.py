@@ -3,17 +3,18 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Protocol
+from typing import NamedTuple, Protocol
 
 import numpy as np
 import shapely
 from reportlab.lib.units import mm
 from reportlab.pdfgen.canvas import FILL_NON_ZERO, Canvas
-from shapely.geometry.polygon import orient
+from reportlab.pdfgen.pathobject import PDFPathObject
+from shapely.geometry.base import BaseGeometry
 
 from fastmap.services.print_layout import Extent
 
-from .expressions import EvalContext, filter_matches
+from .expressions import EvalContext
 from .geometry import outline as polygon_outline
 from .model import Feature
 from .style import Style, StyleLayer
@@ -25,13 +26,13 @@ _JOINS = {"miter": 0, "round": 1, "bevel": 2}
 
 
 class PatternDrawer(Protocol):
-    """What draw needs from the Task 7 ``Symbols`` class."""
+    """What draw_fill_line_layers needs from Symbols."""
 
     def draw_pattern(
         self,
         c: Canvas,
         name: str,
-        clip_path: Any,
+        clip_path: PDFPathObject,
         bbox_pt: tuple[float, float, float, float],
         px_mm: float,
     ) -> None: ...
@@ -61,7 +62,8 @@ class MapFrame:
             self.y0 + (y - self.extent.miny) * self.sy,
         )
 
-    def geom_to_pt(self, geom):
+    def geom_to_pt(self, geom: BaseGeometry | np.ndarray) -> BaseGeometry | np.ndarray:
+        """Geometry (or an array of them, in one call) from metres to page points."""
         scale = np.array([self.sx, self.sy])
         offset = np.array(
             [self.x0 - self.extent.minx * self.sx, self.y0 - self.extent.miny * self.sy]
@@ -79,39 +81,52 @@ def background_color(style: Style, zoom: float) -> tuple[float, float, float, fl
     return (1.0, 1.0, 1.0, 1.0)
 
 
-def _parts(geom):
-    return getattr(geom, "geoms", [geom])
+def _run_ops(values: list[float], n: int, close: bool) -> str:
+    ops = ("%.2f %.2f m" + " %.2f %.2f l" * (n - 1)) % tuple(values)
+    return ops + " h" if close else ops
 
 
-def _add_coords(path, coords, close: bool) -> None:
-    if len(coords) < 2:
-        return
-    path.moveTo(*coords[0][:2])
-    for x, y in coords[1:, :2]:
-        path.lineTo(x, y)
-    if close:
-        path.close()
+class PdfPath(PDFPathObject):
+    """A ReportLab path that takes whole point runs at once.
+
+    ``moveTo``/``lineTo`` cost a call and a number formatting per point; maps
+    have millions of points, so a run is formatted in one C-level ``%`` (0.01 pt,
+    i.e. 0.004 mm). Relies on ReportLab keeping path operators in ``_code``.
+    """
+
+    def add_run(self, coords: np.ndarray, close: bool) -> None:
+        """One subpath through ``coords`` (x, y first); nothing for under two points."""
+        n = len(coords)
+        if n >= 2:
+            self._code.append(_run_ops(coords[:, :2].ravel().tolist(), n, close))
+
+    def add_runs(self, coords: np.ndarray, index: np.ndarray, close: bool) -> None:
+        """One subpath per run of equal ``index`` (``shapely.get_coordinates`` output)."""
+        if not len(index):
+            return
+        cuts = (np.flatnonzero(np.diff(index)) + 1).tolist()
+        flat = coords[:, :2].ravel().tolist()
+        for a, b in zip([0, *cuts], [*cuts, len(index)], strict=True):
+            if b - a >= 2:
+                self._code.append(_run_ops(flat[2 * a : 2 * b], b - a, close))
 
 
-def _polygon_path(c: Canvas, geoms):
-    path = c.beginPath()
-    for g in geoms:
-        for poly in _parts(g):
-            if poly.is_empty:
-                continue
-            poly = orient(poly, 1.0)
-            _add_coords(path, np.asarray(poly.exterior.coords), True)
-            for ring in poly.interiors:
-                _add_coords(path, np.asarray(ring.coords), True)
+def _polygon_path(geoms) -> PdfPath:
+    """Polygons (array or list) as one path: each ring a closed subpath."""
+    # counter-clockwise exteriors, clockwise holes: the nonzero fill cuts the holes
+    polygons = shapely.get_parts(shapely.orient_polygons(np.asarray(geoms, dtype=object)))
+    coords, index = shapely.get_coordinates(shapely.get_rings(polygons), return_index=True)
+    path = PdfPath()
+    path.add_runs(coords, index, close=True)
     return path
 
 
-def _line_path(c: Canvas, geoms):
-    path = c.beginPath()
-    for g in geoms:
-        for line in _parts(g):
-            if not line.is_empty:
-                _add_coords(path, np.asarray(line.coords), False)
+def _line_path(geoms) -> PdfPath:
+    """Lines (array or list) as one path: each line part an open subpath."""
+    lines = shapely.get_parts(np.asarray(geoms, dtype=object))
+    coords, index = shapely.get_coordinates(lines, return_index=True)
+    path = PdfPath()
+    path.add_runs(coords, index, close=False)
     return path
 
 
@@ -127,13 +142,37 @@ def _matching(layer: StyleLayer, features: list[Feature], zoom: float, types: tu
         if f.geom_type not in types:
             continue
         ctx = EvalContext(f.props, zoom, f.geom_type)
-        if layer.filter is None or filter_matches(layer.filter, ctx):
+        if layer.matches(ctx):
             yield f, ctx
 
 
+class FillStyle(NamedTuple):
+    sort_key: float
+    fill: tuple
+    outline: tuple | None
+    opacity: float
+
+
+class PatternStyle(NamedTuple):
+    sort_key: float
+    name: str
+    opacity: float
+
+
+class LineStyle(NamedTuple):
+    sort_key: float
+    rgb: tuple
+    alpha: float
+    width: float
+    dash: tuple
+    cap: int
+    join: int
+    offset: float
+
+
 def _sorted_groups(groups: dict) -> list:
-    """Groups keyed by (sort_key, style...) in ascending sort-key order (stable)."""
-    return sorted(groups.items(), key=lambda kv: kv[0][0])
+    """Groups keyed by a style tuple, in ascending ``sort_key`` order (stable)."""
+    return sorted(groups.items(), key=lambda kv: kv[0].sort_key)
 
 
 def _sort_key(layer: StyleLayer, prop: str, ctx: EvalContext) -> float:
@@ -145,7 +184,7 @@ def _draw_fill_layer(c, frame, layer, features, zoom, px_mm, symbols, tile_m) ->
     pattern = "fill-pattern" in layer.paint
     if pattern and symbols is None:
         return
-    groups: dict[tuple, list] = {}
+    groups: dict[FillStyle | PatternStyle, list] = {}
     for f, ctx in _matching(layer, features, zoom, ("Polygon",)):
         opacity = layer.number("fill-opacity", ctx, 1.0)
         if opacity <= 0:
@@ -155,7 +194,7 @@ def _draw_fill_layer(c, frame, layer, features, zoom, px_mm, symbols, tile_m) ->
             name = layer.get("fill-pattern", ctx)
             if not name:
                 continue
-            key = (sort_key, name, opacity)
+            key = PatternStyle(sort_key, name, opacity)
         else:
             fill = layer.color("fill-color", ctx, "#000000")
             outline = None
@@ -165,21 +204,20 @@ def _draw_fill_layer(c, frame, layer, features, zoom, px_mm, symbols, tile_m) ->
                     outline = None
             if fill[3] <= 0 and outline is None:
                 continue
-            key = (sort_key, fill, outline, opacity)
+            key = FillStyle(sort_key, fill, outline, opacity)
         groups.setdefault(key, []).append(f.geometry)
 
     for key, geoms in _sorted_groups(groups):
-        geoms_pt = [frame.geom_to_pt(g) for g in geoms]
-        path = _polygon_path(c, geoms_pt)
+        geoms_pt = frame.geom_to_pt(np.asarray(geoms, dtype=object))
+        path = _polygon_path(geoms_pt)
         c.saveState()
-        if pattern:
-            _, name, opacity = key
+        if isinstance(key, PatternStyle):
             minx, miny, maxx, maxy = shapely.total_bounds(geoms_pt)
-            c.setFillAlpha(opacity)
-            c.setStrokeAlpha(opacity)
-            symbols.draw_pattern(c, name, path, (minx, miny, maxx, maxy), px_mm)
+            c.setFillAlpha(key.opacity)
+            c.setStrokeAlpha(key.opacity)
+            symbols.draw_pattern(c, key.name, path, (minx, miny, maxx, maxy), px_mm)
         else:
-            _, fill, outline, opacity = key
+            fill, outline, opacity = key.fill, key.outline, key.opacity
             if fill[3] > 0:
                 c.setFillColorRGB(*fill[:3])
                 c.setFillAlpha(fill[3] * opacity)
@@ -188,14 +226,15 @@ def _draw_fill_layer(c, frame, layer, features, zoom, px_mm, symbols, tile_m) ->
                 c.setStrokeColorRGB(*outline[:3])
                 c.setStrokeAlpha(outline[3] * opacity)
                 c.setLineWidth(OUTLINE_PX * px_mm * mm)
-                lines = [frame.geom_to_pt(polygon_outline(g, tile_m)) for g in geoms]
-                c.drawPath(_line_path(c, lines), stroke=1, fill=0)
+                outlines = np.array([polygon_outline(g, tile_m) for g in geoms], dtype=object)
+                lines = frame.geom_to_pt(outlines)
+                c.drawPath(_line_path(lines), stroke=1, fill=0)
         c.restoreState()
 
 
 def _draw_line_layer(c, frame, layer, features, zoom, px_mm, tile_m) -> None:
     px_pt = px_mm * mm
-    groups: dict[tuple, list] = {}
+    groups: dict[LineStyle, list] = {}
     for f, ctx in _matching(layer, features, zoom, ("LineString", "Polygon")):
         color = layer.color("line-color", ctx, "#000000")
         opacity = layer.number("line-opacity", ctx, 1.0)
@@ -213,27 +252,25 @@ def _draw_line_layer(c, frame, layer, features, zoom, px_mm, tile_m) -> None:
         lines = _as_lines(f.geometry, tile_m)
         if lines.is_empty:
             continue
-        geom = frame.geom_to_pt(lines)
-        if offset:
-            # MapLibre: positive offset is to the right; shapely: positive is left.
-            geom = shapely.offset_curve(geom, -offset)
-            if geom.is_empty:
-                continue
-        key = (_sort_key(layer, "line-sort-key", ctx), color[:3], alpha, width, dash_pt, cap, join)
-        groups.setdefault(key, []).append(geom)
+        sort_key = _sort_key(layer, "line-sort-key", ctx)
+        key = LineStyle(sort_key, color[:3], alpha, width, dash_pt, cap, join, offset)
+        groups.setdefault(key, []).append(lines)
 
-    for key, geoms in _sorted_groups(groups):
-        _, rgb, alpha, width, dash_pt, cap, join = key
+    for st, lines in _sorted_groups(groups):
+        geoms = frame.geom_to_pt(np.asarray(lines, dtype=object))
+        if st.offset:
+            # MapLibre: positive offset is to the right; shapely: positive is left.
+            geoms = shapely.offset_curve(geoms, -st.offset)
         c.saveState()
-        c.setStrokeColorRGB(*rgb)
-        c.setStrokeAlpha(alpha)
-        c.setLineWidth(width)
-        c.setLineCap(cap)
-        c.setLineJoin(join)
+        c.setStrokeColorRGB(*st.rgb)
+        c.setStrokeAlpha(st.alpha)
+        c.setLineWidth(st.width)
+        c.setLineCap(st.cap)
+        c.setLineJoin(st.join)
         c.setMiterLimit(MITER_LIMIT)
-        if dash_pt:
-            c.setDash(list(dash_pt), 0)
-        c.drawPath(_line_path(c, geoms), stroke=1, fill=0)
+        if st.dash:
+            c.setDash(list(st.dash), 0)
+        c.drawPath(_line_path(geoms), stroke=1, fill=0)
         c.restoreState()
 
 

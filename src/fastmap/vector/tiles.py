@@ -4,11 +4,9 @@ from __future__ import annotations
 
 from concurrent.futures import as_completed
 
-import mapbox_vector_tile
 import requests
 import shapely
-from shapely.affinity import affine_transform
-from shapely.geometry import box, shape
+from shapely.geometry import box
 
 from fastmap.core.config import MML_VECTOR_URL
 from fastmap.services import mml_source
@@ -22,25 +20,13 @@ from fastmap.services.mml_source import (
     _tile_pool,
 )
 from fastmap.services.print_layout import Extent
-from fastmap.vector.geometry import _only_type
+from fastmap.vector.expressions import EvalContext
+from fastmap.vector.geometry import only_type
 from fastmap.vector.model import Feature
+from fastmap.vector.mvt import build_geometry, read_tile
+from fastmap.vector.style import StyleLayer
 
 MAX_VECTOR_TILES = 400
-
-_SINGLE_TYPE = {
-    "Point": "Point",
-    "MultiPoint": "Point",
-    "LineString": "LineString",
-    "MultiLineString": "LineString",
-    "Polygon": "Polygon",
-    "MultiPolygon": "Polygon",
-}
-
-
-def tile_range(extent: Extent, level: int, pad: int = 1) -> tuple[int, int, int, int]:
-    """Tile range (col_min, row_min, col_max, row_max), widened by ``pad``."""
-    col_min, row_min, col_max, row_max = mml_source.tile_range(extent, level)
-    return col_min - pad, row_min - pad, col_max + pad, row_max + pad
 
 
 def tile_size_m(level: int) -> float:
@@ -68,76 +54,101 @@ def fetch_tile(level: int, row: int, col: int) -> bytes | None:
         resp.close()
 
 
-def decode_tile(data: bytes, level: int, row: int, col: int) -> list[Feature]:
-    """Decode a tile into features with geometry in EPSG:3067 metres."""
+class FeatureFilter:
+    """Which tile features a map draws, decided from their properties alone.
+
+    ``by_source`` holds, per tile layer, the style layers (visible at ``zoom``)
+    that read it; a feature is kept when any of them would draw it.
+    """
+
+    def __init__(self, by_source: dict[str, list[StyleLayer]], zoom: float) -> None:
+        self.by_source = by_source
+        self.zoom = zoom
+        self.layers: frozenset[str] = frozenset(by_source)  # tile layers worth reading
+
+    def __call__(self, layer: str, props: dict, geom_type: str) -> bool:
+        ctx = EvalContext(props, self.zoom, geom_type)
+        return any(sl.matches(ctx) for sl in self.by_source.get(layer, ()))
+
+
+def decode_tile(
+    data: bytes, level: int, row: int, col: int, keep: FeatureFilter | None = None
+) -> list[Feature]:
+    """Decode a tile into features with geometry in EPSG:3067 metres.
+
+    ``keep`` filters features before any geometry is built (the costly part).
+    """
     tile_m = tile_size_m(level)
     ox, oy = WMTS_ORIGIN
     minx = ox + col * tile_m
     miny = oy - (row + 1) * tile_m
-    cell = box(minx, miny, minx + tile_m, miny + tile_m)
+    maxx = minx + tile_m
+    maxy = miny + tile_m
+    cell = box(minx, miny, maxx, maxy)
 
     try:
-        decoded = mapbox_vector_tile.decode(data)
+        raw_features = list(read_tile(data, None if keep is None else keep.layers))
     except Exception:  # noqa: BLE001 - any parser failure means a bad tile
         raise MMLError(f"Vector tile decode failed for {level}/{row}/{col}") from None
 
     out: list[Feature] = []
-    for layer_name, layer in decoded.items():
-        scale = tile_m / (layer.get("extent") or 4096)
-        for feat in layer.get("features", []):
-            geom = feat.get("geometry") or {}
-            gtype = _SINGLE_TYPE.get(geom.get("type", ""))
-            if gtype is None:
-                continue
-            try:
-                g = shape(geom)
-            except Exception:  # noqa: BLE001 - skip malformed geometry
-                continue
-            if g.is_empty:
-                continue
-            g = _to_metres(g, minx, miny, scale)
-            if gtype == "Polygon" and not g.is_valid:
-                # Tiles hold rings that run back over themselves along the
-                # buffer line, and holes touching the exterior there. The
-                # 'structure' repair keeps exteriors as area and holes as
-                # holes (linework fills such holes); its areal parts may come
-                # as a MultiPolygon inside a collection.
-                g = _only_type(shapely.make_valid(g, method="structure"), gtype)
-                if g is None:
-                    continue
-            g = _only_type(g.intersection(cell), gtype)
+    for raw in raw_features:
+        geom_type = raw.geom_type
+        if keep is not None and not keep(raw.layer, raw.props, geom_type):
+            continue
+        try:
+            g = build_geometry(raw, minx, miny, tile_m / raw.tile_extent)
+        except Exception:  # noqa: BLE001 - skip malformed geometry
+            continue
+        if g is None or g.is_empty:
+            continue
+        if geom_type == "Polygon" and not g.is_valid:
+            # Tiles hold rings that run back over themselves along the buffer
+            # line, and holes touching the exterior there. The 'structure'
+            # repair keeps exteriors as area and holes as holes (linework fills
+            # such holes); its areal parts may come as a MultiPolygon inside a
+            # collection.
+            g = only_type(shapely.make_valid(g, method="structure"), geom_type)
             if g is None:
                 continue
-            out.append(Feature(layer_name, gtype, g, dict(feat.get("properties") or {})))
+        x0, y0, x1, y1 = g.bounds
+        if not (minx <= x0 and miny <= y0 and x1 <= maxx and y1 <= maxy):
+            g = only_type(g.intersection(cell), geom_type)  # crosses into the tile buffer
+            if g is None:
+                continue
+        out.append(Feature(raw.layer, geom_type, g, raw.props))
     return out
 
 
-def _to_metres(g, minx: float, miny: float, scale: float):
-    return affine_transform(g, [scale, 0, 0, scale, minx, miny])
+def load_tiles(extent: Extent, level: int, keep: FeatureFilter | None = None) -> list[Feature]:
+    """Fetch and decode every tile covering ``extent``.
 
-
-def load_tiles(extent: Extent, level: int) -> list[Feature]:
-    """Fetch and decode every tile covering ``extent`` (plus a 1-tile pad)."""
-    col_min, row_min, col_max, row_max = tile_range(extent, level)
+    Downloads run on the shared tile pool; decoding is CPU-bound, so it runs here
+    on the calling thread as tiles arrive (threads would only contend for the GIL).
+    """
+    col_min, row_min, col_max, row_max = mml_source.tile_range(extent, level)
     n = (col_max - col_min + 1) * (row_max - row_min + 1)
     if n > MAX_VECTOR_TILES:
         raise MMLError("Requested area needs too many vector tiles")
 
-    def work(row: int, col: int) -> list[Feature]:
-        data = fetch_tile(level, row, col)
-        return decode_tile(data, level, row, col) if data else []
+    def fetch(row: int, col: int) -> tuple[int, int, bytes | None]:
+        return row, col, fetch_tile(level, row, col)
 
     futures = [
-        _tile_pool.submit(work, r, c)
+        _tile_pool.submit(fetch, r, c)
         for r in range(row_min, row_max + 1)
         for c in range(col_min, col_max + 1)
     ]
-    features: list[Feature] = []
+    by_tile: dict[tuple[int, int], list[Feature]] = {}
     try:
         for future in as_completed(futures):
-            features.extend(future.result())
+            row, col, data = future.result()
+            if data:
+                by_tile[(row, col)] = decode_tile(data, level, row, col, keep)
     except BaseException:
         for future in futures:
             future.cancel()
         raise
-    return features
+    # grid order, not arrival order: feature order decides how pieces join and
+    # where labels go, so the same request always gives the same map
+    return [f for tile in sorted(by_tile) for f in by_tile[tile]]

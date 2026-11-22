@@ -84,3 +84,9 @@ def test_clamp_extent_keeps_size_inside_bounds():
 def test_format_scale_label():
     assert format_scale_label(20000) == "1 : 20 000"
     assert format_scale_label(1234567) == "1 : 1 234 567"
+
+
+def test_extent_buffered_grows_every_side():
+    from fastmap.services.print_layout import Extent
+
+    assert Extent(0, 10, 100, 50).buffered(5) == Extent(-5, 5, 105, 55)

@@ -525,3 +525,29 @@ def test_session_keeps_no_cookies(mml_server):
     mml_server((200, {"Content-Type": "image/png", "Set-Cookie": "lb=abc; Path=/"}, 0))
     _tile()
     assert len(mml_source._session.cookies) == 0
+
+
+def test_palette_is_exact_for_maps_with_at_most_256_colours():
+    from PIL import Image
+
+    from fastmap.services.mml_source import to_palette
+
+    rgb = Image.new("RGB", (60, 10))
+    colours = [(i, 255 - i, (7 * i) % 256) for i in range(200)]
+    for i in range(600):
+        rgb.putpixel((i % 60, i // 60), colours[i % 200])
+    p = to_palette(rgb)
+    assert p.mode == "P"
+    assert p.convert("RGB").tobytes() == rgb.tobytes()  # lossless
+
+
+def test_palette_falls_back_to_256_colours():
+    from PIL import Image
+
+    from fastmap.services.mml_source import to_palette
+
+    rgb = Image.new("RGB", (40, 40))
+    for i in range(1600):
+        rgb.putpixel((i % 40, i // 40), (i % 256, (i // 7) % 256, (i // 3) % 256))
+    p = to_palette(rgb)
+    assert p.mode == "P" and len(p.getcolors(256)) <= 256
