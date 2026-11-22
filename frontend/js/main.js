@@ -154,13 +154,26 @@ function clearAll() {
     offerUndo(() => deletedLabel(count, getLang()), snapshot);
 }
 
-const shown = b => !!b && b.offsetParent !== null;
+// On screen and usable: laid out, not visibility-hidden (the phone sheet's
+// lowest height hides its body that way), not disabled
+const shown = b => !!b && b.offsetParent !== null && !b.disabled
+    && (b.checkVisibility?.({ visibilityProperty: true }) ?? true);
+
+// Focus the first of `els` that can take it; false if none did
+function focusFirst(...els) {
+    for (const b of els) {
+        if (!shown(b)) continue;
+        b.focus();
+        if (document.activeElement === b) return true;
+    }
+    return false;
+}
 
 // Route / Atlas with no sheet to focus: Create, else the way to a route / area
 function focusSetStart() {
     const route = state.mode === 'route';
-    const target = [el(route ? 'coverBtn' : 'atlasBtn'), el(route ? 'openRouteToolBtn' : 'areaDrawBtn')].find(shown);
-    (target ?? el('modeTabs').querySelector(`[data-mode="${state.mode}"]`)).focus();
+    focusFirst(el(route ? 'coverBtn' : 'atlasBtn'), el(route ? 'openRouteToolBtn' : 'areaDrawBtn'),
+        el('modeTabs').querySelector(`[data-mode="${state.mode}"]`));
 }
 
 // Select the mode's saved selection, else its last map
@@ -207,7 +220,7 @@ function undo() {
         const { name, lines } = undoSnapshot.route;
         hideToast();
         setRoute(name, lines);
-        el(routeCard.isOpen() ? 'editRouteBtn' : 'routeToolBtn').focus();
+        focusFirst(el(routeCard.isOpen() ? 'editRouteBtn' : 'routeToolBtn'), el('grabber'));
         return;
     }
     const { mode, data } = undoSnapshot;
@@ -232,8 +245,7 @@ function undo() {
     if (state.mode === 'maps') el('mapList').querySelector(`[data-key="select-${active()?.id}"]`)?.focus();
     else {
         // The sheets that came back, else Create, else the way to a route / area
-        const cell = el(`${state.mode}Index`).querySelector('[tabindex="0"]');
-        if (shown(cell)) cell.focus(); else focusSetStart();
+        if (!focusFirst(el(`${state.mode}Index`).querySelector('[tabindex="0"]'))) focusSetStart();
     }
 }
 
@@ -896,6 +908,8 @@ function renderRouteBar() {
     renderAtlas();
     el('routeBar').hidden = !mode;
     document.body.toggleAttribute('data-route-mode', !!mode);
+    // The route card waits until the drawing is finished or cancelled
+    for (const id of ['routeToolBtn', 'openRouteToolBtn', 'routeToolLink']) el(id).disabled = !!mode;
     if (!mode) return;
     if (areaTools.active()) {
         const area = formatKm2(ringAreaM2(toolShape), locale());
@@ -909,11 +923,21 @@ function renderRouteBar() {
     el('routeUndo').hidden = mode !== 'draw';
 }
 
+let lastTool = 'route';   // the tool that was open last: where focus goes after
+
 function toolModeChanged() {
-    translate.setActive(!anyTool());
-    panes.foldWhileDrawing(!!anyTool());
+    const on = !!anyTool();
+    if (on) lastTool = areaTools.active() ? 'area' : 'route';
+    translate.setActive(!on);
+    panes.foldWhileDrawing(on);
     toolShape = [];
     renderRouteBar();
+    // The button that started it (in the card or the folded panel) is gone:
+    // keep keyboard focus on something visible
+    if (document.activeElement !== document.body && shown(document.activeElement)) return;
+    if (on) el('routeStatus').focus();
+    else if (lastTool === 'route') focusFirst(el('routeToolBtn'));
+    else focusFirst(el('areaEditBtn'), el('areaDrawBtn'), el('grabber'));
 }
 
 const routeTools = createRouteTools(map, gpxLayer, {
