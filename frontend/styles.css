@@ -110,6 +110,9 @@ button { font: inherit; color: inherit; }
 /* Route and atlas sets: summary, the index (grid or strip), selected sheet */
 .set-index { margin: 14px 0 4px; }
 .set-summary { margin: 0 0 8px; font-size: 13px; font-weight: 600; color: var(--ink); font-variant-numeric: tabular-nums; }
+.set-head { align-items: flex-start; margin-bottom: 8px; }
+.set-head .set-summary { margin: 0; min-width: 0; padding-top: 5px; }
+.set-head .btn-text { flex: none; white-space: nowrap; }
 .index { --cell: 30px; display: grid; gap: 4px; justify-content: start; }
 .index-cell {
     width: var(--cell); height: var(--cell); padding: 0; position: relative;

@@ -70,6 +70,12 @@ test('the route lives in its own card, opened from a map button', () => {
     assert.equal(STRINGS.fi['gpx.width'], 'Leveys (mm)');
 });
 
+test('every mode can clear all its sheets', () => {
+    for (const id of ['clearAllBtn', 'routeClearAll', 'atlasClearAll']) {
+        assert.match(html, new RegExp(`id="${id}"[^>]*data-i18n="maps.clearAll"`), id);
+    }
+});
+
 test('a drawn route is called Route / Reitti', () => {
     assert.equal(STRINGS.en['gpx.myRoute'], 'Route');
     assert.equal(STRINGS.fi['gpx.myRoute'], 'Reitti');

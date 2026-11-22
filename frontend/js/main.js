@@ -138,14 +138,29 @@ function removeMode(mode) {
     state.activeIds[mode] = null;
 }
 
-// Clear the current mode's maps (Maps mode starts again with one new map)
+// Clear the current mode's maps (Maps mode starts again with one new map).
+// Route and Atlas keep their route / area and settings; focus moves on from
+// the index, which is gone, to Create (or the way to a route / area).
 function clearAll() {
     const snapshot = snapshotOf();
     const count = modeMaps().length;
     removeMode(state.mode);
     if (state.mode === 'maps') newMap();
-    else { renderList(); persist(); }
+    else {
+        renderList();
+        persist();
+        focusSetStart();
+    }
     offerUndo(() => deletedLabel(count, getLang()), snapshot);
+}
+
+const shown = b => !!b && b.offsetParent !== null;
+
+// Route / Atlas with no sheet to focus: Create, else the way to a route / area
+function focusSetStart() {
+    const route = state.mode === 'route';
+    const target = [el(route ? 'coverBtn' : 'atlasBtn'), el(route ? 'openRouteToolBtn' : 'areaDrawBtn')].find(shown);
+    (target ?? el('modeTabs').querySelector(`[data-mode="${state.mode}"]`)).focus();
 }
 
 // Select the mode's saved selection, else its last map
@@ -217,11 +232,8 @@ function undo() {
     if (state.mode === 'maps') el('mapList').querySelector(`[data-key="select-${active()?.id}"]`)?.focus();
     else {
         // The sheets that came back, else Create, else the way to a route / area
-        const shown = b => b && b.offsetParent !== null;
-        const route = state.mode === 'route';
-        [el(`${state.mode}Index`).querySelector('[tabindex="0"]'), el(route ? 'coverBtn' : 'atlasBtn'),
-            el(route ? 'openRouteToolBtn' : 'areaDrawBtn')].find(shown)
-            ?.focus() ?? el('modeTabs').querySelector(`[data-mode="${state.mode}"]`).focus();
+        const cell = el(`${state.mode}Index`).querySelector('[tabindex="0"]');
+        if (shown(cell)) cell.focus(); else focusSetStart();
     }
 }
 
@@ -776,7 +788,7 @@ el('railModes').addEventListener('click', ev => {
     const b = ev.target.closest('[data-mode]');
     if (b) setMode(b.dataset.mode);
 });
-el('clearAllBtn').addEventListener('click', clearAll);
+for (const id of ['clearAllBtn', 'routeClearAll', 'atlasClearAll']) el(id).addEventListener('click', clearAll);
 el('undoBtn').addEventListener('click', undo);
 
 // Usage hint: dismissible, remembered per browser
