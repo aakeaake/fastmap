@@ -10,6 +10,8 @@ All notable changes to FastMap. Versions are tagged `vX.Y.Z` on `main`.
   mode. Removing the route can be undone. On phones the card takes the
   bottom sheet's place.
 - Clear all in Route and Atlas, with Undo, like in Maps.
+- Route mode says when the route was changed after its maps were made
+  ("Route changed — the maps still follow the old one") and offers Update.
 
 ### Changed
 - Route mode only covers the route with maps; the route itself is in the

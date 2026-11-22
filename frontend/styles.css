@@ -103,7 +103,6 @@ button { font: inherit; color: inherit; }
 .fold > summary .icon { width: 14px; height: 14px; color: var(--ink-3); transition: transform .15s ease-out; }
 .fold[open] > summary .icon { transform: rotate(90deg); }
 .fold > summary:hover .icon { color: var(--ink); }
-#routeStyle { margin-top: 14px; border-top: 1px solid var(--surface-3); padding-top: 6px; }
 #advanced { padding-top: 6px; padding-bottom: 8px; }
 #advanced[open] { padding-bottom: 14px; }
 
