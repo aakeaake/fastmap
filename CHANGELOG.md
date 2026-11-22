@@ -4,7 +4,22 @@ All notable changes to FastMap. Versions are tagged `vX.Y.Z` on `main`.
 
 ## Unreleased
 
+### Added
+- Route tool: a route button on the map opens a card to draw, import, name,
+  edit, export (GPX) or remove the route and to set how it prints, from any
+  mode. Removing the route can be undone. On phones the card takes the
+  bottom sheet's place.
+- Clear all in Route and Atlas, with Undo, like in Maps.
+
 ### Changed
+- Route mode only covers the route with maps; the route itself is in the
+  route tool.
+- The route width is set in mm (default 1.1 mm, about 3 pt; was 5 pt). The
+  API's `gpx_width` (points, 1–20, default 5) now also accepts decimals.
+- The route on the map follows its print colour, width and opacity, and the
+  print style is remembered across visits.
+- The settings panel folds to the sidebar while a route or area is drawn or
+  edited, and comes back after.
 - The vector map's style, per-scale settings and symbols are fastmap's own data
   files now (`vector/styles/*.json`), edited directly; the printed map is unchanged.
 - Vector PDFs render about 5x faster and are about 3x smaller (A4 1:50 000:
