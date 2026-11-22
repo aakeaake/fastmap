@@ -16,6 +16,7 @@ import { effectiveLayer } from './layer.js';
 import { createLangMenu } from './lang-menu.js';
 import { createNotices } from './notices.js';
 import { createPanes } from './panes.js';
+import { createRouteCard } from './route-card.js';
 import { MAX_BATCH, coverTitle, planCover } from './cover.js';
 import { sanitizeSetSettings, settingsChanged } from './modes.js';
 import { buildPayload, gpxRoutes } from './payload.js';
@@ -204,9 +205,12 @@ function undo() {
     persist();
     if (state.mode === 'maps') el('mapList').querySelector(`[data-key="select-${active()?.id}"]`)?.focus();
     else {
-        const btn = el(state.mode === 'route' ? 'coverBtn' : 'atlasBtn');
-        (el(`${state.mode}Index`).querySelector('[tabindex="0"]')
-            ?? (btn.offsetParent !== null ? btn : el('modeTabs').querySelector(`[data-mode="${state.mode}"]`)))?.focus();
+        // The sheets that came back, else Create, else the way to a route / area
+        const shown = b => b && b.offsetParent !== null;
+        const route = state.mode === 'route';
+        [el(`${state.mode}Index`).querySelector('[tabindex="0"]'), el(route ? 'coverBtn' : 'atlasBtn'),
+            el(route ? 'openRouteToolBtn' : 'areaDrawBtn')].find(shown)
+            ?.focus() ?? el('modeTabs').querySelector(`[data-mode="${state.mode}"]`).focus();
     }
 }
 
@@ -788,6 +792,15 @@ let routeName = '';   // name of the route as typed; '' when none
 
 const routeLines = () => gpxRoutes(gpxLayer.getSource().getFeatures());
 const routeLabel = () => routeName.trim() || t('gpx.myRoute');
+const routeInfo = lines => `${routeLabel()} · ${formatKm(routeLengthM(lines), locale())}`;
+
+// The route card opens from the route button, and from Route mode
+const routeCard = createRouteCard({
+    button: el('routeToolBtn'), card: el('routeCard'), closeBtn: el('routeCardClose'), panel: el('panel'), sheet,
+});
+el('routeToolBtn').addEventListener('click', () => routeCard.toggle());
+el('openRouteToolBtn').addEventListener('click', () => routeCard.open());
+el('routeToolLink').addEventListener('click', () => routeCard.open());
 
 function saveRoute() {
     const lines = routeLines();
@@ -807,14 +820,27 @@ function saveRoute() {
 function renderRoute() {
     const lines = routeLines();
     const has = lines.length > 0;
+    el('routeEmpty').hidden = has;
     el('routeLoaded').hidden = !has;
+    el('routeNone').hidden = has;
+    el('routeLine').hidden = !has;
+    el('routeName').placeholder = t('gpx.myRoute');
     setButton(el('gpxBtn'), 'upload', t('gpx.load'));
     setButton(el('drawBtn'), 'route', t('gpx.draw'));
     setButton(el('editRouteBtn'), 'pen', t('gpx.edit'));
     setButton(el('gpxDownloadBtn'), 'download', t('gpx.download'));
     setButton(el('gpxRemoveBtn'), 'x', t('gpx.remove'));
-    el('gpxInfo').textContent = has ? `${routeLabel()} · ${formatKm(routeLengthM(lines), locale())}` : '';
+    el('gpxInfo').textContent = has ? routeInfo(lines) : '';
+    el('routeLineText').textContent = has ? routeInfo(lines) : '';
+    renderRouteColor();
     renderCover();
+}
+
+// The route button's line and Route mode's swatch show the route's colour
+function renderRouteColor() {
+    const color = routeLines().length ? el('gpxColor').value : '';
+    el('routeToolBtn').style.color = color;
+    el('routeSwatch').style.background = color;
 }
 
 // Replace the route (no lines = no route)
@@ -880,8 +906,13 @@ function showMapForRoute() {
     if (!sheet.phone.matches) return;
     sheet.setSheet('peek');
 }
-el('drawBtn').addEventListener('click', () => { areaTools.cancel(); showMapForRoute(); routeTools.startDraw(); });
-el('editRouteBtn').addEventListener('click', () => { areaTools.cancel(); showMapForRoute(); routeTools.startEdit(); });
+// The card makes way for the map while drawing or editing
+el('drawBtn').addEventListener('click', () => {
+    areaTools.cancel(); routeCard.close({ focus: false }); showMapForRoute(); routeTools.startDraw();
+});
+el('editRouteBtn').addEventListener('click', () => {
+    areaTools.cancel(); routeCard.close({ focus: false }); showMapForRoute(); routeTools.startEdit();
+});
 el('routeUndo').addEventListener('click', () => openTool().removeLast());
 el('routeFinish').addEventListener('click', () => openTool().finish());
 el('routeCancel').addEventListener('click', () => openTool().cancel());
@@ -889,6 +920,7 @@ el('routeCancel').addEventListener('click', () => openTool().cancel());
 el('gpxBtn').addEventListener('click', () => gpxInput.click());
 el('gpxRemoveBtn').addEventListener('click', () => { routeTools.cancel(); clearRoute(); });
 el('gpxShow').addEventListener('change', () => { saveRoute(); renderCover(); });
+el('gpxColor').addEventListener('input', renderRouteColor);
 
 // --- Atlas area ------------------------------------------------------------------
 // One area at a time, drawn: one Polygon feature on areaLayer, saved in the
@@ -1058,7 +1090,6 @@ function renderCover() {
     const show = routeLines().length > 0 && !anyTool();
     section.hidden = !show;
     if (!show) return;
-    el('routeName').placeholder = t('gpx.myRoute');
     const n = coverSheets().length;
     const count = formatNumber(n, locale());
     el('coverCount').textContent = n > MAX_BATCH ? t('cover.tooMany', { count })
@@ -1086,7 +1117,7 @@ el('routeName').addEventListener('input', () => {
     routeName = el('routeName').value;
     saveRoute();
     const lines = routeLines();
-    if (lines.length) el('gpxInfo').textContent = `${routeLabel()} · ${formatKm(routeLengthM(lines), locale())}`;
+    if (lines.length) el('gpxInfo').textContent = el('routeLineText').textContent = routeInfo(lines);
 });
 
 // --- Atlas of the area -------------------------------------------------------------

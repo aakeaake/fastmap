@@ -52,9 +52,22 @@ test('hidden always hides, even on elements whose class sets display', () => {
 });
 
 test('route and atlas both have a name field', () => {
-    const route = html.slice(html.indexOf('id="modeRoute"'), html.indexOf('id="modeAtlas"'));
-    assert.match(route, /<input id="routeName" type="text" maxlength="100"/);
+    const card = html.slice(html.indexOf('id="routeCard"'), html.indexOf('<!-- end routeCard -->'));
+    assert.match(card, /<input id="routeName" type="text" maxlength="100"/);
     assert.match(html, /<input id="atlasName" type="text" maxlength="100"/);
+});
+
+test('the route lives in its own card, opened from a map button', () => {
+    assert.match(html, /id="routeToolBtn"[^>]*aria-controls="routeCard"/);
+    assert.match(html, /id="routeCard"[^>]*role="dialog"/);
+    const route = html.slice(html.indexOf('id="modeRoute"'), html.indexOf('id="modeAtlas"'));
+    for (const id of ['gpxBtn', 'drawBtn', 'routeName', 'gpxColor', 'gpxWidth', 'routeStyle']) {
+        assert.ok(!route.includes(`id="${id}"`), `${id} not in Route mode`);
+    }
+    for (const id of ['routeNone', 'openRouteToolBtn', 'routeLine', 'routeToolLink']) assert.ok(route.includes(`id="${id}"`), id);
+    assert.match(html, /<input id="gpxWidth" type="number"[^>]*step="0.1"[^>]*min="0.4"[^>]*max="7"[^>]*value="1.1"/);
+    assert.equal(STRINGS.en['gpx.width'], 'Width (mm)');
+    assert.equal(STRINGS.fi['gpx.width'], 'Leveys (mm)');
 });
 
 test('a drawn route is called Route / Reitti', () => {

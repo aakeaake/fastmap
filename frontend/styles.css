@@ -378,6 +378,30 @@ button { font: inherit; color: inherit; }
 }
 .map-tool .icon { width: 18px; height: 18px; }
 .map-tool:hover { background: var(--surface-2); }
+/* Route tool: its button sits under move-here; the card opens beside the
+   column, level with the zoom buttons (the language button is above) */
+#routeToolBtn { top: calc(var(--edge-t) + 4 * var(--tool) + 1px + 24px); }
+.route-card {
+    position: absolute; z-index: 960;
+    top: calc(var(--edge-t) + var(--tool) + 8px);
+    right: calc(var(--edge-r) + var(--tool) + 8px);
+    width: 290px; max-height: calc(100vh - var(--edge-t) - var(--tool) - 20px);
+}
+.route-card-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 8px 0 16px; }
+.route-card-head h2 { font-size: 15px; font-weight: 650; margin: 0; }
+.route-card-head h2:focus { outline: none; }
+.route-card-head h2:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.route-card-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding-top: 4px; }
+.route-card-start { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
+.route-card-start .btn { min-height: 40px; }
+.route-preview { display: flex; align-items: center; height: 28px; margin-top: 12px; padding: 0 12px; border-radius: var(--radius-sm); background: #e8eee2; }
+.route-preview span { flex: 1; height: 4px; border-radius: 99px; background: #ff00ff; opacity: .6; }
+/* Route mode: the route in one line, with the way to its card */
+.route-line { display: flex; align-items: center; gap: 8px; margin-top: 8px; padding: 6px 4px 6px 10px; border-radius: var(--radius-sm); background: var(--surface-2); }
+.route-line-text { flex: 1; min-width: 0; font-size: 13px; color: var(--ink); overflow-wrap: anywhere; }
+.swatch { flex: none; width: 18px; height: 4px; border-radius: 99px; background: var(--ink-3); }
+.btn-link { color: var(--accent); margin-right: 0; }
+.btn-link:hover { color: var(--accent-strong); }
 /* Route toolbar: takes the language button's place at the top right
    while drawing or editing (the language button hides meanwhile) */
 .route-bar {
@@ -511,6 +535,7 @@ button { font: inherit; color: inherit; }
     /* Fully open: the map strip is too small for the map controls.
        The attribution stays: tiles are still on screen (CC BY 4.0). */
     body:has(#panel[data-sheet="full"]) .map-tool,
+    body:has(#panel[data-sheet="full"]) .route-card,
     body:has(#panel[data-sheet="full"]) .lang,
     body:has(#panel[data-sheet="full"]) .ol-zoom { display: none; }
     body:has(#panel[data-sheet="full"]) #attribution { padding: 0 4px; }
