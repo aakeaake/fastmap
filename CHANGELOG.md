@@ -5,10 +5,21 @@ All notable changes to FastMap. Versions are tagged `vX.Y.Z` on `main`.
 ## Unreleased
 
 ### Changed
+- The vector map's style, per-scale settings and symbols are fastmap's own data
+  files now (`vector/styles/*.json`), edited directly; the printed map is unchanged.
 - Vector PDFs render about 5x faster and are about 3x smaller (A4 1:50 000:
   65 s -> 11 s of CPU, 12.4 -> 4.2 MB), with the same print quality; output
   is now identical between runs. Raster PDFs render about 5x faster and are
   about a quarter smaller (indexed images with an exact palette).
+- Vector map colours and lines follow the printed reference map more
+  closely: water areas #6DCFF6, shorelines and streams #0071BC, fields
+  #FFD98F; auxiliary contours at 1:25 000 are long dashes (1.6 mm dash,
+  0.4 mm gap); road edges at 1:25 000 print 0.10 mm, and shorelines are
+  narrower (0.10 mm at 1:25 000, 0.07 mm at 1:50 000).
+- The conifer, deciduous and mixed-forest, radio mast, spring and fireplace
+  symbols are copied from the printed reference map, at its size.
+- Small open-rock dots are a little bigger and print under the contours;
+  point symbols are drawn in style order with the other layers.
 
 ### Fixed
 - Vector maps fill the sea blue. The style left sea areas out of the water

@@ -1,11 +1,18 @@
-"""Convert the upstream MaRaSu/mmlv2 MapLibre style into fastmap's vector style.
+"""Record of the one-time import of MaRaSu/mmlv2 into fastmap's vector style.
 
-Usage: uv run python tools/convert_mmlv2.py IN.json OUT.json
+NOTE: src/fastmap/vector/styles/maastokartta.json is fastmap's own style now and is
+edited by hand. This script only documents how it was first derived from the upstream
+MaRaSu/mmlv2 MapLibre style (at the commit in UPSTREAM_REF). Re-running it would discard
+every edit made to the style since, so it refuses to overwrite an existing OUT file
+unless --force is given.
+
+Usage: uv run python tools/convert_mmlv2.py IN.json OUT.json [--force]
 """
 
 import argparse
 import json
 import sys
+from pathlib import Path
 
 KEEP_SOURCES = {"mml_topo", "mml_ways", "mml_contours", "mml_buildings"}
 TARGET_SOURCE = "mml"
@@ -20,6 +27,26 @@ UPSTREAM_REF = "MaRaSu/mmlv2@82b5ab0"
 FILTERS = {
     "water-mml": ["==", "$type", "Polygon"],
 }
+# fastmap's palette where it differs from mmlv2 (colours of the user's reference
+# print map): water areas, shorelines and streams, and fields.
+PALETTE = {
+    "#80ffff": "#6DCFF6",  # water fill (was cyan)
+    "#0080ff": "#0071BC",  # shorelines and streams
+    "#ffd980": "#FFD98F",  # fields
+}
+
+
+def _recolour(value):
+    """``value`` with every PALETTE colour (any letter case) replaced."""
+    if isinstance(value, str):
+        return PALETTE.get(value.lower(), value)
+    if isinstance(value, list):
+        return [_recolour(v) for v in value]
+    if isinstance(value, dict):
+        return {k: _recolour(v) for k, v in value.items()}
+    return value
+
+
 # Draw-order fixes for print, applied in order as (layer, "before"|"after", anchor):
 # swamps go under the contours (as on the printed Maastokartta), and the shoreline
 # goes over the water and swamp fills, which otherwise cover half of it.
@@ -54,6 +81,7 @@ def convert(style: dict) -> dict:
             if layer.get("source") not in KEEP_SOURCES:
                 continue
             layer = {**layer, "source": TARGET_SOURCE}
+        layer = {**layer, "paint": _recolour(layer.get("paint", {}))}
         if lid in FILTERS:
             layer = {**layer, "filter": FILTERS[lid]}
         if lid in FORCE_VISIBLE:
@@ -64,17 +92,31 @@ def convert(style: dict) -> dict:
     return {
         "version": style.get("version", 8),
         "name": style.get("name", "maastokartta"),
-        "metadata": {"fastmap:source": UPSTREAM_REF},
+        "metadata": {"fastmap:derived-from": UPSTREAM_REF},
         "sources": {TARGET_SOURCE: {"type": "vector"}},
         "layers": out_layers,
     }
 
 
-def main() -> int:
-    parser = argparse.ArgumentParser(description=__doc__)
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
     parser.add_argument("IN")
     parser.add_argument("OUT")
-    args = parser.parse_args()
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="overwrite an existing OUT (discards any hand edits made to it)",
+    )
+    args = parser.parse_args(argv)
+    if Path(args.OUT).exists() and not args.force:
+        print(
+            f"error: {args.OUT} exists; the style is maintained by hand now and "
+            "re-converting would discard its edits (use --force to overwrite anyway)",
+            file=sys.stderr,
+        )
+        return 1
     with open(args.IN, encoding="utf-8") as f:
         text = json.dumps(convert(json.load(f)), indent=1, ensure_ascii=False) + "\n"
     for bad in FORBIDDEN:

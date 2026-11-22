@@ -204,13 +204,17 @@ def _validate_layer(layer: StyleLayer) -> None:
         raise StyleError(f"layer {layer.id!r}: {exc}") from exc
 
 
-def _scaled(value: Any, factor: float) -> Any:
-    """A paint value multiplied by ``factor``: number, legacy stops or expression."""
+_ARITH = {"*": lambda a, b: a * b, "+": lambda a, b: a + b}
+
+
+def _adjusted(value: Any, op: str, n: float) -> Any:
+    """A paint value combined with ``n`` (``op`` is "*" or "+"): number, stops or expression."""
+    fn = _ARITH[op]
     if isinstance(value, (int, float)):
-        return value * factor
+        return fn(value, n)
     if isinstance(value, dict) and "stops" in value:
-        return {**value, "stops": [[z, v * factor] for z, v in value["stops"]]}
-    return ["*", factor, copy.deepcopy(value)]
+        return {**value, "stops": [[z, fn(v, n)] for z, v in value["stops"]]}
+    return [op, copy.deepcopy(value), n]
 
 
 def _apply_overrides(layers: list[StyleLayer], overrides: dict) -> None:
@@ -228,10 +232,10 @@ def _apply_overrides(layers: list[StyleLayer], overrides: dict) -> None:
             extra = copy.deepcopy(ov["filter"])
             layer.filter = extra if layer.filter is None else ["all", layer.filter, extra]
         layer.paint.update(copy.deepcopy(ov.get("paint", {})))
-        if "line-width-scale" in ov:  # applied after any paint override
-            layer.paint["line-width"] = _scaled(
-                layer.paint.get("line-width", 1), ov["line-width-scale"]
-            )
+        # width adjustments apply after any paint override: scale, then add (px)
+        for key, op in (("line-width-scale", "*"), ("line-width-add", "+")):
+            if key in ov:
+                layer.paint["line-width"] = _adjusted(layer.paint.get("line-width", 1), op, ov[key])
         layer.layout.update(copy.deepcopy(ov.get("layout", {})))
         _validate_layer(layer)
 
