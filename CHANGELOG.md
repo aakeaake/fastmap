@@ -2,20 +2,70 @@
 
 All notable changes to FastMap. Versions are tagged `vX.Y.Z` on `main`.
 
-## Unreleased
+## 0.2.0 — 2026-11-22
+
+A new, single-panel UI with three ways to make sheets, a vector map,
+route drawing and route/area coverage, and an English/Finnish interface.
 
 ### Added
-- "Maastokartta, vector (beta)" map option. It draws MML's open vector
+- **Three modes in one panel: Maps · Route · Atlas** (Kartat · Reitti ·
+  Kartasto). Each mode keeps its own sheets; only the current mode's sheets
+  are on the map, in its list and in Download all. Undo restores only the
+  set it came from. Saved maps from earlier versions load as Maps-mode maps.
+- **Route mode:** load a GPX file or draw a route on the map (click to add
+  points, edit by dragging, remove points), download it as GPX, name it and
+  choose whether and how it prints. **Create maps** covers it with print
+  sheets in walking order ("Kungsleden 1/8"), each with the route kept clear
+  of the edges and a chosen overlap at every handover.
+- **Atlas mode:** draw an area and **Create atlas** fills it with a grid of
+  sheets titled by row and column ("Atlas B3"), with overlap 0–20 %; no
+  sheet is printed for a sliver its neighbour already holds.
+- Route and Atlas have their own print settings (paper, orientation, scale,
+  map type, grid, overlap). Changing them after a Create shows "Settings
+  changed" and an **Update** button. A set holds at most 25 maps, so
+  Download all always works.
+- A compact **sheet index** for Route and Atlas: the atlas as its grid (gaps
+  stay empty), the route as a 1…N strip, a summary line and the selected
+  sheet with download and delete; arrow keys move the selection.
+- **Click a sheet on the map** to select it.
+- **"Maastokartta, vector (beta)"** map type. It draws MML's open vector
   tiles (Topographic Database) into the PDF as vector paths, so lines and
   text stay sharp at any print size. Supported at exactly 1:25 000 and
-  1:50 000; other scales are rejected with 422, and the UI only offers
-  it at those scales. Styled after the raster Maastokartta and tuned for
-  print at both scales. The browser preview still shows raster tiles.
-- `tools/compare_vector.py` renders a sheet as raster and as vector and
-  writes side-by-side PNGs for tuning.
+  1:50 000; other scales are rejected with 422, and the UI only offers it at
+  those scales. Styled after the raster Maastokartta and tuned for print;
+  adjacent protected-area polygons of one class draw one outer border, and
+  trails and borders are wider at 1:50 000. The browser preview still shows
+  raster tiles. `tools/compare_vector.py` renders a sheet both ways for
+  tuning.
+- **English and Finnish UI** with a globe language menu; numbers group
+  thousands with a space in both ("1:20 000").
+- **PDF footer line** (title · scale on the left, the licence line on the
+  right) instead of boxes on the map; grid labels sit outside the map.
+- **Phone layout:** the panel is a bottom sheet (peek / half / full) with
+  44 px touch targets; a "move here" button places the selected map in the
+  visible area.
+- Pop-up notices for download progress, results and errors.
 
 ### Changed
+- The second "Route and precision" pane is gone. Margin, print DPI and map
+  level are under **Advanced**; margin is one setting for all maps, and the
+  map type sits next to the scale.
+- The map always stays north up (no pinch or Alt+Shift rotation).
+- The licence line reads `© Maanmittauslaitos, CC BY 4.0, MM/YYYY`, in the
+  PDF footer and on screen.
+- Renders are about 3× faster and PDFs about 20 % smaller: tiles download in
+  parallel (`TILE_FETCH_WORKERS`, 8) and PDF streams are no longer ASCII85.
+- The frontend is split into `styles.css` and ES modules (no build step);
+  frontend files are served with no-cache.
+- Accessibility: keyboard-reachable lists and controls, named icon buttons,
+  WCAG AA contrast, screen-reader announcements; delete and clear all offer
+  Undo.
 - Requires `mapbox-vector-tile` and `shapely>=2.1`.
+
+### Fixed
+- The MML API key could appear in urllib3's retry and debug logs; those log
+  records are now redacted.
+- Grid coordinates print black instead of grey.
 
 ## 0.1.9 — 2026-11-18
 
