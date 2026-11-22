@@ -2,6 +2,20 @@
 
 All notable changes to FastMap. Versions are tagged `vX.Y.Z` on `main`.
 
+## Unreleased
+
+### Fixed
+- The Route/Atlas sheet index is a radio group for screen readers (arrow
+  keys move the selection), and a download no longer makes them re-read the
+  focused cell.
+- Undoing a set's first Create leaves keyboard focus on the Create button
+  instead of nowhere.
+- No hand cursor over sheets while drawing a route or area.
+- Download and delete on unselected Maps rows stay reachable by screen
+  readers.
+- On phones, a long route or atlas name in the header keeps its sheet label
+  (" 12/25", " B3").
+
 ## 0.2.0 — 2026-11-22
 
 A new, single-panel UI with three ways to make sheets, a vector map,

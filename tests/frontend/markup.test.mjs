@@ -64,7 +64,7 @@ test('a drawn route is called Route / Reitti', () => {
 
 test('route and atlas show their sheets as a compact index, not a list', () => {
     for (const p of ['route', 'atlas']) {
-        assert.match(html, new RegExp(`id="${p}Index"[^>]*role="group"`), p);
+        assert.match(html, new RegExp(`id="${p}Index"[^>]*role="radiogroup"`), p);
         for (const id of [`${p}Set`, `${p}Summary`, `${p}Selected`, `${p}SelDl`, `${p}SelDel`]) {
             assert.ok(html.includes(`id="${id}"`), id);
         }

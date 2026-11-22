@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-    atlasCountLabel, attributionLabel, setSummaryLabel, createdLabel, deletedLabel, displayName, mapSummary, progressLabel, shortName,
+    atlasCountLabel, attributionLabel, setSummaryLabel, splitSetLabel, createdLabel, deletedLabel, displayName, mapSummary, progressLabel, shortName,
 } from '../../frontend/js/text.js';
 
 test('displayName: title, else a numbered default in the language', () => {
@@ -91,4 +91,11 @@ test('set summary line', () => {
         '23 sheets · A4 · 1:15\u00a0000 · Maastokartta');
     assert.equal(setSummaryLabel(1, { paperSize: 'A3', scale: 25000, layer: 'maastokartta_vektori' }, 'fi'),
         '1 karttalehti · A3 · 1:25\u00a0000 · Maastokartta, vektori (beta)');
+});
+
+test('splitSetLabel separates a sheet label from the name', () => {
+    assert.deepEqual(splitSetLabel('Kilpisjärvi – Halti 12/25'), ['Kilpisjärvi – Halti', ' 12/25']);
+    assert.deepEqual(splitSetLabel('Atlas B3'), ['Atlas', ' B3']);
+    assert.deepEqual(splitSetLabel('Nuuksio'), ['Nuuksio', '']);
+    assert.deepEqual(splitSetLabel(''), ['', '']);
 });

@@ -118,7 +118,7 @@ button { font: inherit; color: inherit; }
     cursor: pointer;
 }
 .index-cell:hover { background: var(--surface-2); color: var(--ink); }
-.index-cell[aria-pressed="true"] { border: 2px solid var(--active); background: var(--active-soft); color: var(--active); }
+.index-cell[aria-checked="true"] { border: 2px solid var(--active); background: var(--active-soft); color: var(--active); }
 .index-cell:focus-visible { outline-offset: 1px; }
 .index-cell.done::after {          /* downloaded and unchanged */
     content: ''; position: absolute; right: 2px; bottom: 2px;
@@ -217,7 +217,7 @@ button { font: inherit; color: inherit; }
 /* Quieter rows: download and delete on the selected row; on the others
    while the pointer or keyboard focus is there (touch: selected row only) */
 @media (hover: hover) and (pointer: fine) {
-    .map-list li:not(.active):not(:hover):not(:focus-within) .icon-btn { visibility: hidden; }
+    .map-list li:not(.active):not(:hover):not(:focus-within) .icon-btn { opacity: 0; }
 }
 @media (pointer: coarse) {
     .map-list li:not(.active) .icon-btn { display: none; }
@@ -484,12 +484,14 @@ button { font: inherit; color: inherit; }
     #panel .head-row { padding: 0 16px 6px; }
     .mode-tabs { margin: 0 16px 10px; }
     #sheetSummary {
-        display: block; flex: 1; min-width: 0; text-align: right;
+        display: flex; justify-content: flex-end; flex: 1; min-width: 0; text-align: right;
         font-size: 14px; color: var(--ink-2);
         white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
         font-variant-numeric: tabular-nums;
     }
-    #sheetSummary b { color: var(--ink); font-weight: 600; }
+    #sheetSummary b { display: flex; min-width: 0; color: var(--ink); font-weight: 600; white-space: pre; }
+    #sheetSummary .sum-base { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+    #sheetSummary .sum-rest { flex: none; white-space: pre; }
     #panel[data-sheet="peek"] .sheet-body { visibility: hidden; }
     .download { padding-bottom: max(14px, env(safe-area-inset-bottom)); }
 
