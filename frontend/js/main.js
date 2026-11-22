@@ -28,7 +28,7 @@ import {
     syncLabel,
 } from './state.js';
 import { fitColumns, indexLayout, moveInIndex, nudgeCenter, sheetLabel } from './sheet-index.js';
-import { atlasCountLabel, attributionLabel, createdLabel, deletedLabel, displayName, mapSummary, progressLabel, setSummaryLabel, shortName } from './text.js';
+import { atlasCountLabel, attributionLabel, createdLabel, deletedLabel, displayName, mapSummary, progressLabel, setSummaryLabel, shortName, splitSetLabel } from './text.js';
 
 const el = id => document.getElementById(id);
 hydrateIcons();
@@ -203,7 +203,11 @@ function undo() {
     renderAtlas();
     persist();
     if (state.mode === 'maps') el('mapList').querySelector(`[data-key="select-${active()?.id}"]`)?.focus();
-    else el(`${state.mode}Index`).querySelector('[tabindex="0"]')?.focus();
+    else {
+        const btn = el(state.mode === 'route' ? 'coverBtn' : 'atlasBtn');
+        (el(`${state.mode}Index`).querySelector('[tabindex="0"]')
+            ?? (btn.offsetParent !== null ? btn : el('modeTabs').querySelector(`[data-mode="${state.mode}"]`)))?.focus();
+    }
 }
 
 // --- Settings form <-> selected map -------------------------------------------
@@ -401,9 +405,16 @@ function renderList() {
     const summary = el('sheetSummary');
     summary.textContent = '';
     if (cur) {
+        const [base, label] = splitSetLabel(nameOf(cur));
         const b = document.createElement('b');
-        b.textContent = nameOf(cur);
-        summary.append(b, ` · ${summaryOf(cur)}`);
+        const baseEl = document.createElement('span');
+        baseEl.className = 'sum-base';
+        baseEl.textContent = base;
+        b.append(baseEl, label);
+        const rest = document.createElement('span');
+        rest.className = 'sum-rest';
+        rest.textContent = ` · ${summaryOf(cur)}`;
+        summary.append(b, rest);
     }
     const count = modeMaps().length;
     el('downloadAllBtn').textContent = count > 1 ? t('download.allCount', { count }) : t('download.one');
@@ -422,7 +433,11 @@ const indexLayouts = { route: null, atlas: null };
 function renderIndex(mode) {
     const sheets = modeMaps(mode);
     el(`${mode}Set`).hidden = !sheets.length;
-    if (!sheets.length) { indexLayouts[mode] = null; return; }
+    if (!sheets.length) {
+        indexLayouts[mode] = null;
+        el(`${mode}Index`).replaceChildren();   // no stale cells to focus
+        return;
+    }
     const idx = el(`${mode}Index`);
     const focusIn = idx.contains(document.activeElement);
     const layout = indexLayout(mode, sheets, { maxCols: indexColumns(idx) });
@@ -432,22 +447,32 @@ function renderIndex(mode) {
     const cur = state.mode === mode ? active() : null;
     const focusId = cur?.id ?? layout.cells[0].id;
     idx.style.gridTemplateColumns = `repeat(${layout.cols}, var(--cell))`;
-    idx.replaceChildren(...layout.cells.map(c => {
+    // The same cells as before: update them in place, so a screen reader
+    // doesn't announce the focused cell again on every download tick
+    const old = [...idx.children];
+    const same = old.length === layout.cells.length && layout.cells.every((c, i) =>
+        old[i].dataset.id === String(c.id) && old[i].textContent === c.label
+        && old[i].style.gridRow === String(c.row + 1) && old[i].style.gridColumn === String(c.col + 1));
+    const cells = layout.cells.map((c, i) => {
+        const b = same ? old[i] : document.createElement('button');
+        if (!same) {
+            b.type = 'button';
+            b.className = 'index-cell';
+            b.setAttribute('role', 'radio');
+            b.textContent = c.label;
+            b.style.gridRow = String(c.row + 1);
+            b.style.gridColumn = String(c.col + 1);
+            b.dataset.id = c.id;
+        }
         const e = getEntry(c.id);
-        const b = document.createElement('button');
-        b.type = 'button';
-        b.className = 'index-cell';
-        b.textContent = c.label;
-        b.style.gridRow = String(c.row + 1);
-        b.style.gridColumn = String(c.col + 1);
-        b.dataset.id = c.id;
         b.tabIndex = c.id === focusId ? 0 : -1;
-        b.setAttribute('aria-pressed', String(c.id === cur?.id));
+        b.setAttribute('aria-checked', String(c.id === cur?.id));
         b.setAttribute('aria-label', `${nameOf(e)} · ${summaryOf(e)}`);
-        if (generatingIds.has(c.id)) b.classList.add('generating');
-        else if (downloadedIds.has(c.id)) b.classList.add('done');
+        b.classList.toggle('generating', generatingIds.has(c.id));
+        b.classList.toggle('done', !generatingIds.has(c.id) && downloadedIds.has(c.id));
         return b;
-    }));
+    });
+    if (!same) idx.replaceChildren(...cells);
     if (focusIn) idx.querySelector('[tabindex="0"]')?.focus();
 
     el(`${mode}Selected`).hidden = !cur;
@@ -623,6 +648,10 @@ map.on('singleclick', ev => {
 // A hand over sheets that a click would select
 map.on('pointermove', ev => {
     if (ev.dragging || sheet.phone.matches) return;
+    if (routeTools.paused() || areaTools.paused()) {   // a click adds a point
+        map.getTargetElement().style.cursor = '';
+        return;
+    }
     const over = map.hasFeatureAtPixel(ev.pixel, { layerFilter: l => l === lockedLayer, hitTolerance: 2 });
     map.getTargetElement().style.cursor = over ? 'pointer' : '';
 });

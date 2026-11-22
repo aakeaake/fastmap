@@ -15,8 +15,15 @@ export function displayName(entry, index, lang = 'en') {
 const SHORT = 16;
 export function shortName(name) {
     if (name.length <= SHORT) return name;
-    const suffix = name.match(/ (\d+\/\d+|[A-Z]{1,2}\d{1,3})$/)?.[0] ?? '';
+    const [, suffix] = splitSetLabel(name);
     return `${name.slice(0, SHORT - suffix.length - 1)}…${suffix}`;
+}
+
+// [name, label] for a route or atlas sheet title: "Halti 12/25" ->
+// ["Halti", " 12/25"], "Atlas B3" -> ["Atlas", " B3"]; no label -> [name, '']
+export function splitSetLabel(name) {
+    const suffix = name.match(/ (\d+\/\d+|[A-Z]{1,2}\d{1,3})$/)?.[0] ?? '';
+    return [name.slice(0, name.length - suffix.length), suffix];
 }
 
 // "A4 · 1:20,000" / "A4 · 1:20 000"
