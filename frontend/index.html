@@ -410,14 +410,16 @@
         <input type="file" id="gpxInput" accept=".gpx" hidden>
     </div>
     <div id="routeLoaded" hidden>
-        <label for="routeName" data-i18n="atlas.name">Name</label>
-        <input id="routeName" type="text" maxlength="100" autocomplete="off">
-        <p id="gpxInfo" class="section-note"></p>
-        <div class="btn-row">
-            <button id="editRouteBtn" class="btn btn-secondary" type="button"></button>
-            <button id="gpxDownloadBtn" class="btn btn-secondary" type="button"></button>
-            <button id="gpxRemoveBtn" class="btn btn-secondary" type="button"></button>
+        <div class="label-row">
+            <label for="routeName" data-i18n="atlas.name">Name</label>
+            <span id="gpxInfo" class="route-length"></span>
         </div>
+        <input id="routeName" type="text" maxlength="100" autocomplete="off">
+        <div class="btn-row">
+            <button id="editRouteBtn" class="btn btn-primary" type="button"></button>
+            <button id="gpxDownloadBtn" class="btn btn-secondary" type="button"></button>
+        </div>
+        <button id="gpxRemoveBtn" class="btn-text route-remove" type="button" data-i18n="gpx.remove">Remove route</button>
         <h3 data-i18n="route.style">On printouts</h3>
         <label class="check"><input id="gpxShow" type="checkbox" checked> <span data-i18n="gpx.showOnPrint">Show route on printouts</span></label>
         <div class="row">

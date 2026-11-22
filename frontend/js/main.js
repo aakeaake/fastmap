@@ -866,8 +866,7 @@ function renderRoute() {
     setButton(el('drawBtn'), 'route', t('gpx.draw'));
     setButton(el('editRouteBtn'), 'pen', t('gpx.edit'));
     setButton(el('gpxDownloadBtn'), 'download', t('gpx.download'));
-    setButton(el('gpxRemoveBtn'), 'x', t('gpx.remove'));
-    el('gpxInfo').textContent = has ? routeInfo(lines) : '';
+    el('gpxInfo').textContent = has ? formatKm(routeLengthM(lines), locale()) : '';   // the name is in the field above
     el('routeLineText').textContent = has ? routeInfo(lines) : '';
     renderRouteColor();
     renderCover();
@@ -1225,7 +1224,7 @@ el('routeName').addEventListener('input', () => {
     routeName = el('routeName').value;
     saveRoute();
     const lines = routeLines();
-    if (lines.length) el('gpxInfo').textContent = el('routeLineText').textContent = routeInfo(lines);
+    if (lines.length) el('routeLineText').textContent = routeInfo(lines);
 });
 
 // --- Atlas of the area -------------------------------------------------------------
