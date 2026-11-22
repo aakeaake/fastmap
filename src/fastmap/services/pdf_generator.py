@@ -312,7 +312,7 @@ def _draw_page(
     grid_spacing_m: int = 1000,
     gpx_routes: list[list[list[float]]] | None = None,
     gpx_color: str = "#ff00ff",
-    gpx_width: int = 5,
+    gpx_width: float = 5,
     gpx_opacity: float = 0.6,
 ) -> int:
     """Draw one full page: map, footer line below it. Returns true scale."""
@@ -377,7 +377,7 @@ def generate_pdf(
     grid_spacing_m: int = 1000,
     gpx_routes: list[list[list[float]]] | None = None,
     gpx_color: str = "#ff00ff",
-    gpx_width: int = 5,
+    gpx_width: float = 5,
     gpx_opacity: float = 0.6,
 ) -> PrintResult:
     """Render ``extent`` and write a scaled PDF page.
