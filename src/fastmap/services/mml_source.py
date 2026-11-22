@@ -343,7 +343,22 @@ def fetch_wmts_mosaic(
         output.close()
         raise
 
-    return output.quantize(colors=128)
+    return to_palette(output)
+
+
+def to_palette(img: Image.Image) -> Image.Image:
+    """The image as a palette image; exact when it has at most 256 colours.
+
+    MML's raster maps use a small fixed palette (about 120 colours on a sheet), so
+    the palette image is lossless and lets the PDF store one byte per pixel.
+    """
+    colours = img.getcolors(256)
+    if colours is None:
+        return img.quantize(colors=256)
+    flat = [v for _, rgb in colours for v in rgb]
+    palette = Image.new("P", (1, 1))
+    palette.putpalette(flat + [0] * (768 - len(flat)))
+    return img.quantize(palette=palette, dither=Image.Dither.NONE)
 
 
 def _close_abandoned_tile(future) -> None:

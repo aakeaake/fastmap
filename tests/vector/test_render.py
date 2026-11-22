@@ -236,7 +236,7 @@ def test_no_outline_along_tile_seam(tmp_path, monkeypatch, layer, kohdeluokka, m
     from fastmap.vector import render
 
     pieces = _seam_pieces(layer, kohdeluokka, mtk_id)
-    monkeypatch.setattr(render, "load_tiles", lambda extent, level: list(pieces))
+    monkeypatch.setattr(render, "load_tiles", lambda extent, level, keep=None: list(pieces))
     extent = Extent(_SEAM_X - 200, _SEAM_Y, _SEAM_X + 200, _SEAM_Y + 400)
     c = Canvas(str(tmp_path / "seam.pdf"), pagesize=(400, 400))
     render_vector_map(c, extent, (0, 0, 400, 400), 25000)  # 1 pt per metre
@@ -278,3 +278,73 @@ def test_line_width_none_falls_back_to_default(tmp_path):
 def test_line_color_none_falls_back_to_black(tmp_path):
     content = _line_content(tmp_path, {"line-color": ["get", "missing"], "line-width": 2})
     assert b"0 0 0 RG" in content
+
+
+def test_pdf_path_matches_reportlab_moveto_lineto():
+    import numpy as np
+    from reportlab.pdfgen.pathobject import PDFPathObject
+
+    from fastmap.vector.draw import PdfPath
+
+    pts = np.array([[1.004, 2.0], [3.5, 4.25], [10.126, -7.0]])
+    ours = PdfPath()
+    ours.add_run(pts, close=True)
+    ours.add_run(pts[:1], close=False)  # one point: nothing to draw
+    ref = PDFPathObject()
+    ref.moveTo(*pts[0])
+    for x, y in pts[1:]:
+        ref.lineTo(x, y)
+    ref.close()
+
+    def nums(code):
+        return [round(float(t), 2) for t in code.split() if not t.isalpha()]
+
+    def ops(code):  # drawing operators; ReportLab may lead with a no-op "n"
+        return [t for t in code.split() if t.isalpha() and t != "n"]
+
+    assert ops(ours.getCode()) == ops(ref.getCode()) == ["m", "l", "l", "h"]
+    assert nums(ours.getCode()) == pytest.approx(nums(ref.getCode()), abs=0.006)
+
+
+def test_vectorised_paths_match_the_per_ring_loop():
+    import numpy as np
+    from shapely.geometry import LineString, MultiLineString, MultiPolygon, Polygon
+    from shapely.geometry.polygon import orient
+
+    from fastmap.vector.draw import PdfPath, _line_path, _polygon_path
+
+    holed = Polygon(
+        [(0, 0), (0, 10), (10, 10), (10, 0)],  # clockwise: gets reoriented
+        [[(2, 2), (4, 2), (4, 4), (2, 4)]],
+    )
+    polys = [MultiPolygon([holed, Polygon([(20, 0), (25, 0), (25, 5)])]), Polygon()]
+    lines = [
+        MultiLineString([[(0, 0), (1, 1), (2, 0)], [(5, 5), (6, 6)]]),
+        LineString([(9, 9), (9.5, 9.25)]),
+        LineString(),
+    ]
+
+    def old_polygons(geoms):
+        path = PdfPath()
+        for g in geoms:
+            for poly in getattr(g, "geoms", [g]):
+                if poly.is_empty:
+                    continue
+                poly = orient(poly, 1.0)
+                path.add_run(np.asarray(poly.exterior.coords), True)
+                for ring in poly.interiors:
+                    path.add_run(np.asarray(ring.coords), True)
+        return path
+
+    def old_lines(geoms):
+        path = PdfPath()
+        for g in geoms:
+            for line in getattr(g, "geoms", [g]):
+                if not line.is_empty:
+                    path.add_run(np.asarray(line.coords), False)
+        return path
+
+    assert _polygon_path(polys).getCode() == old_polygons(polys).getCode()
+    assert _polygon_path(polys).getCode().count(" h") == 3
+    assert _line_path(lines).getCode() == old_lines(lines).getCode()
+    assert _line_path(lines).getCode().count(" m") == 3

@@ -29,7 +29,8 @@ _LEGACY_KEY_OPS = frozenset({"==", "!=", "<", "<=", ">", ">=", "in", "!in", "has
 _LEGACY_ONLY_OPS = frozenset({"!in", "!has", "none"})
 
 
-def _is_legacy(expr: list) -> bool:
+def is_legacy(expr: list) -> bool:
+    """Whether a filter uses the legacy ``[op, "key", value]`` form."""
     op = expr[0]
     return op in _LEGACY_KEY_OPS and len(expr) > 1 and isinstance(expr[1], str)
 
@@ -349,7 +350,7 @@ def evaluate(expr: Any, ctx: EvalContext) -> Any:
     op = expr[0]
     if op not in _KNOWN_OPS:
         raise StyleError(f"unknown expression operator {op!r}")
-    if _is_legacy(expr):
+    if is_legacy(expr):
         return _legacy(expr, ctx)
     args = expr[1:]
     if op in _LAZY:
@@ -376,7 +377,7 @@ def validate(expr: Any) -> None:
     op = expr[0]
     if op not in _KNOWN_OPS:
         raise StyleError(f"unknown expression operator {op!r}")
-    if _is_legacy(expr) or op == "literal":
+    if is_legacy(expr) or op == "literal":
         return
     args = expr[1:]
     if op == "match":

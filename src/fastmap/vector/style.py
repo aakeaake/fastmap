@@ -5,6 +5,10 @@ from __future__ import annotations
 import copy
 import json
 import math
+import re
+from collections.abc import Iterator
+from contextlib import contextmanager
+from contextvars import ContextVar
 from dataclasses import dataclass, field
 from functools import cache
 from pathlib import Path
@@ -15,6 +19,8 @@ from .expressions import (
     EvalContext,
     StyleError,
     evaluate_property,
+    filter_matches,
+    is_legacy,
     validate,
     validate_property,
 )
@@ -33,6 +39,74 @@ def scale_to_zoom(scale: int, northing: float) -> float:
     return math.log2(156543.034 * math.cos(lat) / (scale * 0.00028))
 
 
+_TOKEN = re.compile(r"\{([^{}]+)\}")
+_WHOLE_FEATURE_OPS = frozenset({"properties", "feature-state", "id", "accumulated"})
+_FAILED = object()  # an evaluation that raised (cached like any result)
+_ABSENT = object()  # an attribute the feature lacks (unlike one that is None)
+
+# Evaluation results of the render in progress; None outside ``evaluation_cache``.
+_RENDER_MEMO: ContextVar[dict | None] = ContextVar("fastmap_style_memo", default=None)
+
+
+@contextmanager
+def evaluation_cache() -> Iterator[dict]:
+    """Share style evaluations between features for the duration of one render.
+
+    Features with the same values for the attributes an expression reads share
+    one result (most share their class and nothing else). The cache key leaves
+    out the zoom, which is fixed within a render: callers must not evaluate at
+    different zooms inside one ``evaluation_cache()``. Outside it, ``StyleLayer``
+    evaluates uncached. Yields the memo dict (for tests).
+    """
+    memo: dict = {}
+    token = _RENDER_MEMO.set(memo)
+    try:
+        yield memo
+    finally:
+        _RENDER_MEMO.reset(token)
+
+
+def _evaluate(prop: str, raw: Any, ctx: EvalContext) -> Any:
+    """The evaluated property, or ``_FAILED`` when the feature's data breaks it."""
+    try:
+        return evaluate_property(prop, raw, ctx)
+    except (StyleError, TypeError, ValueError):
+        return _FAILED
+
+
+def _names_in(expr: Any) -> tuple[str, ...] | None:
+    """The feature attributes ``expr`` reads, or None if that can't be known.
+
+    Attributes are read by ``get`` / ``has`` / ``!has``, by legacy filters
+    (``["==", "key", value]``), by ``{token}`` strings and by the ``property`` of a
+    legacy stops function. A computed key or a whole-feature operator makes the
+    set unknowable; such expressions are not cached.
+    """
+    names: set[str] = set()
+
+    def walk(e: Any) -> bool:
+        if isinstance(e, str):
+            names.update(_TOKEN.findall(e))
+        elif isinstance(e, dict):
+            if isinstance(e.get("property"), str):
+                names.add(e["property"])
+            return all(walk(x) for x in e.values())
+        elif isinstance(e, (list, tuple)) and e:
+            op = e[0] if isinstance(e[0], str) else None
+            if op in _WHOLE_FEATURE_OPS:
+                return False
+            if op in ("get", "has", "!has") and len(e) > 1:
+                if not isinstance(e[1], str):
+                    return False
+                names.add(e[1])
+            elif op is not None and is_legacy(e):
+                names.add(e[1])
+            return all(walk(x) for x in e)
+        return True
+
+    return tuple(sorted(names)) if walk(expr) else None
+
+
 @dataclass
 class StyleLayer:
     id: str
@@ -43,23 +117,62 @@ class StyleLayer:
     filter: Any
     paint: dict = field(default_factory=dict)
     layout: dict = field(default_factory=dict)
+    # The attributes each expression reads (static analysis, one entry per property).
+    _names: dict = field(default_factory=dict, init=False, repr=False, compare=False)
 
     def visible_at(self, zoom: float) -> bool:
         return self.minzoom <= zoom < self.maxzoom and self.layout.get("visibility") != "none"
+
+    def _memo_slot(self, what: str, expr: Any, ctx: EvalContext) -> tuple[dict | None, Any]:
+        """(render memo, key) for caching ``expr`` on this feature; (None, None) if not."""
+        memo = _RENDER_MEMO.get()
+        if memo is None:
+            return None, None
+        try:
+            names = self._names[what]
+        except KeyError:
+            names = self._names[what] = _names_in(expr)
+        if names is None:
+            return None, None
+        props = ctx.props
+        key = (id(self), what, ctx.geom_type, tuple(props.get(n, _ABSENT) for n in names))
+        try:
+            hash(key)
+        except TypeError:  # an unhashable attribute value: evaluate uncached
+            return None, None
+        return memo, key
+
+    def matches(self, ctx: EvalContext) -> bool:
+        """Whether a feature passes this layer's filter (cached within a render)."""
+        if self.filter is None:
+            return True
+        memo, key = self._memo_slot("$filter", self.filter, ctx)
+        if memo is None:
+            return filter_matches(self.filter, ctx)
+        try:
+            return memo[key]
+        except KeyError:
+            value = memo[key] = filter_matches(self.filter, ctx)
+            return value
 
     def get(self, prop: str, ctx: EvalContext, default: Any = None) -> Any:
         """Evaluated property; the default if it is absent, None or fails to evaluate.
 
         MapLibre falls back to the property default when a feature's data breaks an
-        expression, so one bad feature never fails the map.
+        expression, so one bad feature never fails the map. Cached within a render.
         """
         for section in (self.paint, self.layout):
             if prop in section:
-                try:
-                    value = evaluate_property(prop, section[prop], ctx)
-                except (StyleError, TypeError, ValueError):
-                    return default
-                return default if value is None else value
+                raw = section[prop]
+                memo, key = self._memo_slot(prop, raw, ctx)
+                if memo is None:
+                    value = _evaluate(prop, raw, ctx)
+                else:
+                    try:
+                        value = memo[key]
+                    except KeyError:
+                        value = memo[key] = _evaluate(prop, raw, ctx)
+                return default if value is None or value is _FAILED else value
         return default
 
     def number(self, prop: str, ctx: EvalContext, default: float) -> float:

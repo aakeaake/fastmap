@@ -4,6 +4,7 @@ from fastmap.vector.expressions import EvalContext, StyleError, filter_matches
 from fastmap.vector.profiles import PROFILES
 from fastmap.vector.style import (
     StyleLayer,
+    evaluation_cache,
     load_style,
     scale_to_zoom,
     style_for,
@@ -152,3 +153,61 @@ def test_50k_trails_fences_and_borders_are_wider_than_the_style():
     ctx = EvalContext({"kohdeluokka": 44211}, 13.5, "LineString")
     for lid in ("mml-polku", "mml-ajopolku", "mml-aita", "protected_area-outline-outer-mml"):
         assert wide[lid].number("line-width", ctx, 1) > 1.3 * base[lid].number("line-width", ctx, 1)
+
+
+def test_cached_evaluation_matches_uncached_for_every_layer(offline_tiles):
+    from fastmap.services.print_layout import Extent
+    from fastmap.vector import tiles
+    from fastmap.vector.expressions import evaluate_property
+
+    e, n = offline_tiles
+    feats = tiles.load_tiles(Extent(e - 600, n - 600, e + 600, n + 600), 12)
+    style = load_style()
+    zoom = 13.5
+    checked = 0
+    with evaluation_cache() as memo:
+        for layer in style.layers:
+            for f in feats:
+                if f.layer != layer.source_layer:
+                    continue
+                ctx = EvalContext(f.props, zoom, f.geom_type)
+                want = layer.filter is None or filter_matches(layer.filter, ctx)
+                assert layer.matches(ctx) == want
+                assert layer.matches(ctx) == want  # second call served from the cache
+                for prop, raw in {**layer.paint, **layer.layout}.items():
+                    try:
+                        plain = evaluate_property(prop, raw, ctx)
+                    except (StyleError, TypeError, ValueError):
+                        plain = None
+                    assert layer.get(prop, ctx) == plain
+                    checked += 1
+    assert checked > 1000
+    assert 0 < len(memo) < checked  # results were cached and shared
+
+
+def test_evaluation_cache_is_shared_by_features_with_the_same_attributes():
+    layer = next(ly for ly in load_style().layers if ly.id == "mml-polku")
+    a = EvalContext({"kohdeluokka": 12313, "mtk_id": 1}, 13.5, "LineString")
+    b = EvalContext({"kohdeluokka": 12313, "mtk_id": 2}, 13.5, "LineString")
+    with evaluation_cache() as memo:
+        layer.get("line-width", a)
+        size = len(memo)
+        layer.get("line-width", b)  # mtk_id is not read by the width expression
+        assert len(memo) == size == 1
+
+
+def test_evaluation_is_cached_only_inside_a_render(monkeypatch):
+    from fastmap.vector import style as style_mod
+
+    calls = []
+    real = style_mod.evaluate_property
+    monkeypatch.setattr(style_mod, "evaluate_property", lambda *a: calls.append(a) or real(*a))
+    layer = next(ly for ly in load_style().layers if ly.id == "mml-polku")
+    ctx = EvalContext({"kohdeluokka": 12313}, 13.5, "LineString")
+    layer.get("line-width", ctx)
+    layer.get("line-width", ctx)
+    assert len(calls) == 2
+    with evaluation_cache():
+        layer.get("line-width", ctx)
+        layer.get("line-width", ctx)
+    assert len(calls) == 3

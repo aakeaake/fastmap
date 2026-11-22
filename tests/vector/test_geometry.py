@@ -223,3 +223,24 @@ def test_adjacent_protected_areas_of_one_class_dissolve():
     merged = by_class[72202].geometry
     assert merged.geom_type == "Polygon" and merged.area == pytest.approx(20000)
     assert not merged.boundary.intersects(LineString([(100, 10), (100, 90)]))
+
+
+def test_simplify_drops_invisible_vertices_within_tolerance():
+    import math
+
+    from fastmap.vector.geometry import simplify_features
+
+    # a wiggly 1 km line: 2000 vertices, 0.1 m noise (invisible on paper)
+    pts = [(i * 0.5, 0.1 * math.sin(i)) for i in range(2000)]
+    line = _f("korkeus", "LineString", LineString(pts))
+    ring = box(0, 0, 100, 100).buffer(20, quad_segs=64)  # rounded square
+    poly = _f("vesisto_alue", "Polygon", ring)
+    point = _f("nimisto", "Point", Point(1, 2))
+    out = simplify_features([line, poly, point], tolerance_m=1.0, geom_type="LineString")
+    out = simplify_features(out, tolerance_m=1.0, geom_type="Polygon")
+    assert len(out) == 3
+    assert len(out[0].geometry.coords) < 20
+    assert out[0].geometry.hausdorff_distance(line.geometry) <= 1.0
+    assert out[1].geometry.is_valid
+    assert abs(out[1].geometry.area - ring.area) / ring.area < 0.01
+    assert out[2].geometry.equals(point.geometry)

@@ -4,6 +4,12 @@ All notable changes to FastMap. Versions are tagged `vX.Y.Z` on `main`.
 
 ## Unreleased
 
+### Changed
+- Vector PDFs render about 5x faster and are about 3x smaller (A4 1:50 000:
+  65 s -> 11 s of CPU, 12.4 -> 4.2 MB), with the same print quality; output
+  is now identical between runs. Raster PDFs render about 5x faster and are
+  about a quarter smaller (indexed images with an exact palette).
+
 ### Fixed
 - The Route/Atlas sheet index is a radio group for screen readers (arrow
   keys move the selection), and a download no longer makes them re-read the

@@ -25,6 +25,7 @@ from shapely.geometry import LineString
 from .draw import MapFrame, _matching
 from .expressions import EvalContext
 from .fonts import font_for, register_fonts
+from .geometry import parts
 from .model import Feature
 from .style import Style, StyleLayer
 from .symbols import Symbols, icon_size_pt, placed_by_labels
@@ -217,11 +218,11 @@ def _layer_candidates(
         common.update(icon)
         if line_placement:
             geom = f.geometry.boundary if f.geom_type == "Polygon" else f.geometry
-            for part in getattr(geom, "geoms", [geom]):
+            for part in parts(geom):
                 if not part.is_empty and part.length > 0:
                     yield Candidate(anchor_pts=[], line=frame.geom_to_pt(part), **common)
         else:
-            pts = [frame.to_pt(p.x, p.y) for p in getattr(f.geometry, "geoms", [f.geometry])]
+            pts = [frame.to_pt(p.x, p.y) for p in parts(f.geometry)]
             yield Candidate(anchor_pts=[(x, y, 0.0) for x, y in pts], line=None, **common)
 
 

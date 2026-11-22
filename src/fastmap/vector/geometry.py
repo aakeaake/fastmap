@@ -23,7 +23,12 @@ _FAMILY = {
 }
 
 
-def _only_type(geom, geom_type: str):
+def parts(geom) -> list:
+    """The parts of a multi-geometry, or the geometry itself as the only part."""
+    return getattr(geom, "geoms", [geom])
+
+
+def only_type(geom, geom_type: str):
     """Keep only the parts of ``geom`` matching ``geom_type``; None if nothing is left."""
     if geom is None or geom.is_empty:
         return None
@@ -31,10 +36,10 @@ def _only_type(geom, geom_type: str):
     if geom.geom_type in names:
         return geom
     if geom.geom_type == "GeometryCollection":
-        parts = [p for p in geom.geoms if p.geom_type in names and not p.is_empty]
-        if not parts:
+        kept = [p for p in geom.geoms if p.geom_type in names and not p.is_empty]
+        if not kept:
             return None
-        return shapely.union_all(parts)
+        return shapely.union_all(kept)
     return None
 
 
@@ -45,10 +50,7 @@ def _join_lines(geoms):
     that lie within the tolerance of each other are moved to a shared
     coordinate so ``linemerge`` can join them. Branch points stay branches.
     """
-    parts = []
-    for g in geoms:
-        parts.extend(g.geoms if hasattr(g, "geoms") else [g])
-    coords = [list(p.coords) for p in parts]
+    coords = [list(p.coords) for g in geoms for p in parts(g)]
     anchors: list[tuple[float, float]] = []  # one shared coordinate per end cluster
     tol2 = SNAP_TOLERANCE_M**2
 
@@ -68,7 +70,7 @@ def _join_lines(geoms):
     merged = shapely.union_all(lines)
     if merged.geom_type == "MultiLineString":
         return linemerge(merged)
-    return merged  # LineString, or a collection that _only_type filters later
+    return merged  # LineString, or a collection that only_type filters later
 
 
 # Area layers whose polygons are merged by class, not by object: a protected area
@@ -107,7 +109,7 @@ def merge_by_mtk_id(features: list[Feature]) -> list[Feature]:
             merged = _join_lines(geoms)
         else:
             merged = shapely.union_all(geoms)
-        merged = _only_type(merged, first.geom_type)
+        merged = only_type(merged, first.geom_type)
         if merged is None:
             continue
         out[slots[key]] = Feature(first.layer, first.geom_type, merged, first.props)
@@ -116,15 +118,10 @@ def merge_by_mtk_id(features: list[Feature]) -> list[Feature]:
 
 def clip_features(features: list[Feature], extent: Extent, buffer_m: float) -> list[Feature]:
     """Intersect features with the extent grown by ``buffer_m``; drop empties."""
-    clip = box(
-        extent.minx - buffer_m,
-        extent.miny - buffer_m,
-        extent.maxx + buffer_m,
-        extent.maxy + buffer_m,
-    )
+    clip = box(*extent.buffered(buffer_m).as_tuple())
     out: list[Feature] = []
     for f in features:
-        g = _only_type(f.geometry.intersection(clip), f.geom_type)
+        g = only_type(f.geometry.intersection(clip), f.geom_type)
         if g is not None:
             out.append(Feature(f.layer, f.geom_type, g, f.props))
     return out
@@ -156,7 +153,7 @@ def outline(geom, tile_m: float | None):
     if tile_m is None:
         return boundary
     out: list[LineString] = []
-    for line in getattr(boundary, "geoms", [boundary]):
+    for line in parts(boundary):
         a = np.asarray(line.coords)[:, :2]
         if len(a) < 2:
             continue
@@ -178,3 +175,31 @@ def outline(geom, tile_m: float | None):
                 out.append(LineString(a[start : i + 1]))
                 start = None
     return shapely.line_merge(MultiLineString(out))
+
+
+def simplify_features(features: list[Feature], tolerance_m: float, geom_type: str) -> list[Feature]:
+    """Drop vertices of ``geom_type`` shapes that move them less than ``tolerance_m``.
+
+    Tile geometry is stored far finer than print can show; fewer vertices make the
+    later stages and the drawing faster and the PDF smaller. Polygons keep their
+    topology (they stay valid); lines use the faster plain Douglas-Peucker, which
+    keeps their endpoints, so pieces still join at tile edges. Other features pass
+    through; shapes that simplify away are dropped.
+    """
+    selected = [f for f in features if f.geom_type == geom_type]
+    simplified = iter(
+        shapely.simplify(
+            np.array([f.geometry for f in selected], dtype=object),
+            tolerance_m,
+            preserve_topology=geom_type == "Polygon",
+        )
+    )
+    out: list[Feature] = []
+    for f in features:
+        if f.geom_type != geom_type:
+            out.append(f)
+            continue
+        g = next(simplified)
+        if not g.is_empty:
+            out.append(Feature(f.layer, f.geom_type, g, f.props))
+    return out
