@@ -14,6 +14,8 @@ All notable changes to FastMap. Versions are tagged `vX.Y.Z` on `main`.
   ("Route changed — the maps still follow the old one") and offers Update.
 
 ### Changed
+- The route is drawn in its chosen colour, fully opaque, instead of the
+  default blue.
 - Route mode only covers the route with maps; the route itself is in the
   route tool.
 - The route width is set in mm (default 1.1 mm, about 3 pt; was 5 pt). The

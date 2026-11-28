@@ -162,6 +162,24 @@ const VERTEX_STYLE = new Style({
     geometry: f => new MultiPoint(f.getGeometry().getCoordinates().flat()),
 });
 
+// The sketch while drawing, in `color` and fully opaque: lines with a white
+// casing and white-ringed points, like the OpenLayers default sketch
+function sketchStyle(color) {
+    const casing = new Style({ stroke: new Stroke({ color: '#ffffff', width: 5 }) });
+    const line = new Style({ stroke: new Stroke({ color, width: 3 }) });
+    const point = new Style({
+        image: new CircleStyle({
+            radius: 6, fill: new Fill({ color }), stroke: new Stroke({ color: '#ffffff', width: 1.5 }),
+        }),
+    });
+    const fill = new Style({ fill: new Fill({ color: 'rgba(255, 255, 255, 0.5)' }) });
+    return feature => {
+        const t = feature.getGeometry().getType();
+        if (t === 'Point') return point;
+        return t === 'Polygon' ? [fill, casing, line] : [casing, line];
+    };
+}
+
 const xy = p => [p[0], p[1]];
 const xyLines = geom => geom.getCoordinates().map(line => line.map(xy));
 
@@ -173,7 +191,8 @@ export function createRouteTools(map, routeLayer, opts) {
     return createShapeTools(map, routeLayer, { ...opts, type: 'LineString' });
 }
 
-export function createShapeTools(map, layer, { type, onChange, onDone, onModeChange }) {
+// `sketchColor` (optional): () => '#rrggbb', the colour to draw in
+export function createShapeTools(map, layer, { type, onChange, onDone, onModeChange, sketchColor }) {
     const polygon = type === 'Polygon';
     const minPoints = polygon ? 3 : 2;
     // The layer's feature: a Polygon (area) or a MultiLineString (route)
@@ -224,7 +243,10 @@ export function createShapeTools(map, layer, { type, onChange, onDone, onModeCha
         // A drag always pans: no dragging the new point after a long press
         // (dragVertexDelay; finite so setTimeout does not overflow) and no
         // Shift-drag freehand drawing
-        const draw = new Draw({ type, dragVertexDelay: 1e9, freehandCondition: never });
+        const draw = new Draw({
+            type, dragVertexDelay: 1e9, freehandCondition: never,
+            ...(sketchColor && { style: sketchStyle(sketchColor()) }),
+        });
         // The sketch's last point follows the pointer; the rest are placed.
         // A polygon sketch's ring also ends with the closing point.
         draw.on('drawstart', ev => {
