@@ -652,3 +652,20 @@ def test_line_look_is_default():
     req = MapRequest(**_COURSE_BASE)
     assert req.gpx_look == "line"
     assert req.gpx_waypoints == []
+
+
+def test_bad_magnetic_spacing_is_422():
+    body = {
+        "bbox": {"minx": 428100, "miny": 6665230, "maxx": 431900, "maxy": 6670770},
+        "scale": 20000,
+        "magnetic_north": True,
+        "magnetic_spacing_m": 300,
+    }
+    assert client.post("/generate-map", json=body).status_code == 422
+
+
+def test_magnetic_defaults():
+    from fastmap.schemas.map_request import MapRequest
+
+    req = MapRequest(center_x=430000, center_y=6668000, scale=20000)
+    assert (req.magnetic_north, req.magnetic_spacing_m) == (False, 1000)

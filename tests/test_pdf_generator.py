@@ -466,9 +466,12 @@ def test_footer_line_is_below_the_map_and_has_no_box(tmp_path, monkeypatch):
     result, content = _footer_pdf(tmp_path, monkeypatch)
     mx, my, mw, _ = _image_box(content)
     texts = {t: (x, y) for x, y, t, _ in _text_ops(content)}
-    left = f"Test Map · {format_scale_label(result.actual_scale)}"
+    left = next(t for t in texts if t.startswith("Test Map · "))
+    assert re.fullmatch(
+        rf"Test Map · {format_scale_label(result.actual_scale)} · kok\. [+−]?\d+°", left
+    )
     right = pdf_generator.attribution()
-    assert left in texts and right in texts
+    assert right in texts
     for _x, y in (texts[left], texts[right]):
         assert 10 * mm <= y < my  # between the margin line and the map
     assert texts[left][0] == pytest.approx(mx, abs=0.01)
@@ -476,11 +479,11 @@ def test_footer_line_is_below_the_map_and_has_no_box(tmp_path, monkeypatch):
     assert b" re f" not in content  # the white boxes behind on-map text are gone
 
 
-def test_footer_without_title_shows_only_scale(tmp_path, monkeypatch):
+def test_footer_without_title_shows_scale_and_correction(tmp_path, monkeypatch):
     result, content = _footer_pdf(tmp_path, monkeypatch, title=None)
     texts = [t for _, _, t, _ in _text_ops(content)]
-    assert format_scale_label(result.actual_scale) in texts
-    assert not any("·" in t for t in texts)
+    scale = re.escape(format_scale_label(result.actual_scale))
+    assert any(re.fullmatch(rf"{scale} · kok\. [+−]?\d+°", t) for t in texts)
 
 
 def test_long_title_is_shortened_not_overlapping(tmp_path, monkeypatch):
@@ -489,7 +492,7 @@ def test_long_title_is_shortened_not_overlapping(tmp_path, monkeypatch):
     left = next(t for t in ops if t.startswith("Pitkä"))
     right = pdf_generator.attribution()
     # only the title is shortened; the scale is never cut
-    assert re.fullmatch(r"Pitkä otsikko.*… · 1 : \d+ \d{3}", left)
+    assert re.fullmatch(r"Pitkä otsikko.*… · 1 : \d+ \d{3} · kok\. [+−]?\d+°", left)
     assert ops[left] + stringWidth(left, "Courier", 7) + 2 * mm <= ops[right] + 0.01
 
 
@@ -756,3 +759,130 @@ def test_multi_pdf_passes_course_kwargs(tmp_path, monkeypatch):
     }
     pdf_generator.generate_multi_pdf([(_COURSE_EXT, kwargs)], str(out))
     assert "Torni" in _pdf_text(out)
+
+
+# --- Total correction (kok.) and magnetic north lines --------------------------
+
+_MN_EXT = Extent(428100, 6665230, 431900, 6670770)
+
+
+def _white(extent, width_px, height_px, layer="maastokartta"):
+    return Image.new("RGB", (width_px, height_px), (255, 255, 255))
+
+
+def _text(path):
+    import subprocess
+
+    return subprocess.run(
+        ["pdftotext", str(path), "-"], check=True, capture_output=True
+    ).stdout.decode()
+
+
+def _png(path, tmp_path, name="pg"):
+    import subprocess
+    from glob import glob
+
+    subprocess.run(["pdftoppm", "-png", "-r", "60", str(path), str(tmp_path / name)], check=True)
+    return Image.open(sorted(glob(str(tmp_path / f"{name}-*.png")))[0]).convert("RGB")
+
+
+def _expected_kok(extent):
+    from datetime import datetime
+
+    from fastmap.services.north import format_correction, total_correction
+
+    cx, cy = (extent.minx + extent.maxx) / 2, (extent.miny + extent.maxy) / 2
+    today = datetime.now(pdf_generator._LOCAL_TZ).date()
+    return format_correction(total_correction(cx, cy, today))
+
+
+def test_footer_has_kok(tmp_path, monkeypatch):
+    monkeypatch.setattr(pdf_generator, "render_extent_image", _white)
+    out = tmp_path / "kok.pdf"
+    pdf_generator.generate_pdf(
+        _MN_EXT, paper_size="A4", orientation="portrait", out_pdf_path=str(out)
+    )
+    text = _text(out)
+    assert _expected_kok(_MN_EXT) in text
+    assert "kok. +" in text
+
+
+def test_footer_long_title_keeps_scale_and_kok(tmp_path, monkeypatch):
+    monkeypatch.setattr(pdf_generator, "render_extent_image", _white)
+    out = tmp_path / "long.pdf"
+    pdf_generator.generate_pdf(
+        _MN_EXT,
+        paper_size="A4",
+        orientation="portrait",
+        title="Pitkä otsikko " * 15,
+        out_pdf_path=str(out),
+    )
+    text = _text(out)
+    assert "1 : " in text and "kok." in text and "…" in text
+
+
+def _grey_xs(img, row):
+    px = img.load()
+    # thin grey lines antialias at 60 dpi: anything clearly darker than white
+    return [x for x in range(img.size[0]) if max(px[x, row]) < 235]
+
+
+def test_magnetic_lines_are_slanted(tmp_path, monkeypatch):
+    monkeypatch.setattr(pdf_generator, "render_extent_image", _white)
+    out = tmp_path / "mag.pdf"
+    pdf_generator.generate_pdf(
+        _MN_EXT,
+        paper_size="A4",
+        orientation="portrait",
+        magnetic_north=True,
+        magnetic_spacing_m=500,
+        out_pdf_path=str(out),
+    )
+    img = _png(out, tmp_path)
+    h = img.size[1]
+    top, bottom = _grey_xs(img, int(h * 0.15)), _grey_xs(img, int(h * 0.8))
+    assert top and bottom
+    assert set(top) != set(bottom)  # not vertical: the lines lean
+
+
+def test_magnetic_spacing_larger_than_sheet(tmp_path, monkeypatch):
+    monkeypatch.setattr(pdf_generator, "render_extent_image", _white)
+    small = Extent(429000, 6666000, 429500, 6666700)
+    pdf_generator.generate_pdf(
+        small,
+        paper_size="A4",
+        orientation="portrait",
+        magnetic_north=True,
+        magnetic_spacing_m=2000,
+        out_pdf_path=str(tmp_path / "s.pdf"),
+    )
+
+
+def _blue_pixels(img):
+    px = img.load()
+    w, h = img.size
+    return sum(
+        1
+        for x in range(0, w, 2)
+        for y in range(0, h, 2)
+        if px[x, y][2] > 150 and px[x, y][0] < 90 and px[x, y][1] < 140
+    )
+
+
+def test_grid_turns_blue_only_with_magnetic(tmp_path, monkeypatch):
+    monkeypatch.setattr(pdf_generator, "render_extent_image", _white)
+    both = tmp_path / "both.pdf"
+    grid = tmp_path / "grid.pdf"
+    common = {"paper_size": "A4", "orientation": "portrait", "grid_mode": "full_coords"}
+    pdf_generator.generate_pdf(_MN_EXT, magnetic_north=True, out_pdf_path=str(both), **common)
+    pdf_generator.generate_pdf(_MN_EXT, out_pdf_path=str(grid), **common)
+    assert _blue_pixels(_png(both, tmp_path, "b")) > 50
+    assert _blue_pixels(_png(grid, tmp_path, "g")) == 0
+
+
+def test_multi_pdf_magnetic_and_kok(tmp_path, monkeypatch):
+    monkeypatch.setattr(pdf_generator, "render_extent_image", _white)
+    out = tmp_path / "multi.pdf"
+    kwargs = {"paper_size": "A4", "orientation": "portrait", "magnetic_north": True}
+    pdf_generator.generate_multi_pdf([(_MN_EXT, kwargs)], str(out))
+    assert _expected_kok(_MN_EXT) in _text(out)
