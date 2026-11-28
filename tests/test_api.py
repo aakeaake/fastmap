@@ -300,12 +300,12 @@ def test_version_fallback_when_not_installed(monkeypatch):
 def test_tile_proxy_network_error_is_502_without_key(monkeypatch):
     import requests
 
-    from fastmap.api import routes
+    from fastmap.services import mml_source
 
     def boom(url, **kw):
         raise requests.ConnectionError(f"Max retries exceeded with url: {url}?api-key=test-key")
 
-    monkeypatch.setattr(routes.requests, "get", boom)
+    monkeypatch.setattr(mml_source._session, "get", boom)
     resp = client.get("/api/nls-tiles/8/119/210.png", params={"layer": "maastokartta"})
     assert resp.status_code == 502
     assert "test-key" not in resp.text
@@ -590,7 +590,7 @@ def test_vector_layer_accepted_and_rendered(monkeypatch):
 
 
 def test_tile_proxy_vector_layer_fetches_raster(monkeypatch):
-    from fastmap.api import routes
+    from fastmap.services import mml_source
 
     urls = []
 
@@ -602,7 +602,7 @@ def test_tile_proxy_vector_layer_fetches_raster(monkeypatch):
         urls.append(url)
         return Resp()
 
-    monkeypatch.setattr(routes.requests, "get", fake_get)
+    monkeypatch.setattr(mml_source._session, "get", fake_get)
     resp = client.get("/api/nls-tiles/8/119/210.png", params={"layer": "maastokartta_vektori"})
     assert resp.status_code == 200
     assert "/maastokartta/" in urls[0] and "vektori" not in urls[0]

@@ -17,9 +17,9 @@ from fastmap.core.config import (
     MML_API_KEY,
     MML_WMTS_URL,
     RENDER_WORKERS,
-    USER_AGENT,
 )
 from fastmap.schemas.map_request import BatchMapRequest, MapRequest
+from fastmap.services import mml_source
 from fastmap.services.jobs import JobStore, QueueFull
 from fastmap.services.mml_source import (
     MML_LAYERS,
@@ -306,12 +306,9 @@ def nls_tile(level: int, col: int, row: int, layer: str = "taustakartta"):
     raster_layer = "maastokartta" if layer == VECTOR_LAYER else layer
     url = MML_WMTS_URL.format(layer=raster_layer, z=level, y=row, x=col)
     try:
-        resp = requests.get(
-            url,
-            params={"api-key": MML_API_KEY},
-            headers={"User-Agent": USER_AGENT},
-            timeout=30,
-        )
+        # The shared session keeps connections to MML open (no TLS handshake
+        # per tile) and retries MML's transient 429/5xx answers.
+        resp = mml_source._session.get(url, params={"api-key": MML_API_KEY}, timeout=30)
     except requests.RequestException as exc:
         # requests' message contains the full URL incl. the api-key query param
         log.warning("tile fetch failed  %s %s", url, type(exc).__name__)
