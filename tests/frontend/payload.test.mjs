@@ -20,7 +20,7 @@ test('gpxRoutes keeps lines, drops waypoints, strips elevation and time', () => 
 
 const entry = {
     title: '', scale: 20000, paperSize: 'A4', orientation: 'portrait', layer: 'maastokartta',
-    margin: 7, gridMode: 'off', gridSpacing: 1000,
+    margin: 7, gridMode: 'off', gridSpacing: 1000, magneticNorth: false, magneticSpacing: 1000,
 };
 const auto = { dpi: '', zoomLevel: '', routes: [], gpxColor: '#ff00ff', gpxWidthMm: '1.1', gpxOpacity: '60' };
 
@@ -33,7 +33,14 @@ test('buildPayload: automatic settings send only the map', () => {
         bbox: { minx: 0, miny: 0, maxx: 10, maxy: 20 },
         scale: 20000, paper_size: 'A4', orientation: 'portrait', layer: 'maastokartta',
         margin_mm: 7, grid_mode: 'off', grid_spacing_m: 1000,
+        magnetic_north: false, magnetic_spacing_m: 1000,
     });
+});
+
+test('buildPayload sends the magnetic north lines setting', () => {
+    const p = buildPayload({ ...entry, magneticNorth: true, magneticSpacing: 500 }, [0, 0, 1, 1], auto);
+    assert.equal(p.magnetic_north, true);
+    assert.equal(p.magnetic_spacing_m, 500);
 });
 
 test('buildPayload: title, precision and GPX style when set', () => {

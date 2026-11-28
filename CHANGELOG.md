@@ -5,6 +5,14 @@ All notable changes to FastMap. Versions are tagged `vX.Y.Z` on `main`.
 ## Unreleased
 
 ### Added
+- Every printed map gives the total correction from grid north to magnetic
+  north for its sheet in the footer ("kok. +12°"), for compass use. It is
+  worked out for the sheet's centre and the print date with the World
+  Magnetic Model 2025.
+- Magnetic north lines: north–south lines turned to magnetic north, with
+  their own spacing (250 m – 2 km), in Maps, Route and Atlas. They combine
+  with any grid. They print black; with both on, the coordinate grid
+  turns light blue.
 - Info button at the top right: a popup that explains what FastMap is for
   and how to use maps, route covering, atlases and the route tool. It opens
   by itself on the first visit.

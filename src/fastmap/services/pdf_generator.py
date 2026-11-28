@@ -17,7 +17,7 @@ from __future__ import annotations
 import math
 import re
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import date, datetime
 from typing import Protocol
 from zoneinfo import ZoneInfo
 
@@ -35,6 +35,7 @@ from fastmap.services.mml_source import (
     pick_wmts_level,
     render_extent_image,
 )
+from fastmap.services.north import format_correction, total_correction
 from fastmap.services.pdf_image import draw_palette_image
 from fastmap.services.print_layout import (
     FOOTER_MM,
@@ -88,6 +89,11 @@ def _grid_label(value_m: int) -> str:
 _LABEL_FONT = "Courier"
 _LABEL_SIZE = 5.5
 _LABEL_COLOR = black  # coordinates print black, like the footer
+_GRID_COLOR = Color(0.35, 0.35, 0.35)
+# With magnetic north lines on, the coordinate grid and its labels turn light
+# blue so the black magnetic lines stand out against the map
+_GRID_BLUE = Color(0x6F / 255, 0xA8 / 255, 0xE6 / 255)
+_MAGNETIC_COLOR = black
 # Labels go in the margin, outside the map, when it is at least this wide;
 # in a narrower margin they fall back to inside the map edges.
 LABEL_MIN_MARGIN_MM = 3.0
@@ -166,8 +172,10 @@ def _draw_grid_lines(
     mode: str,
     spacing_m: int,
     margin_mm: float,
+    color: Color = _GRID_COLOR,
+    label_color: Color = _LABEL_COLOR,
 ) -> None:
-    """Draw thin grey grid lines over the map content area."""
+    """Draw thin grid lines (grey unless ``color``) over the map content area."""
     if mode == "off":
         return
     show_coords = mode in ("vertical_coords", "full_coords")
@@ -187,7 +195,7 @@ def _draw_grid_lines(
     )
 
     c.saveState()
-    c.setStrokeColor(Color(0.35, 0.35, 0.35))
+    c.setStrokeColor(color)
     c.setLineWidth(0.3)
     for _, px in xs:  # vertical lines (south-north)
         c.line(px, y0, px, y0 + h)
@@ -199,7 +207,7 @@ def _draw_grid_lines(
     if not show_coords:
         return
     font, size = _LABEL_FONT, _LABEL_SIZE
-    c.setFillColor(_LABEL_COLOR)
+    c.setFillColor(label_color)
     c.setFont(font, size)
     gap = 1 * mm  # minimum clear space between neighbouring labels
     outside = margin_mm >= LABEL_MIN_MARGIN_MM
@@ -246,6 +254,52 @@ def _draw_grid_lines(
                 if py - 2 < y0 or py - 2 + size > y0 + h:
                     continue
                 c.drawString(x0 + inset, py - 2, label)
+
+
+def _draw_magnetic_lines(
+    c: canvas.Canvas,
+    extent: Extent,
+    x0: float,
+    y0: float,
+    w: float,
+    h: float,
+    *,
+    angle_deg: float,
+    spacing_m: int,
+) -> None:
+    """Magnetic north lines: turned clockwise from grid north by ``angle_deg``,
+    ``spacing_m`` apart across the lines, clipped to the map box."""
+    t = math.radians(angle_deg)
+    ct, st = math.cos(t), math.sin(t)
+    # u is the ground coordinate across the lines; each line is u = k * spacing
+    corners = [(x, y) for x in (extent.minx, extent.maxx) for y in (extent.miny, extent.maxy)]
+    us = [x * ct - y * st for x, y in corners]
+    k0, k1 = math.ceil(min(us) / spacing_m), math.floor(max(us) / spacing_m)
+    # the line u = k*s runs along (sin t, cos t) through (k*s*cos t, -k*s*sin t);
+    # draw it far enough both ways to cross the whole extent
+    reach = math.hypot(extent.maxx - extent.minx, extent.maxy - extent.miny)
+    cx, cy = (extent.minx + extent.maxx) / 2, (extent.miny + extent.maxy) / 2
+    sx = w / (extent.maxx - extent.minx)
+    sy = h / (extent.maxy - extent.miny)
+
+    def paper(gx: float, gy: float) -> tuple[float, float]:
+        return x0 + (gx - extent.minx) * sx, y0 + (gy - extent.miny) * sy
+
+    c.saveState()
+    clip = c.beginPath()
+    clip.rect(x0, y0, w, h)
+    c.clipPath(clip, stroke=0, fill=0)
+    c.setStrokeColor(_MAGNETIC_COLOR)
+    c.setLineWidth(0.3)
+    for k in range(k0, k1 + 1):
+        u = k * spacing_m
+        # the point of the line nearest the extent centre, then out both ways
+        v = cx * st + cy * ct  # coordinate along the lines
+        px, py = u * ct + v * st, -u * st + v * ct
+        a = paper(px - reach * st, py - reach * ct)
+        b = paper(px + reach * st, py + reach * ct)
+        c.line(a[0], a[1], b[0], b[1])
+    c.restoreState()
 
 
 def _render_raster(extent, page_w_mm, margin_mm, dpi, zoom_level, layer):
@@ -317,8 +371,15 @@ def _draw_page(
     gpx_opacity: float = 0.6,
     gpx_look: str = "line",
     gpx_waypoints: list[dict] | None = None,
+    magnetic_north: bool = False,
+    magnetic_spacing_m: int = 1000,
+    when: date | None = None,
 ) -> int:
-    """Draw one full page: map, footer line below it. Returns true scale."""
+    """Draw one full page: map, footer line below it. Returns true scale.
+
+    The footer gives the total correction (grid -> magnetic north) for the
+    sheet's centre on ``when`` (today in Finland when None).
+    """
     cont_w_mm, cont_h_mm = content_area_mm(paper_size, orientation, margin_mm)
     scale_value = actual_scale(extent, cont_w_mm)
 
@@ -331,10 +392,25 @@ def _draw_page(
     # The map fills the content area exactly -> printed scale is exact
     draw_map(c, x0, y0, w, h)
 
-    # optional grid lines
+    when = when or datetime.now(_LOCAL_TZ).date()
+    angle = total_correction((extent.minx + extent.maxx) / 2, (extent.miny + extent.maxy) / 2, when)
+
+    # optional grid lines, blue when magnetic north lines are on too
+    blue = {"color": _GRID_BLUE, "label_color": _GRID_BLUE} if magnetic_north else {}
     _draw_grid_lines(
-        c, extent, x0, y0, w, h, mode=grid_mode, spacing_m=grid_spacing_m, margin_mm=margin_mm
+        c,
+        extent,
+        x0,
+        y0,
+        w,
+        h,
+        mode=grid_mode,
+        spacing_m=grid_spacing_m,
+        margin_mm=margin_mm,
+        **blue,
     )
+    if magnetic_north:
+        _draw_magnetic_lines(c, extent, x0, y0, w, h, angle_deg=angle, spacing_m=magnetic_spacing_m)
 
     # optional GPX route (line or course) and waypoints
     draw_route(
@@ -352,7 +428,9 @@ def _draw_page(
         opacity=gpx_opacity,
     )
 
-    _draw_footer(c, x0, margin, w, title, format_scale_label(scale_value), attribution_text)
+    # The scale and the correction are never shortened; only the title is
+    footer_label = f"{format_scale_label(scale_value)} · {format_correction(angle)}"
+    _draw_footer(c, x0, margin, w, title, footer_label, attribution_text)
 
     return scale_value
 
@@ -376,6 +454,8 @@ def generate_pdf(
     gpx_opacity: float = 0.6,
     gpx_look: str = "line",
     gpx_waypoints: list[dict] | None = None,
+    magnetic_north: bool = False,
+    magnetic_spacing_m: int = 1000,
 ) -> PrintResult:
     """Render ``extent`` and write a scaled PDF page.
 
@@ -415,6 +495,8 @@ def generate_pdf(
         gpx_opacity=gpx_opacity,
         gpx_look=gpx_look,
         gpx_waypoints=gpx_waypoints,
+        magnetic_north=magnetic_north,
+        magnetic_spacing_m=magnetic_spacing_m,
     )
     c.showPage()
     c.save()
@@ -451,6 +533,7 @@ def generate_multi_pdf(
         _parse_hex_color(kwargs.get("gpx_color", "#ff00ff"))
 
     attribution_text = attribution()  # one date for every page of the document
+    today = datetime.now(_LOCAL_TZ).date()
     for extent, kwargs in items:
         layer = kwargs.get("layer", "maastokartta")
         paper_size = kwargs["paper_size"]
@@ -499,6 +582,9 @@ def generate_multi_pdf(
             gpx_opacity=gpx_opacity,
             gpx_look=kwargs.get("gpx_look", "line"),
             gpx_waypoints=kwargs.get("gpx_waypoints", []),
+            magnetic_north=kwargs.get("magnetic_north", False),
+            magnetic_spacing_m=kwargs.get("magnetic_spacing_m", 1000),
+            when=today,
         )
         results.append(
             PrintResult(

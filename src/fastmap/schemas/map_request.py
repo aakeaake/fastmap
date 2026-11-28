@@ -18,6 +18,7 @@ MMLLayer = Literal[
 ]
 GridMode = Literal["off", "vertical", "vertical_coords", "full", "full_coords"]
 GridSpacing = Literal[500, 1000, 2000, 5000]
+MagneticSpacing = Literal[250, 500, 1000, 2000]
 RouteLook = Literal["line", "course"]
 
 COURSE_MAX_POINTS = 100
@@ -67,6 +68,8 @@ class MapRequest(BaseModel):
     title: str | None = Field(default=None, max_length=120)
     grid_mode: GridMode = "off"
     grid_spacing_m: GridSpacing = 1000
+    magnetic_north: bool = False
+    magnetic_spacing_m: MagneticSpacing = 1000
     gpx_routes: list[list[list[float]]] = Field(default_factory=list)
     gpx_color: str = Field(default="#ff00ff", pattern=r"^#[0-9a-fA-F]{6}$")
     gpx_width: float = Field(default=5, ge=1, le=20)

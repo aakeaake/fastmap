@@ -17,6 +17,7 @@ test('set defaults', () => {
     assert.deepEqual(defaultSetSettings('route'), {
         paperSize: 'A4', orientation: 'auto', scale: 20000,
         layer: 'maastokartta', gridMode: 'off', gridSpacing: 1000, overlapPct: 10,
+        magneticNorth: false, magneticSpacing: 1000,
     });
     assert.equal(defaultSetSettings('atlas').orientation, 'portrait');
 });
@@ -29,6 +30,7 @@ test('sanitizeSetSettings keeps good fields and repairs bad ones', () => {
     assert.deepEqual(s, {
         paperSize: 'A3', orientation: 'portrait', scale: 25000,
         layer: 'maastokartta_vektori', gridMode: 'full', gridSpacing: 1000, overlapPct: 0,
+        magneticNorth: false, magneticSpacing: 1000,
     });
     assert.equal(sanitizeSetSettings('route', { overlapPct: 0 }).overlapPct, 10);   // route has no 0 %
     assert.equal(sanitizeSetSettings('route', { layer: 'maastokartta_vektori', scale: 20000 }).layer, 'maastokartta');
@@ -40,7 +42,8 @@ test('settingsChanged compares the block with what the sheets were made with', (
     assert.equal(settingsChanged(a, null), false);
     assert.equal(settingsChanged(a, { ...a }), false);
     for (const [k, v] of [['scale', 25000], ['layer', 'maastokartta_vektori'], ['gridMode', 'full'],
-        ['gridSpacing', 2000], ['overlapPct', 20], ['paperSize', 'A3'], ['orientation', 'same']]) {
+        ['gridSpacing', 2000], ['overlapPct', 20], ['paperSize', 'A3'], ['orientation', 'same'],
+        ['magneticNorth', true], ['magneticSpacing', 500]]) {
         assert.equal(settingsChanged({ ...a, [k]: v }, a), true, k);
     }
 });
@@ -116,4 +119,12 @@ test('a route set remembers which route its sheets were made for', () => {
     // sets made before the key existed, or no set: nothing to report
     assert.equal(routeChanged(defaultSetSettings('route'), 'def456'), false);
     assert.equal(routeChanged(null, 'def456'), false);
+});
+
+test('a set made before magnetic north lines existed does not report a change', () => {
+    const block = sanitizeSetSettings('route', defaultSetSettings('route'));
+    const { magneticNorth, magneticSpacing, ...older } = block;   // made-with saved without them
+    assert.equal(settingsChanged(block, sanitizeSetSettings('route', older)), false);
+    assert.equal(sanitizeSetSettings('atlas', { magneticNorth: true, magneticSpacing: 250 }).magneticSpacing, 250);
+    assert.equal(sanitizeSetSettings('atlas', { magneticNorth: 1, magneticSpacing: 3 }).magneticNorth, false);
 });

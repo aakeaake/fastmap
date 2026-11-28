@@ -21,6 +21,8 @@ export const VECTOR_SCALES = [25000, 50000];
 export const LAYERS = ['maastokartta', VECTOR_LAYER, 'taustakartta', 'selkokartta', 'ortokuva'];
 export const GRID_MODES = ['off', 'vertical', 'vertical_coords', 'full', 'full_coords'];
 export const GRID_SPACINGS = [500, 1000, 2000, 5000];
+// Magnetic north lines: their own spacing, across the lines, in metres
+export const MAGNETIC_SPACINGS = [250, 500, 1000, 2000];
 export const MARGIN_MAX_MM = 30;
 // Mirrors FOOTER_MM in print_layout.py: space under the map for the PDF
 // footer line. The map keeps its width (and scale), loses this height.
@@ -33,6 +35,8 @@ export const DEFAULTS = {
     margin: 7,
     gridMode: 'off',
     gridSpacing: 1000,
+    magneticNorth: false,
+    magneticSpacing: 1000,
 };
 
 // --- Browser storage keys -----------------------------------------------------

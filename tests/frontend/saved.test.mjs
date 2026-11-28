@@ -22,6 +22,7 @@ test('a valid saved map keeps its settings', () => {
     assert.deepEqual(settings, {
         id: 3, title: 'Nuuksio', paperSize: 'A3', orientation: 'landscape', scale: 25000,
         layer: 'maastokartta', margin: 5, gridMode: 'full', gridSpacing: 2000, mode: 'maps',
+        magneticNorth: false, magneticSpacing: 1000,
     });
     assert.equal(c, coords);
 });
@@ -69,4 +70,16 @@ test('sanitizeSavedMap keeps the mode; missing or unknown is maps', () => {
     assert.equal(sanitizeSavedMap({ ...good, mode: 'route' }).settings.mode, 'route');
     assert.equal(sanitizeSavedMap(good).settings.mode, 'maps');
     assert.equal(sanitizeSavedMap({ ...good, mode: 'x' }).settings.mode, 'maps');
+});
+
+test('magnetic north lines: saved before they existed load off at 1 km; bad values repaired', () => {
+    const old = sanitizeSavedMap(good).settings;
+    assert.equal(old.magneticNorth, false);
+    assert.equal(old.magneticSpacing, 1000);
+    const on = sanitizeSavedMap({ ...good, magneticNorth: true, magneticSpacing: 500 }).settings;
+    assert.equal(on.magneticNorth, true);
+    assert.equal(on.magneticSpacing, 500);
+    const bad = sanitizeSavedMap({ ...good, magneticNorth: 'yes', magneticSpacing: 300 }).settings;
+    assert.equal(bad.magneticNorth, false);
+    assert.equal(bad.magneticSpacing, 1000);
 });

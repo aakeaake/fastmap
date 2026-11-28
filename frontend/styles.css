@@ -154,6 +154,9 @@ button { font: inherit; color: inherit; }
 .pane input::placeholder { color: var(--ink-3); }
 .row { display: flex; gap: 10px; }
 .row > div { flex: 1; min-width: 0; }
+/* Magnetic north lines: the checkbox sits level with the spacing select */
+.magnetic-row { align-items: flex-end; }
+.pane .magnetic-row label.check { min-height: 34px; margin: 0; }
 
 /* --- Buttons ------------------------------------------------------- */
 .btn {

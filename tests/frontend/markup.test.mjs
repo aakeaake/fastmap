@@ -123,3 +123,12 @@ test('the info dialog closes through a dialog form and keeps its sections closed
         assert.ok(dlg.includes(`data-i18n="${key}"`), key);
     }
 });
+
+test('every grid block has magnetic north lines with their own spacing', () => {
+    for (const p of ['', 'cover', 'atlas']) {
+        const box = p ? `${p}Magnetic` : 'magnetic';
+        const spacing = p ? `${p}MagneticSpacing` : 'magneticSpacing';
+        assert.match(html, new RegExp(`<input id="${box}" type="checkbox"`), box);
+        assert.match(html, new RegExp(`<select id="${spacing}"[^>]*>\\s*<option value="250">`), spacing);
+    }
+});
