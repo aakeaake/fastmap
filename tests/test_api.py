@@ -606,3 +606,49 @@ def test_tile_proxy_vector_layer_fetches_raster(monkeypatch):
     resp = client.get("/api/nls-tiles/8/119/210.png", params={"layer": "maastokartta_vektori"})
     assert resp.status_code == 200
     assert "/maastokartta/" in urls[0] and "vektori" not in urls[0]
+
+
+# --- Course look and waypoints -----------------------------------------------
+
+_COURSE_BASE = {
+    "bbox": {"minx": 428100, "miny": 6665230, "maxx": 431900, "maxy": 6670770},
+    "scale": 20000,
+}
+
+
+def _line(n):
+    return [[429000 + i * 10, 6666000 + i * 10] for i in range(n)]
+
+
+def test_course_with_two_lines_is_422():
+    body = {**_COURSE_BASE, "gpx_look": "course", "gpx_routes": [_line(3), _line(3)]}
+    assert client.post("/generate-map", json=body).status_code == 422
+
+
+def test_course_with_101_points_is_422():
+    body = {**_COURSE_BASE, "gpx_look": "course", "gpx_routes": [_line(101)]}
+    assert client.post("/generate-map", json=body).status_code == 422
+
+
+def test_course_with_100_points_is_ok():
+    body = {**_COURSE_BASE, "gpx_look": "course", "gpx_routes": [_line(100)]}
+    assert client.post("/generate-map", json=body).status_code == 200
+
+
+def test_waypoint_name_over_40_is_422():
+    body = {**_COURSE_BASE, "gpx_waypoints": [{"x": 430000, "y": 6668000, "name": "x" * 41}]}
+    assert client.post("/generate-map", json=body).status_code == 422
+
+
+def test_501_waypoints_is_422():
+    wpts = [{"x": 430000, "y": 6668000, "name": ""}] * 501
+    body = {**_COURSE_BASE, "gpx_waypoints": wpts}
+    assert client.post("/generate-map", json=body).status_code == 422
+
+
+def test_line_look_is_default():
+    from fastmap.schemas.map_request import MapRequest
+
+    req = MapRequest(**_COURSE_BASE)
+    assert req.gpx_look == "line"
+    assert req.gpx_waypoints == []

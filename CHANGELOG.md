@@ -8,6 +8,12 @@ All notable changes to FastMap. Versions are tagged `vX.Y.Z` on `main`.
 - Info button at the top right: a popup that explains what FastMap is for
   and how to use maps, route covering, atlases and the route tool. It opens
   by itself on the first visit.
+- GPX waypoints show as named circles on the map and on printouts, and are
+  kept in exported GPX files.
+- Course look for a drawn or imported route: start triangle, numbered
+  controls and finish circle, like an orienteering course. Line stays the
+  default; choose Course in the route tool. A course has its own width,
+  thin (0.4 mm) by default.
 - Route tool: a route button on the map opens a card to draw, import, name,
   edit, export (GPX) or remove the route and to set how it prints, from any
   mode. Removing the route can be undone. On phones the card takes the

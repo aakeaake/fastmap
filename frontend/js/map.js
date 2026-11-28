@@ -29,6 +29,7 @@ import { register } from 'ol/proj/proj4.js';
 import { drawKeysIgnored } from './draw-keys.js';
 import { previewTileLayer } from './layer.js';
 import { DEFAULT_STYLE, rgba, screenWidthPx } from './route-style.js';
+import { SCREEN, courseLegs, finishOuterRadius, numberDirection, startTriangle } from './course.js';
 import {
     ACTIVE_COLOR, CASING, DEF_CENTER, LOCKED_COLOR, MAX_EXTENT, PROJ, PROJ_DEF, RESOLUTIONS, TILE_ORIGIN,
 } from './constants.js';
@@ -88,8 +89,83 @@ export function makeFeatures(id, coords) {
 
 // The route on the map: its print colour (rgba, with the opacity) and a
 // screen width that roughly follows the print width (route-style.js)
-export function routeLayerStyle(color, widthPx) {
-    return new Style({ stroke: new Stroke({ color, width: widthPx }) });
+export function routeLayerStyle(color, widthPx, look = 'line') {
+    const line = new Style({ stroke: new Stroke({ color, width: widthPx }) });
+    if (look !== 'course') return line;
+    return (feature, resolution) => {
+        const geom = feature.getGeometry();
+        const lines = geom?.getType() === 'MultiLineString' ? geom.getCoordinates() : [];
+        if (lines.length !== 1 || lines[0].length < 2) return line;
+        return courseStyles(lines[0].map(p => [p[0], p[1]]), color, widthPx, resolution);
+    };
+}
+
+const haloStroke = new Stroke({ color: 'rgba(255, 255, 255, 0.9)', width: 3 });
+
+// The course look on screen: legs stopped at the symbols, start triangle,
+// numbered control circles, finish double circle and a dot on every point.
+// Sizes are SCREEN px, turned into map units with the current resolution.
+function courseStyles(pts, color, widthPx, resolution) {
+    const u = px => px * resolution;
+    const stroke = new Stroke({ color, width: widthPx });
+    const fill = new Fill({ color });
+    const [innerR, outerR] = SCREEN.finishD.map(d => d / 2);
+    const finishR = [innerR, finishOuterRadius(innerR, outerR, widthPx, SCREEN.finishClear)];
+    const legs = courseLegs(pts, {
+        start: u(SCREEN.startSide / Math.sqrt(3)),
+        control: u(SCREEN.controlD / 2),
+        finish: u(finishR[1]),
+        // clear of the symbol's stroke and the leg's round cap, however thick
+        gap: u(SCREEN.gap + widthPx),
+    });
+    const tri = startTriangle(pts[0], pts[1], u(SCREEN.startSide));
+    const controls = pts.slice(1, -1);
+    const finish = pts[pts.length - 1];
+    const styles = [
+        new Style({ geometry: new MultiLineString(legs), stroke }),
+        new Style({ geometry: new Polygon([[...tri, tri[0]]]), stroke }),
+        ...finishR.map(radius => new Style({
+            geometry: new Point(finish), image: new CircleStyle({ radius, stroke }),
+        })),
+        new Style({ geometry: new MultiPoint(pts), image: new CircleStyle({ radius: Math.max(SCREEN.dotMin, widthPx) / 2, fill }) }),
+    ];
+    if (controls.length) {
+        styles.push(new Style({
+            geometry: new MultiPoint(controls), image: new CircleStyle({ radius: SCREEN.controlD / 2, stroke }),
+        }));
+    }
+    const offset = u(SCREEN.controlD / 2 + 8);
+    controls.forEach((p, i) => {
+        const [dx, dy] = numberDirection(pts[i], p, pts[i + 2]);
+        styles.push(new Style({
+            geometry: new Point([p[0] + dx * offset, p[1] + dy * offset]),
+            text: new Text({ text: String(i + 1), font: `bold ${SCREEN.numberPx}px sans-serif`, fill, stroke: haloStroke }),
+        }));
+    });
+    return styles;
+}
+
+// Waypoints: a circle with a dot in the middle and the name to the right
+export function waypointLayerStyle(color, widthPx) {
+    const stroke = new Stroke({ color, width: widthPx });
+    const fill = new Fill({ color });
+    const ring = new Style({ image: new CircleStyle({ radius: SCREEN.controlD / 2, stroke }) });
+    const dot = new Style({ image: new CircleStyle({ radius: Math.max(SCREEN.dotMin, widthPx) / 2, fill }) });
+    return feature => {
+        const name = feature.get('name');
+        if (!name) return [ring, dot];
+        return [ring, dot, new Style({
+            text: new Text({
+                text: name, font: `${SCREEN.namePx}px sans-serif`, textAlign: 'left',
+                offsetX: SCREEN.controlD / 2 + 4, fill, stroke: haloStroke,
+            }),
+        })];
+    };
+}
+
+// Waypoints [{ x, y, name }] as Point features for the waypoint layer
+export function waypointFeatures(waypoints) {
+    return waypoints.map(w => new Feature({ geometry: new Point([w.x, w.y]), name: w.name }));
 }
 
 // --- Map --------------------------------------------------------------------
@@ -107,6 +183,11 @@ export function createMap(target, { isActive }) {
         source: new VectorSource(),
         style: routeLayerStyle(rgba(DEFAULT_STYLE.color, DEFAULT_STYLE.opacity), screenWidthPx(DEFAULT_STYLE.widthMm)),
     });
+    // GPX waypoints, on their own layer so the route tools never pick one
+    const waypointLayer = new VectorLayer({
+        source: new VectorSource(),
+        style: waypointLayerStyle(rgba(DEFAULT_STYLE.color, DEFAULT_STYLE.opacity), screenWidthPx(DEFAULT_STYLE.widthMm)),
+    });
     // The atlas area: thin orange outline, light fill, under the route and sheets
     const areaLayer = new VectorLayer({
         source: new VectorSource(),
@@ -123,12 +204,12 @@ export function createMap(target, { isActive }) {
     });
     const map = new Map({
         target,
-        layers: [baseLayer, areaLayer, gpxLayer, lockedLayer, activeLayer],
+        layers: [baseLayer, areaLayer, gpxLayer, waypointLayer, lockedLayer, activeLayer],
         view,
         interactions: defaults({ doubleClickZoom: false, altShiftDragRotate: false, pinchRotate: false }),
         controls: defaultControls({ rotate: false }),
     });
-    return { map, view, baseLayer, areaLayer, gpxLayer, lockedLayer, activeLayer };
+    return { map, view, baseLayer, areaLayer, gpxLayer, waypointLayer, lockedLayer, activeLayer };
 }
 
 // Drag rectangles on `layer`. Labels ride along; callbacks get the map ids.

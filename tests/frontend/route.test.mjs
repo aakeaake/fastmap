@@ -35,7 +35,10 @@ test('toGpx escapes XML in the name', () => {
 });
 
 test('sanitizeSavedRoute round-trips and rejects junk', () => {
-    const r = { name: 'Oma reitti', lines: [[[1, 2], [3, 4]]], showOnPrint: false };
+    const r = {
+        name: 'Oma reitti', lines: [[[1, 2], [3, 4]]], showOnPrint: false,
+        source: 'rte', waypoints: [{ x: 5, y: 6, name: 'Kota' }],
+    };
     assert.deepEqual(serializeRoute(r), { v: 1, ...r });
     assert.deepEqual(sanitizeSavedRoute(serializeRoute(r)), r);
     for (const bad of [null, 42, 'x', [], {}, { v: 1, name: 'x', lines: 'no' },
@@ -48,7 +51,7 @@ test('sanitizeSavedRoute round-trips and rejects junk', () => {
     assert.equal(sanitizeSavedRoute({ v: 1, name: 'x', lines: [[[1, 2]]], showOnPrint: true }), null);
     // missing showOnPrint defaults to true, non-string name to ''
     assert.deepEqual(sanitizeSavedRoute({ v: 1, name: 5, lines: [[[1, 2], [3, 4]]] }),
-                     { name: '', lines: [[[1, 2], [3, 4]]], showOnPrint: true });
+                     { name: '', lines: [[[1, 2], [3, 4]]], showOnPrint: true, source: 'drawn', waypoints: [] });
 });
 
 test('routeKey: the same route gives the same short key, a changed one another', () => {
@@ -60,4 +63,38 @@ test('routeKey: the same route gives the same short key, a changed one another',
     assert.notEqual(routeKey([[[385000, 6672000], [386050, 6673000]]]), key);    // a point moved
     assert.notEqual(routeKey([[[385000, 6672000], [386000, 6673000], [387000, 6673000]]]), key);
     assert.notEqual(routeKey([[[385000, 6672000]], [[386000, 6673000]]]), key);  // split into two lines
+});
+
+test('a route saved by an older version loads: one short line is drawn, else a track', () => {
+    const one = sanitizeSavedRoute({ v: 1, name: 'x', lines: [[[0, 0], [1, 1]]], showOnPrint: true });
+    assert.equal(one.source, 'drawn');
+    assert.deepEqual(one.waypoints, []);
+    const two = sanitizeSavedRoute({ v: 1, name: 'x', lines: [[[0, 0], [1, 1]], [[2, 2], [3, 3]]] });
+    assert.equal(two.source, 'trk');
+    const long = Array.from({ length: 101 }, (_, i) => [i, i]);
+    assert.equal(sanitizeSavedRoute({ v: 1, name: 'x', lines: [long] }).source, 'trk');
+    assert.equal(sanitizeSavedRoute({ v: 1, name: 'x', lines: [[[0, 0], [1, 1]]], source: 'bogus' }).source, 'drawn');
+});
+
+test('sanitizeSavedRoute keeps good waypoints, drops bad ones, trims names', () => {
+    const r = sanitizeSavedRoute({
+        v: 1, name: 'x', lines: [[[0, 0], [1, 1]]], source: 'trk',
+        waypoints: [{ x: 1, y: 2, name: 'A' }, { x: 'a', y: 2 }, null, { x: 3, y: NaN },
+                    { x: 4, y: 5 }, { x: 6, y: 7, name: 'n'.repeat(60) }],
+    });
+    assert.deepEqual(r.waypoints, [{ x: 1, y: 2, name: 'A' }, { x: 4, y: 5, name: '' }, { x: 6, y: 7, name: 'n'.repeat(40) }]);
+    const many = Array.from({ length: 600 }, (_, i) => ({ x: i, y: i, name: '' }));
+    assert.equal(sanitizeSavedRoute({ v: 1, name: 'x', lines: [[[0, 0], [1, 1]]], waypoints: many }).waypoints.length, 500);
+});
+
+test('toGpx writes waypoints first and a course as rte', () => {
+    const gpx = toGpx('R', [[[1, 2], [3, 4]]], p => p,
+        { asRoute: true, waypoints: [{ x: 7, y: 8, name: 'A & <B>' }, { x: 9, y: 9, name: '' }] });
+    assert.equal((gpx.match(/<wpt /g) || []).length, 2);
+    assert.match(gpx, /<wpt lat="8.000000" lon="7.000000">\s*<name>A &amp; &lt;B&gt;<\/name>\s*<\/wpt>/);
+    assert.match(gpx, /<wpt lat="9.000000" lon="9.000000"\/>/);
+    assert.equal((gpx.match(/<rtept /g) || []).length, 2);
+    assert.match(gpx, /<rte>/);
+    assert.doesNotMatch(gpx, /<trk>/);
+    assert.ok(gpx.indexOf('<wpt') < gpx.indexOf('<rte>'));
 });

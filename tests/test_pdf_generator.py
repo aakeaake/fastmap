@@ -658,3 +658,101 @@ def test_multi_pdf_mixed_raster_vector(tmp_path, monkeypatch, offline_tiles):
     boxes = re.findall(rb"/MediaBox \[ 0 0 ([\d.]+) ([\d.]+) \]", data)
     sizes = [(round(float(w) / mm), round(float(h) / mm)) for w, h in boxes]
     assert sizes == [(420, 297), (210, 297)]
+
+
+# --- Course look and waypoints -----------------------------------------------
+
+_COURSE_EXT = Extent(428100, 6665230, 431900, 6670770)
+_COURSE_PTS = [[429000, 6666000], [430000, 6667000], [431000, 6668000], [430000, 6670000]]
+
+
+def _pdf_text(path):
+    import subprocess
+
+    out = subprocess.run(["pdftotext", str(path), "-"], check=True, capture_output=True)
+    return out.stdout.decode()
+
+
+def _magenta_pixels(path, tmp_path):
+    import subprocess
+    from glob import glob
+
+    subprocess.run(["pdftoppm", "-png", "-r", "100", str(path), str(tmp_path / "pg")], check=True)
+    img = Image.open(sorted(glob(str(tmp_path / "pg-*.png")))[0]).convert("RGB")
+    px = img.load()
+    w, h = img.size
+    return sum(
+        1
+        for x in range(w)
+        for y in range(h)
+        if px[x, y][0] > 180 and px[x, y][1] < 100 and px[x, y][2] > 180
+    )
+
+
+def test_generate_pdf_course_look(tmp_path, monkeypatch):
+    monkeypatch.setattr(pdf_generator, "render_extent_image", _fake_render)
+    texts = []
+    orig = pdf_generator.canvas.Canvas.drawCentredString
+
+    def spy(self, x, y, text, *a, **k):
+        texts.append(text)
+        return orig(self, x, y, text, *a, **k)
+
+    monkeypatch.setattr(pdf_generator.canvas.Canvas, "drawCentredString", spy)
+    out = tmp_path / "course.pdf"
+    pdf_generator.generate_pdf(
+        _COURSE_EXT,
+        paper_size="A4",
+        orientation="portrait",
+        gpx_routes=[_COURSE_PTS],
+        gpx_look="course",
+        gpx_color="#ff00ff",
+        gpx_width=1,
+        gpx_opacity=1,
+        out_pdf_path=str(out),
+    )
+    assert "1" in texts and "2" in texts  # the two controls
+    assert "3" not in texts  # the finish has no number
+    assert _magenta_pixels(out, tmp_path) > 100
+
+
+def test_generate_pdf_waypoints_named(tmp_path, monkeypatch):
+    monkeypatch.setattr(pdf_generator, "render_extent_image", _fake_render)
+    out = tmp_path / "wpt.pdf"
+    pdf_generator.generate_pdf(
+        _COURSE_EXT,
+        paper_size="A4",
+        orientation="portrait",
+        gpx_routes=[_COURSE_PTS],
+        gpx_waypoints=[{"x": 430500, "y": 6669000, "name": "Kota & laavu"}],
+        out_pdf_path=str(out),
+    )
+    assert "Kota & laavu" in _pdf_text(out)
+
+
+def test_waypoints_without_route_lines(tmp_path, monkeypatch):
+    monkeypatch.setattr(pdf_generator, "render_extent_image", _fake_render)
+    out = tmp_path / "wpt-only.pdf"
+    pdf_generator.generate_pdf(
+        _COURSE_EXT,
+        paper_size="A4",
+        orientation="portrait",
+        gpx_routes=[],
+        gpx_waypoints=[{"x": 430500, "y": 6669000, "name": "Lähde"}],
+        out_pdf_path=str(out),
+    )
+    assert "Lähde" in _pdf_text(out)
+
+
+def test_multi_pdf_passes_course_kwargs(tmp_path, monkeypatch):
+    monkeypatch.setattr(pdf_generator, "render_extent_image", _fake_render)
+    out = tmp_path / "multi.pdf"
+    kwargs = {
+        "paper_size": "A4",
+        "orientation": "portrait",
+        "gpx_routes": [_COURSE_PTS],
+        "gpx_look": "course",
+        "gpx_waypoints": [{"x": 430500, "y": 6669000, "name": "Torni"}],
+    }
+    pdf_generator.generate_multi_pdf([(_COURSE_EXT, kwargs)], str(out))
+    assert "Torni" in _pdf_text(out)

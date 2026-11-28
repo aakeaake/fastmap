@@ -18,6 +18,9 @@ MMLLayer = Literal[
 ]
 GridMode = Literal["off", "vertical", "vertical_coords", "full", "full_coords"]
 GridSpacing = Literal[500, 1000, 2000, 5000]
+RouteLook = Literal["line", "course"]
+
+COURSE_MAX_POINTS = 100
 
 
 class BBox(BaseModel):
@@ -27,6 +30,14 @@ class BBox(BaseModel):
     miny: float
     maxx: float
     maxy: float
+
+
+class Waypoint(BaseModel):
+    """A named GPX waypoint in EPSG:3067 metres."""
+
+    x: float
+    y: float
+    name: str = Field(default="", max_length=40)
 
 
 class MapRequest(BaseModel):
@@ -60,6 +71,8 @@ class MapRequest(BaseModel):
     gpx_color: str = Field(default="#ff00ff", pattern=r"^#[0-9a-fA-F]{6}$")
     gpx_width: float = Field(default=5, ge=1, le=20)
     gpx_opacity: float = Field(default=0.6, ge=0.1, le=1.0)
+    gpx_look: RouteLook = "line"
+    gpx_waypoints: list[Waypoint] = Field(default_factory=list, max_length=500)
 
     @field_validator("gpx_routes")
     @classmethod
@@ -70,6 +83,14 @@ class MapRequest(BaseModel):
                 if len(point) < 2:
                     raise ValueError("each GPX point needs at least x and y")
         return [[point[:2] for point in route] for route in routes]
+
+    @model_validator(mode="after")
+    def _check_course(self) -> "MapRequest":
+        if self.gpx_look == "course" and not (
+            len(self.gpx_routes) == 1 and 2 <= len(self.gpx_routes[0]) <= COURSE_MAX_POINTS
+        ):
+            raise ValueError(f"The course look needs one line of 2 to {COURSE_MAX_POINTS} points")
+        return self
 
     @model_validator(mode="after")
     def _check_location(self) -> "MapRequest":

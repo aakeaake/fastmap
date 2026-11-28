@@ -8,7 +8,7 @@ import { hydrateIcons, icon, setButton } from './icons.js';
 import { JobError, runJob } from './jobs.js';
 import {
     addTranslate, areaFeature, createMap, createRouteTools, createShapeTools, featureRing, makeBaseSource, readGpx,
-    routeFeature, routeLayerStyle, toWgs84,
+    routeFeature, routeLayerStyle, toWgs84, waypointFeatures, waypointLayerStyle,
 } from './map.js';
 import { AREA_KEY, formatKm2, ringAreaM2, sanitizeSavedArea, serializeArea } from './area.js';
 import { ATLAS_MAX, atlasTitle, planAtlas } from './atlas.js';
@@ -20,10 +20,12 @@ import { createPanes } from './panes.js';
 import { createRouteCard } from './route-card.js';
 import { MAX_BATCH, coverTitle, planCover } from './cover.js';
 import { routeChanged, sanitizeSetSettings, settingsChanged } from './modes.js';
-import { buildPayload, gpxRoutes } from './payload.js';
+import { extend } from 'ol/extent.js';
+import { buildPayload, gpxRoutes, readRouteFeatures } from './payload.js';
+import { COURSE_MAX_POINTS, courseable, effectiveLook } from './course.js';
 import { ROUTE_KEY, formatKm, routeKey, routeLengthM, sanitizeSavedRoute, serializeRoute, toGpx } from './route.js';
 import {
-    DEFAULT_STYLE, ROUTE_STYLE_KEY, parseWidthMm, rgba, sanitizeRouteStyle, screenWidthPx,
+    DEFAULT_STYLE, ROUTE_STYLE_KEY, lookWidthMm, parseWidthMm, rgba, sanitizeRouteStyle, screenWidthPx,
 } from './route-style.js';
 import { parseMargin } from './saved.js';
 import { formatNumber } from './format.js';
@@ -39,7 +41,7 @@ const el = id => document.getElementById(id);
 hydrateIcons();
 applyTranslations();
 
-const { map, view, baseLayer, areaLayer, gpxLayer, lockedLayer, activeLayer } =
+const { map, view, baseLayer, areaLayer, gpxLayer, waypointLayer, lockedLayer, activeLayer } =
     createMap('map', { isActive: id => id === active()?.id });
 
 const generatingIds = new Set();
@@ -218,9 +220,9 @@ function hideToast() {
 function undo() {
     if (!undoSnapshot) return;
     if (undoSnapshot.route) {
-        const { name, lines } = undoSnapshot.route;
+        const { name, lines, source, waypoints } = undoSnapshot.route;
         hideToast();
-        setRoute(name, lines);
+        setRoute(name, lines, { source, waypoints });
         focusFirst(el(routeCard.isOpen() ? 'editRouteBtn' : 'routeToolBtn'), el('grabber'));
         return;
     }
@@ -825,10 +827,15 @@ fetch('/api/attribution')
 // the browser with its name and the show-on-printouts choice.
 const gpxInput = el('gpxInput');
 let routeName = '';   // name of the route as typed; '' when none
+let routeSource = 'drawn';   // 'drawn' | 'rte' | 'wpt' | 'trk': can it be a course?
+let routeWaypoints = [];     // [{ x, y, name }] from the GPX file
 // How the route prints and shows on the map; kept when the route goes
 let routeStyle = { ...DEFAULT_STYLE };
 
 const routeLines = () => gpxRoutes(gpxLayer.getSource().getFeatures());
+const currentRoute = () => ({ source: routeSource, lines: routeLines() });
+// The look the route is drawn with: line when it cannot be a course
+const routeLook = () => effectiveLook(routeStyle.look, currentRoute());
 const routeLabel = () => routeName.trim() || t('gpx.myRoute');
 const routeInfo = lines => `${routeLabel()} · ${formatKm(routeLengthM(lines), locale())}`;
 
@@ -845,7 +852,9 @@ function saveRoute() {
     try {
         if (!lines.length) localStorage.removeItem(ROUTE_KEY);
         else {
-            const data = serializeRoute({ name: routeName, lines, showOnPrint: routeStyle.show });
+            const data = serializeRoute({
+                name: routeName, lines, showOnPrint: routeStyle.show, source: routeSource, waypoints: routeWaypoints,
+            });
             localStorage.setItem(ROUTE_KEY, JSON.stringify(data));
         }
     } catch {
@@ -869,6 +878,9 @@ function renderRoute() {
     setButton(el('gpxDownloadBtn'), 'download', t('gpx.download'));
     el('gpxInfo').textContent = has ? formatKm(routeLengthM(lines), locale()) : '';   // the name is in the field above
     el('routeLineText').textContent = has ? routeInfo(lines) : '';
+    el('gpxWaypoints').textContent = routeWaypoints.length ? t('gpx.waypoints', { n: routeWaypoints.length }) : '';
+    el('gpxWaypoints').hidden = !routeWaypoints.length;
+    renderLook();
     renderRouteColor();
     renderCover();
 }
@@ -882,13 +894,18 @@ function renderRouteColor() {
     el('routeSwatch').style.background = color;
 }
 
-// Replace the route (no lines = no route). A new route ends the offer to
-// undo a Remove: that Undo would throw the new route away.
-function setRoute(name, lines) {
+// Replace the route (no lines = no route), with where it came from and its
+// waypoints. A new route ends the offer to undo a Remove: that Undo would
+// throw the new route away.
+function setRoute(name, lines, { source = 'drawn', waypoints = [] } = {}) {
     if (undoSnapshot?.route) hideToast();
-    const source = gpxLayer.getSource();
-    source.clear();
-    if (lines.length) source.addFeature(routeFeature(lines));
+    const layerSource = gpxLayer.getSource();
+    layerSource.clear();
+    if (lines.length) layerSource.addFeature(routeFeature(lines));
+    routeSource = source;
+    routeWaypoints = lines.length ? waypoints : [];
+    waypointLayer.getSource().clear();
+    waypointLayer.getSource().addFeatures(waypointFeatures(routeWaypoints));
     routeName = lines.length ? name : '';
     el('routeName').value = routeName;
     saveRoute();
@@ -944,7 +961,10 @@ function toolModeChanged() {
 
 const routeTools = createRouteTools(map, gpxLayer, {
     onChange: lines => { toolShape = lines; renderRouteBar(); },
-    onDone: (mode, lines) => setRoute(mode === 'draw' ? t('gpx.myRoute') : routeName, lines),
+    // A drawn route has no waypoints; an edited one keeps its source and waypoints
+    onDone: (mode, lines) => (mode === 'draw'
+        ? setRoute(t('gpx.myRoute'), lines)
+        : setRoute(routeName, lines, { source: routeSource, waypoints: routeWaypoints })),
     onModeChange: toolModeChanged,
     sketchColor: () => routeStyle.color,
 });
@@ -976,7 +996,7 @@ el('gpxBtn').addEventListener('click', () => gpxInput.click());
 // Remove is the way to a new route, so it can be undone; the sheets stay
 function removeRoute() {
     routeTools.cancel();
-    const snapshot = { route: { name: routeName, lines: routeLines() } };
+    const snapshot = { route: { name: routeName, lines: routeLines(), source: routeSource, waypoints: routeWaypoints } };
     clearRoute();
     offerUndo(() => t('route.removed'), snapshot);
     if (routeCard.isOpen()) el('drawBtn').focus();   // the Remove button is gone
@@ -988,42 +1008,85 @@ el('gpxRemoveBtn').addEventListener('click', removeRoute);
 // preview strip, the route button, the saved style and the next PDF.
 function setRouteStyle(patch) {
     routeStyle = sanitizeRouteStyle({ ...routeStyle, ...patch });
-    const { color, opacity, widthMm } = routeStyle;
-    const px = screenWidthPx(widthMm);
-    gpxLayer.setStyle(routeLayerStyle(rgba(color, opacity), px));
-    const strip = el('routePreview').firstElementChild;
-    strip.style.background = color;
-    strip.style.opacity = String(opacity / 100);
-    strip.style.height = `${px}px`;
+    applyRouteLook();
     renderRouteColor();
     try { localStorage.setItem(ROUTE_STYLE_KEY, JSON.stringify(routeStyle)); } catch { /* ignore */ }
     saveRoute();   // the route also keeps its show choice (older versions read it)
     renderCover();
 }
 
+// The look the card shows: the route's look, or the chosen one when there is no route yet
+const shownLook = () => (routeLines().length ? routeLook() : routeStyle.look);
+
+// The map layers and the card's preview draw the look in effect (line when
+// the route cannot be a course), each look with its own width
+function applyRouteLook() {
+    const { color, opacity } = routeStyle;
+    const look = shownLook();
+    const px = screenWidthPx(lookWidthMm(routeStyle, look));
+    gpxLayer.setStyle(routeLayerStyle(rgba(color, opacity), px, routeLook()));
+    waypointLayer.setStyle(waypointLayerStyle(rgba(color, opacity), px));
+    const preview = el('routePreview');
+    preview.toggleAttribute('data-course', look === 'course');
+    const strip = preview.firstElementChild;
+    strip.style.background = color;
+    strip.style.opacity = String(opacity / 100);
+    strip.style.height = `${px}px`;
+    const course = el('routePreviewCourse');
+    course.style.color = color;
+    course.style.opacity = String(opacity / 100);
+    course.setAttribute('stroke-width', String(Math.min(3, Math.max(1, px / 2))));
+}
+
+// The Width field shows the width of the look in use
+function writeWidthField() {
+    // In the language's decimal mark ("1,1" in Finnish); either mark is read
+    el('gpxWidth').value = formatNumber(lookWidthMm(routeStyle, shownLook()), locale(), { maximumFractionDigits: 1 });
+}
+
+// The Line / Course choice: Course is offered when the route can be one;
+// otherwise a note says why, and the chosen look waits for a route that can
+function renderLook() {
+    const route = currentRoute();
+    const ok = !route.lines.length || courseable(route);
+    el('gpxLookCourse').disabled = !ok;
+    el(ok && routeStyle.look === 'course' ? 'gpxLookCourse' : 'gpxLookLine').checked = true;
+    const note = el('gpxLookNote');
+    note.hidden = ok;
+    note.textContent = ok ? '' : route.source === 'trk'
+        ? t('gpx.courseTrack') : t('gpx.courseTooMany', { max: COURSE_MAX_POINTS });
+    applyRouteLook();
+    if (document.activeElement !== el('gpxWidth')) writeWidthField();
+}
+
 // The fields show the style in use (at start, and a width made valid)
 function writeStyleForm() {
+    renderLook();
     el('gpxShow').checked = routeStyle.show;
     el('gpxColor').value = routeStyle.color;
-    // In the language's decimal mark ("1,1" in Finnish); either mark is read
-    el('gpxWidth').value = formatNumber(routeStyle.widthMm, locale(), { maximumFractionDigits: 1 });
+    writeWidthField();
     el('gpxOpacity').value = String(routeStyle.opacity);
     el('gpxOpacityVal').textContent = `${routeStyle.opacity} %`;
 }
 
 el('gpxShow').addEventListener('change', () => setRouteStyle({ show: el('gpxShow').checked }));
+for (const id of ['gpxLookLine', 'gpxLookCourse']) {
+    el(id).addEventListener('change', () => { setRouteStyle({ look: el(id).value }); renderLook(); });
+}
 el('gpxColor').addEventListener('input', () => setRouteStyle({ color: el('gpxColor').value }));
 el('gpxOpacity').addEventListener('input', () => {
     setRouteStyle({ opacity: Number(el('gpxOpacity').value) });
     el('gpxOpacityVal').textContent = `${routeStyle.opacity} %`;
 });
+// The Width field sets the width of the look in use: each look keeps its own
+const widthPatch = mm => (shownLook() === 'course' ? { courseWidthMm: mm } : { widthMm: mm });
 // While typing, only a readable number applies; leaving the field settles it
 el('gpxWidth').addEventListener('input', () => {
     const v = el('gpxWidth').value.trim();
-    if (v !== '' && Number.isFinite(Number(v.replace(',', '.')))) setRouteStyle({ widthMm: parseWidthMm(v) });
+    if (v !== '' && Number.isFinite(Number(v.replace(',', '.')))) setRouteStyle(widthPatch(parseWidthMm(v)));
 });
 el('gpxWidth').addEventListener('change', () => {
-    setRouteStyle({ widthMm: parseWidthMm(el('gpxWidth').value) });
+    setRouteStyle(widthPatch(parseWidthMm(el('gpxWidth').value)));
     writeStyleForm();
 });
 
@@ -1278,7 +1341,8 @@ el('atlasName').addEventListener('input', () => {
 });
 
 el('gpxDownloadBtn').addEventListener('click', () => {
-    const text = toGpx(routeLabel(), routeLines(), toWgs84);
+    const text = toGpx(routeLabel(), routeLines(), toWgs84,
+        { asRoute: routeLook() === 'course', waypoints: routeWaypoints });
     saveBlob(new Blob([text], { type: 'application/gpx+xml' }), `${routeLabel()}.gpx`);
 });
 
@@ -1289,8 +1353,8 @@ gpxInput.addEventListener('change', () => {
     reader.onload = () => {
         let features;
         try { features = readGpx(reader.result); } catch { features = []; }
-        const lines = gpxRoutes(features);
-        if (!lines.length) {
+        const route = readRouteFeatures(features);
+        if (!route) {
             notices.show('gpx', 'error', () => t('gpx.noRoute', { file: file.name }));
             return;
         }
@@ -1298,8 +1362,11 @@ gpxInput.addEventListener('change', () => {
         routeTools.cancel();
         // Prefer the track/route name; waypoints (Points) also carry names
         const line = features.find(f => f.getGeometry()?.getType() !== 'Point' && f.get('name'));
-        setRoute(line?.get('name') || file.name.replace(/\.gpx$/i, ''), lines);
-        view.fit(gpxLayer.getSource().getExtent(), { padding: [50, 50, 50, 50] });
+        const { lines, source, waypoints } = route;
+        setRoute(line?.get('name') || file.name.replace(/\.gpx$/i, ''), lines, { source, waypoints });
+        const extent = gpxLayer.getSource().getExtent();
+        if (waypoints.length) extend(extent, waypointLayer.getSource().getExtent());
+        view.fit(extent, { padding: [50, 50, 50, 50] });
     };
     reader.readAsText(file);
     gpxInput.value = '';
@@ -1314,7 +1381,7 @@ gpxInput.addEventListener('change', () => {
     try { style = JSON.parse(localStorage.getItem(ROUTE_STYLE_KEY)); } catch { /* ignore */ }
     routeStyle = sanitizeRouteStyle(style, saved?.showOnPrint ?? true);
     writeStyleForm();
-    if (saved) setRoute(saved.name, saved.lines);
+    if (saved) setRoute(saved.name, saved.lines, { source: saved.source, waypoints: saved.waypoints });
     setRouteStyle({});
 })();
 
@@ -1363,8 +1430,10 @@ function sharedSettings() {
         routes: routeLines(),
         showRoute: routeStyle.show,
         gpxColor: routeStyle.color,
-        gpxWidthMm: routeStyle.widthMm,
+        gpxWidthMm: lookWidthMm(routeStyle, routeLook()),
         gpxOpacity: routeStyle.opacity,
+        look: routeLook(),
+        waypoints: routeWaypoints,
     };
 }
 

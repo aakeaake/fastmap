@@ -70,6 +70,10 @@ The browser never sees the MML API key: preview tiles are proxied through
   the next visit.
 * **GPX track overlay** — upload a GPX file to display the track on the preview
   map and render it on exported PDFs. Customisable colour, width, and opacity.
+  Waypoints show as named circles.
+* **Course look** — draw a route or import a GPX route (`<rte>`) or waypoints
+  and print it as an orienteering course: start triangle, numbered controls
+  and finish circle (up to 100 points).
 * **Built-in help** — the info button at the top right explains what the
   tool is for and how to use each feature; it opens by itself on the first
   visit.
@@ -193,7 +197,9 @@ Each generated PDF contains:
   labels above the top edge, north labels left of the map, rotated 90°
   anticlockwise. In a margin under 3 mm they go inside the map edges.
 * **GPX route** (optional) — coloured polyline clipped to the content area,
-  with configurable colour, width, and opacity.
+  with configurable colour, width, and opacity; or, as a course, start
+  triangle, numbered control circles and finish double circle in fixed paper
+  sizes (6 mm circles). Named waypoints as circles with their names.
 
 ### API
 
@@ -230,7 +236,11 @@ given per map. Optional fields: `dpi` (default 300), `margin_mm` (default 7),
 `gpx_routes` (list of coordinate arrays in EPSG:3067),
 `gpx_color` (hex, default `"#ff00ff"`),
 `gpx_width` (1–20 pt, default 5),
-`gpx_opacity` (0.1–1.0, default 0.6). See `/docs` for the interactive schema.
+`gpx_opacity` (0.1–1.0, default 0.6),
+`gpx_look` (`"line"` / `"course"`, default `"line"`; a course needs one line
+of 2–100 points),
+`gpx_waypoints` (up to 500 `{x, y, name}` in EPSG:3067, names up to 40
+characters). See `/docs` for the interactive schema.
 
 ## Translations
 
