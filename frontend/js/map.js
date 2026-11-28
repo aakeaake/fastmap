@@ -29,7 +29,7 @@ import { register } from 'ol/proj/proj4.js';
 import { drawKeysIgnored } from './draw-keys.js';
 import { previewTileLayer } from './layer.js';
 import { DEFAULT_STYLE, rgba, screenWidthPx } from './route-style.js';
-import { SCREEN, courseLegs, numberDirection, startTriangle } from './course.js';
+import { SCREEN, courseLegs, finishOuterRadius, numberDirection, startTriangle } from './course.js';
 import {
     ACTIVE_COLOR, CASING, DEF_CENTER, LOCKED_COLOR, MAX_EXTENT, PROJ, PROJ_DEF, RESOLUTIONS, TILE_ORIGIN,
 } from './constants.js';
@@ -109,11 +109,14 @@ function courseStyles(pts, color, widthPx, resolution) {
     const u = px => px * resolution;
     const stroke = new Stroke({ color, width: widthPx });
     const fill = new Fill({ color });
+    const [innerR, outerR] = SCREEN.finishD.map(d => d / 2);
+    const finishR = [innerR, finishOuterRadius(innerR, outerR, widthPx, SCREEN.finishClear)];
     const legs = courseLegs(pts, {
         start: u(SCREEN.startSide / Math.sqrt(3)),
         control: u(SCREEN.controlD / 2),
-        finish: u(SCREEN.finishD[1] / 2),
-        gap: u(SCREEN.gap),
+        finish: u(finishR[1]),
+        // clear of the symbol's stroke and the leg's round cap, however thick
+        gap: u(SCREEN.gap + widthPx),
     });
     const tri = startTriangle(pts[0], pts[1], u(SCREEN.startSide));
     const controls = pts.slice(1, -1);
@@ -121,8 +124,8 @@ function courseStyles(pts, color, widthPx, resolution) {
     const styles = [
         new Style({ geometry: new MultiLineString(legs), stroke }),
         new Style({ geometry: new Polygon([[...tri, tri[0]]]), stroke }),
-        ...SCREEN.finishD.map(d => new Style({
-            geometry: new Point(finish), image: new CircleStyle({ radius: d / 2, stroke }),
+        ...finishR.map(radius => new Style({
+            geometry: new Point(finish), image: new CircleStyle({ radius, stroke }),
         })),
         new Style({ geometry: new MultiPoint(pts), image: new CircleStyle({ radius: Math.max(SCREEN.dotMin, widthPx) / 2, fill }) }),
     ];

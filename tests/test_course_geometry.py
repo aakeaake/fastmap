@@ -2,6 +2,7 @@ from math import isclose, sqrt
 
 from fastmap.services.course_geometry import (
     course_legs,
+    finish_outer_radius,
     number_direction,
     shorten_leg,
     start_triangle,
@@ -55,3 +56,8 @@ def test_start_triangle_points_at_first_control():
     t = start_triangle((0, 0), (10, 0), side=sqrt(3))  # circumradius 1
     assert close(t[0], (1, 0))
     assert close(t[1], (-0.5, sqrt(3) / 2)) and close(t[2], (-0.5, -sqrt(3) / 2))
+
+
+def test_finish_outer_radius_keeps_a_clear_gap():
+    assert isclose(finish_outer_radius(2.5, 3.5, width=0.35, clear=0.6), 3.5)  # thin: as drawn
+    assert isclose(finish_outer_radius(2.5, 3.5, width=1.1, clear=0.6), 4.2)  # thick: moves out

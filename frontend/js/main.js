@@ -25,7 +25,7 @@ import { buildPayload, gpxRoutes, readRouteFeatures } from './payload.js';
 import { COURSE_MAX_POINTS, courseable, effectiveLook } from './course.js';
 import { ROUTE_KEY, formatKm, routeKey, routeLengthM, sanitizeSavedRoute, serializeRoute, toGpx } from './route.js';
 import {
-    DEFAULT_STYLE, ROUTE_STYLE_KEY, parseWidthMm, rgba, sanitizeRouteStyle, screenWidthPx,
+    DEFAULT_STYLE, ROUTE_STYLE_KEY, lookWidthMm, parseWidthMm, rgba, sanitizeRouteStyle, screenWidthPx,
 } from './route-style.js';
 import { parseMargin } from './saved.js';
 import { formatNumber } from './format.js';
@@ -1008,11 +1008,27 @@ el('gpxRemoveBtn').addEventListener('click', removeRoute);
 // preview strip, the route button, the saved style and the next PDF.
 function setRouteStyle(patch) {
     routeStyle = sanitizeRouteStyle({ ...routeStyle, ...patch });
-    const { color, opacity, widthMm } = routeStyle;
-    const px = screenWidthPx(widthMm);
     applyRouteLook();
+    renderRouteColor();
+    try { localStorage.setItem(ROUTE_STYLE_KEY, JSON.stringify(routeStyle)); } catch { /* ignore */ }
+    saveRoute();   // the route also keeps its show choice (older versions read it)
+    renderCover();
+}
+
+// The look the card shows: the route's look, or the chosen one when there is no route yet
+const shownLook = () => (routeLines().length ? routeLook() : routeStyle.look);
+
+// The map layers and the card's preview draw the look in effect (line when
+// the route cannot be a course), each look with its own width
+function applyRouteLook() {
+    const { color, opacity } = routeStyle;
+    const look = shownLook();
+    const px = screenWidthPx(lookWidthMm(routeStyle, look));
+    gpxLayer.setStyle(routeLayerStyle(rgba(color, opacity), px, routeLook()));
     waypointLayer.setStyle(waypointLayerStyle(rgba(color, opacity), px));
-    const strip = el('routePreview').firstElementChild;
+    const preview = el('routePreview');
+    preview.toggleAttribute('data-course', look === 'course');
+    const strip = preview.firstElementChild;
     strip.style.background = color;
     strip.style.opacity = String(opacity / 100);
     strip.style.height = `${px}px`;
@@ -1020,16 +1036,12 @@ function setRouteStyle(patch) {
     course.style.color = color;
     course.style.opacity = String(opacity / 100);
     course.setAttribute('stroke-width', String(Math.min(3, Math.max(1, px / 2))));
-    renderRouteColor();
-    try { localStorage.setItem(ROUTE_STYLE_KEY, JSON.stringify(routeStyle)); } catch { /* ignore */ }
-    saveRoute();   // the route also keeps its show choice (older versions read it)
-    renderCover();
 }
 
-// The route layer draws the look in effect (line when the route cannot be a course)
-function applyRouteLook() {
-    const { color, opacity, widthMm } = routeStyle;
-    gpxLayer.setStyle(routeLayerStyle(rgba(color, opacity), screenWidthPx(widthMm), routeLook()));
+// The Width field shows the width of the look in use
+function writeWidthField() {
+    // In the language's decimal mark ("1,1" in Finnish); either mark is read
+    el('gpxWidth').value = formatNumber(lookWidthMm(routeStyle, shownLook()), locale(), { maximumFractionDigits: 1 });
 }
 
 // The Line / Course choice: Course is offered when the route can be one;
@@ -1043,9 +1055,8 @@ function renderLook() {
     note.hidden = ok;
     note.textContent = ok ? '' : route.source === 'trk'
         ? t('gpx.courseTrack') : t('gpx.courseTooMany', { max: COURSE_MAX_POINTS });
-    const course = routeLook() === 'course' || (!route.lines.length && routeStyle.look === 'course');
-    el('routePreview').toggleAttribute('data-course', course);
     applyRouteLook();
+    if (document.activeElement !== el('gpxWidth')) writeWidthField();
 }
 
 // The fields show the style in use (at start, and a width made valid)
@@ -1053,8 +1064,7 @@ function writeStyleForm() {
     renderLook();
     el('gpxShow').checked = routeStyle.show;
     el('gpxColor').value = routeStyle.color;
-    // In the language's decimal mark ("1,1" in Finnish); either mark is read
-    el('gpxWidth').value = formatNumber(routeStyle.widthMm, locale(), { maximumFractionDigits: 1 });
+    writeWidthField();
     el('gpxOpacity').value = String(routeStyle.opacity);
     el('gpxOpacityVal').textContent = `${routeStyle.opacity} %`;
 }
@@ -1068,13 +1078,15 @@ el('gpxOpacity').addEventListener('input', () => {
     setRouteStyle({ opacity: Number(el('gpxOpacity').value) });
     el('gpxOpacityVal').textContent = `${routeStyle.opacity} %`;
 });
+// The Width field sets the width of the look in use: each look keeps its own
+const widthPatch = mm => (shownLook() === 'course' ? { courseWidthMm: mm } : { widthMm: mm });
 // While typing, only a readable number applies; leaving the field settles it
 el('gpxWidth').addEventListener('input', () => {
     const v = el('gpxWidth').value.trim();
-    if (v !== '' && Number.isFinite(Number(v.replace(',', '.')))) setRouteStyle({ widthMm: parseWidthMm(v) });
+    if (v !== '' && Number.isFinite(Number(v.replace(',', '.')))) setRouteStyle(widthPatch(parseWidthMm(v)));
 });
 el('gpxWidth').addEventListener('change', () => {
-    setRouteStyle({ widthMm: parseWidthMm(el('gpxWidth').value) });
+    setRouteStyle(widthPatch(parseWidthMm(el('gpxWidth').value)));
     writeStyleForm();
 });
 
@@ -1418,7 +1430,7 @@ function sharedSettings() {
         routes: routeLines(),
         showRoute: routeStyle.show,
         gpxColor: routeStyle.color,
-        gpxWidthMm: routeStyle.widthMm,
+        gpxWidthMm: lookWidthMm(routeStyle, routeLook()),
         gpxOpacity: routeStyle.opacity,
         look: routeLook(),
         waypoints: routeWaypoints,

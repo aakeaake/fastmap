@@ -6,7 +6,9 @@
 export const COURSE_MAX_POINTS = 100;
 
 // Symbol sizes on screen in px; they stay the same at every zoom
-export const SCREEN = { controlD: 22, startSide: 26, finishD: [18, 26], gap: 1, numberPx: 14, namePx: 12, dotMin: 3 };
+export const SCREEN = {
+    controlD: 22, startSide: 26, finishD: [18, 26], finishClear: 3, gap: 1, numberPx: 14, namePx: 12, dotMin: 3,
+};
 
 const unit = (dx, dy) => {
     const n = Math.hypot(dx, dy);
@@ -34,6 +36,10 @@ export function courseLegs(points, { start, control, finish, gap }) {
     }
     return legs;
 }
+
+// The outer finish circle's radius, moved out so a thick line still leaves
+// `clear` between the two circles
+export const finishOuterRadius = (innerR, outerR, width, clear) => Math.max(outerR, innerR + width + clear);
 
 // Unit vector from p away from both of its legs (where its number goes)
 export function numberDirection(prev, p, next) {

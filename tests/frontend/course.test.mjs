@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-    COURSE_MAX_POINTS, courseLegs, courseable, effectiveLook, numberDirection, shortenLeg, startTriangle,
+    COURSE_MAX_POINTS, courseLegs, courseable, effectiveLook, finishOuterRadius, numberDirection, shortenLeg, startTriangle,
 } from '../../frontend/js/course.js';
 
 // Same cases as tests/test_course_geometry.py: both sides draw the same course
@@ -70,4 +70,9 @@ test('effectiveLook falls back to line when the route cannot be a course', () =>
     assert.equal(effectiveLook('course', drawn), 'course');
     assert.equal(effectiveLook('course', track), 'line');
     assert.equal(effectiveLook('line', drawn), 'line');
+});
+
+test('finishOuterRadius keeps a clear gap between the finish circles', () => {
+    assert.equal(finishOuterRadius(9, 13, 1, 3), 13);   // thin line: as drawn
+    assert.equal(finishOuterRadius(9, 13, 4, 3), 16);   // thick line: the outer circle moves out
 });

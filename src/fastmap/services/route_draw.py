@@ -13,6 +13,7 @@ from reportlab.pdfgen import canvas
 from fastmap.services.course_geometry import (
     CONTROL_D_MM,
     DOT_D_MM,
+    FINISH_CLEAR_MM,
     FINISH_D_MM,
     HALO_MM,
     LEG_GAP_MM,
@@ -22,6 +23,7 @@ from fastmap.services.course_geometry import (
     START_SIDE_MM,
     WAYPOINT_NAME_H_MM,
     course_legs,
+    finish_outer_radius,
     number_direction,
     start_triangle,
 )
@@ -48,12 +50,18 @@ def _dot(c: canvas.Canvas, x: float, y: float, width: float) -> None:
 
 
 def _draw_course(c: canvas.Canvas, pts: list[tuple[float, float]], width: float) -> None:
+    finish_r = (
+        FINISH_D_MM[0] / 2 * mm,
+        finish_outer_radius(
+            FINISH_D_MM[0] / 2 * mm, FINISH_D_MM[1] / 2 * mm, width, FINISH_CLEAR_MM * mm
+        ),
+    )
     legs = course_legs(
         pts,
         START_RADIUS_MM * mm,
         CONTROL_D_MM / 2 * mm,
-        FINISH_D_MM[1] / 2 * mm,
-        LEG_GAP_MM * mm,
+        finish_r[1],
+        LEG_GAP_MM * mm + width / 2,  # clear of the symbol's stroke, however thick
     )
     for a, b in legs:
         c.line(a[0], a[1], b[0], b[1])
@@ -66,8 +74,8 @@ def _draw_course(c: canvas.Canvas, pts: list[tuple[float, float]], width: float)
     p.lineTo(*tri[2])
     p.close()
     c.drawPath(p, stroke=1, fill=0)
-    for d in FINISH_D_MM:
-        c.circle(finish[0], finish[1], d / 2 * mm, stroke=1, fill=0)
+    for r in finish_r:
+        c.circle(finish[0], finish[1], r, stroke=1, fill=0)
 
     size = NUMBER_H_MM * mm
     c.setFont(_NUMBER_FONT, size)

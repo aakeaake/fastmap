@@ -11,6 +11,7 @@ Point = tuple[float, float]
 CONTROL_D_MM = 6.0
 START_SIDE_MM = 7.0
 FINISH_D_MM = (5.0, 7.0)
+FINISH_CLEAR_MM = 0.6  # least white between the finish circles
 LEG_GAP_MM = 0.3
 NUMBER_H_MM = 4.0
 NUMBER_OFFSET_MM = 2.5  # from the circle edge to the number's centre
@@ -49,6 +50,12 @@ def course_legs(
         if leg:
             legs.append(leg)
     return legs
+
+
+def finish_outer_radius(inner_r: float, outer_r: float, width: float, clear: float) -> float:
+    """The outer finish circle's radius, moved out so a thick line still leaves
+    ``clear`` between the two circles."""
+    return max(outer_r, inner_r + width + clear)
 
 
 def number_direction(prev: Point, p: Point, nxt: Point) -> Point:
