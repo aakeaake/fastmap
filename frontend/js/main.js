@@ -945,6 +945,7 @@ const routeTools = createRouteTools(map, gpxLayer, {
     onChange: lines => { toolShape = lines; renderRouteBar(); },
     onDone: (mode, lines) => setRoute(mode === 'draw' ? t('gpx.myRoute') : routeName, lines),
     onModeChange: toolModeChanged,
+    sketchColor: () => routeStyle.color,
 });
 
 const areaTools = createShapeTools(map, areaLayer, {
