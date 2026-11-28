@@ -136,9 +136,11 @@ _session = requests.Session()
 _session.headers.update(_HEADERS)
 _session.cookies.set_policy(http.cookiejar.DefaultCookiePolicy(allowed_domains=[]))
 # Enough pooled connections for every request that can be in flight at
-# once: the tile pool plus one WMS request per render worker. Fewer, and
-# urllib3 discards and reopens (TLS) connections.
-_POOL_MAXSIZE = TILE_FETCH_WORKERS + RENDER_WORKERS
+# once: the tile pool, one WMS request per render worker, and the preview
+# proxy's tiles (a browser loads a map view a few dozen tiles at a time).
+# Fewer, and urllib3 discards and reopens (TLS) connections.
+_PREVIEW_CONNECTIONS = 16
+_POOL_MAXSIZE = TILE_FETCH_WORKERS + RENDER_WORKERS + _PREVIEW_CONNECTIONS
 _session.mount("https://", HTTPAdapter(max_retries=_RETRY, pool_maxsize=_POOL_MAXSIZE))
 _session.mount("http://", HTTPAdapter(max_retries=_RETRY, pool_maxsize=_POOL_MAXSIZE))
 

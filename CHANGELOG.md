@@ -37,6 +37,9 @@ All notable changes to FastMap. Versions are tagged `vX.Y.Z` on `main`.
   symbols are copied from the printed reference map, at its size.
 - Small open-rock dots are a little bigger and print under the contours;
   point symbols are drawn in style order with the other layers.
+- The map preview loads faster: the tile proxy keeps its connections to MML
+  open instead of opening a new one per tile, and retries MML's brief
+  overload errors like the PDF renderer does.
 
 ### Fixed
 - Vector maps fill the sea blue. The style left sea areas out of the water
