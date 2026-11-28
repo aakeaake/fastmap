@@ -590,7 +590,8 @@ body:has(#routeCard:not([hidden])) #routeToolLink { display: none; }
     .toast {
         position: absolute; z-index: 1003;
         top: var(--edge-t); left: var(--edge-l);
-        max-width: calc(100% - var(--edge-l) - var(--edge-r) - var(--tool) - 12px);
+        /* clear of the info button and the language button left of it */
+        max-width: calc(100% - var(--edge-l) - var(--edge-r) - var(--tool) - 100px);
     }
 
     .stack {
