@@ -417,6 +417,13 @@ body:has(#routeCard:not([hidden])) #routeNone .btn-row,
 body:has(#routeCard:not([hidden])) #routeToolLink { display: none; }
 .route-preview { display: flex; align-items: center; height: 28px; margin-top: 12px; padding: 0 12px; border-radius: var(--radius-sm); background: #e8eee2; }
 .route-preview span { flex: 1; height: 4px; border-radius: 99px; background: #ff00ff; opacity: .6; }
+.route-preview svg { display: none; flex: 1; height: 24px; color: #ff00ff; }
+.route-preview[data-course] span { display: none; }
+.route-preview[data-course] svg { display: block; }
+.look-row { display: flex; flex-wrap: wrap; gap: 4px 16px; margin: 10px 0 0; padding: 0; border: 0; }
+.look-row legend { width: 100%; padding: 0; margin-bottom: 3px; font-size: 13px; color: var(--ink-2); }
+.pane .look-row label.check { margin: 0; }
+.route-waypoints { margin: 4px 0 0; }
 /* Route mode: the route in one line, with the way to its card */
 .route-line { display: flex; align-items: center; gap: 8px; margin-top: 8px; padding: 6px 4px 6px 10px; border-radius: var(--radius-sm); background: var(--surface-2); }
 .route-line-text { flex: 1; min-width: 0; font-size: 13px; color: var(--ink); overflow-wrap: anywhere; }
