@@ -1,3 +1,4 @@
+import math
 import re
 
 import pytest
@@ -886,3 +887,23 @@ def test_multi_pdf_magnetic_and_kok(tmp_path, monkeypatch):
     kwargs = {"paper_size": "A4", "orientation": "portrait", "magnetic_north": True}
     pdf_generator.generate_multi_pdf([(_MN_EXT, kwargs)], str(out))
     assert _expected_kok(_MN_EXT) in _text(out)
+
+
+def test_magnetic_lines_lean_east_for_a_positive_angle():
+    """The top of each line is east (right) of its bottom: clockwise from grid north."""
+    from reportlab.pdfgen import canvas as rl_canvas
+
+    lines = []
+
+    class Spy(rl_canvas.Canvas):
+        def line(self, x1, y1, x2, y2):
+            lines.append((x1, y1, x2, y2))
+
+    c = Spy("unused.pdf")
+    ext = Extent(0, 0, 1000, 1000)
+    pdf_generator._draw_magnetic_lines(c, ext, 0, 0, 100, 100, angle_deg=15, spacing_m=250)
+    assert lines
+    for x1, y1, x2, y2 in lines:
+        (bx, by), (tx, ty) = sorted([(x1, y1), (x2, y2)], key=lambda p: p[1])
+        assert tx > bx  # leans east going north
+        assert (tx - bx) / (ty - by) == pytest.approx(math.tan(math.radians(15)), rel=1e-9)
