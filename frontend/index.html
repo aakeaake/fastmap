@@ -451,6 +451,51 @@
     </div>
 </div>
 
+<!-- Info: the top-right-most button opens a modal about the app and its
+     features; it opens by itself on the first visit (js/info.js) -->
+<button id="infoBtn" class="map-tool" type="button" aria-haspopup="dialog" aria-controls="infoDialog" aria-label="About FastMap and help" title="About FastMap and help" data-i18n-attr="aria-label:info.button;title:info.button" data-icon="info"></button>
+<dialog id="infoDialog" class="info" aria-labelledby="infoTitle">
+    <div class="info-body">
+        <div class="info-head">
+            <h2 id="infoTitle" data-i18n="info.title">FastMap</h2>
+            <form method="dialog"><button class="icon-btn" aria-label="Close" data-i18n-attr="aria-label:close" data-icon="x"></button></form>
+        </div>
+        <p class="info-intro" data-i18n="info.intro">Print-ready PDF maps of Finland that are true to scale, made from National Land Survey (MML) map data.</p>
+        <ul class="info-features">
+            <li><span class="info-icon" data-icon="sheet"></span><strong data-i18n="mode.maps">Maps</strong><span data-i18n="info.maps">Add a map sheet, drag it into place, pick paper, scale and grid, and download the PDF.</span></li>
+            <li><span class="info-icon" data-icon="route"></span><strong data-i18n="mode.route">Route</strong><span data-i18n="info.route">Draw or import a route, and FastMap covers it with map sheets all along the way.</span></li>
+            <li><span class="info-icon" data-icon="area"></span><strong data-i18n="mode.atlas">Atlas</strong><span data-i18n="info.atlas">Draw an area, and FastMap fills it with a grid of map sheets.</span></li>
+            <li><span class="info-icon" data-icon="pen"></span><strong data-i18n="routeTool.button">Route tool</strong><span data-i18n="info.tool">Draw a route by hand, import or export GPX, and choose how the route looks on prints.</span></li>
+        </ul>
+        <details class="fold">
+            <summary><span data-icon="chevron"></span><span data-i18n="info.tips">Tips</span></summary>
+            <ul class="info-list">
+                <li data-i18n="info.tips.drag">Drag a sheet to move it; click a sheet to select it.</li>
+                <li data-i18n="info.tips.center">Double-click the map to move the selected sheet there, or use the target button to centre it.</li>
+                <li data-i18n="info.tips.undo">Deleted something by mistake? Press Undo in the message that appears.</li>
+                <li data-i18n="info.tips.saved">Your maps and route are saved in this browser for your next visit.</li>
+            </ul>
+        </details>
+        <details class="fold">
+            <summary><span data-icon="chevron"></span><span data-i18n="info.print">Print settings</span></summary>
+            <ul class="info-list">
+                <li data-i18n="info.print.grid">Grid: vertical (south–north) or full grid lines, with or without coordinates, 500 m to 5 km apart.</li>
+                <li data-i18n="info.print.title">Title: an optional name printed on the map.</li>
+                <li data-i18n="info.print.vector">Vector map (beta): sharper lines and text, at 1:25 000 and 1:50 000.</li>
+                <li data-i18n="info.print.advanced">Advanced: page margin and print precision (DPI and map level).</li>
+            </ul>
+        </details>
+        <details class="fold">
+            <summary><span data-icon="chevron"></span><span data-i18n="info.downloads">Downloads</span></summary>
+            <ul class="info-list">
+                <li data-i18n="info.downloads.one">Download one map with its own button, or all of them at once.</li>
+                <li data-i18n="info.downloads.all">Download all gives one PDF with every map as a page, or a ZIP of separate PDFs — up to 25 maps.</li>
+            </ul>
+        </details>
+        <form method="dialog" class="info-foot"><button class="btn btn-primary" data-i18n="info.ok">Got it</button></form>
+    </div>
+</dialog>
+
 <div class="stack">
     <div id="notices" class="notices"></div>
     <div id="hint" class="hint">

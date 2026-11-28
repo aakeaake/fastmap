@@ -107,3 +107,19 @@ test('Maps fold and the click-to-select tip have their words', () => {
     assert.match(STRINGS.fi['hint.after'], /valitse karttalehti klikkaamalla/);
     assert.ok(html.includes('id="mapsShowAll"'));
 });
+
+test('the info button opens a modal dialog', () => {
+    assert.match(html, /<button id="infoBtn"[^>]*aria-haspopup="dialog"[^>]*aria-controls="infoDialog"/);
+    assert.match(html, /<dialog id="infoDialog"[^>]*aria-labelledby="infoTitle"/);
+});
+
+test('the info dialog closes through a dialog form and keeps its sections closed', () => {
+    const dlg = html.slice(html.indexOf('<dialog id="infoDialog"'), html.indexOf('</dialog>'));
+    assert.match(dlg, /<form method="dialog"/);
+    const details = [...dlg.matchAll(/<details\b[^>]*>/g)].map(m => m[0]);
+    assert.equal(details.length, 3);
+    for (const d of details) assert.ok(!/\bopen\b/.test(d), d);
+    for (const key of ['mode.maps', 'mode.route', 'mode.atlas', 'routeTool.button', 'info.intro']) {
+        assert.ok(dlg.includes(`data-i18n="${key}"`), key);
+    }
+});

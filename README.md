@@ -30,6 +30,7 @@ frontend/                  Static UI, no build step (OpenLayers v10 via CDN)
     ├── sheet.js, panes.js Phone bottom sheet; desktop rail and route pane
     ├── i18n.js            Current language; swaps data-i18n text in the markup
     ├── lang-menu.js       Globe button and language menu
+    ├── info.js            Info button and help popup (first-visit open)
     ├── notices.js         Pop-up cards for downloads and errors, plus the
     │                      screen-reader live regions
     └── strings.js, geometry.js, saved.js, payload.js, jobs.js, text.js,
@@ -69,8 +70,11 @@ The browser never sees the MML API key: preview tiles are proxied through
   the next visit.
 * **GPX track overlay** — upload a GPX file to display the track on the preview
   map and render it on exported PDFs. Customisable colour, width, and opacity.
+* **Built-in help** — the info button at the top right explains what the
+  tool is for and how to use each feature; it opens by itself on the first
+  visit.
 * **English and Finnish UI** — English by default; switch with the globe
-  button at the top right.
+  button next to the info button.
   The choice is remembered in the browser. PDFs are unaffected.
 * **Works on phones** — the settings become a bottom sheet; touch targets are
   44 px.
