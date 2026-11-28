@@ -5,6 +5,9 @@ All notable changes to FastMap. Versions are tagged `vX.Y.Z` on `main`.
 ## Unreleased
 
 ### Added
+- Info button at the top right: a popup that explains what FastMap is for
+  and how to use maps, route covering, atlases and the route tool. It opens
+  by itself on the first visit.
 - Route tool: a route button on the map opens a card to draw, import, name,
   edit, export (GPX) or remove the route and to set how it prints, from any
   mode. Removing the route can be undone. On phones the card takes the

@@ -38,6 +38,7 @@ export const DEFAULTS = {
 // --- Browser storage keys -----------------------------------------------------
 export const STORAGE_KEY = 'fastmap.maps.v1';
 export const HINT_KEY = 'fastmap.hintHidden';
+export const INFO_KEY = 'fastmap.infoSeen';
 export const UI_KEY = 'fastmap.ui.v1';
 
 // --- Rectangle colours --------------------------------------------------------

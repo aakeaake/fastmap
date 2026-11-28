@@ -13,6 +13,7 @@ import {
 import { AREA_KEY, formatKm2, ringAreaM2, sanitizeSavedArea, serializeArea } from './area.js';
 import { ATLAS_MAX, atlasTitle, planAtlas } from './atlas.js';
 import { effectiveLayer } from './layer.js';
+import { createInfo } from './info.js';
 import { createLangMenu } from './lang-menu.js';
 import { createNotices } from './notices.js';
 import { createPanes } from './panes.js';
@@ -1468,3 +1469,7 @@ onLangChange(renderScriptText);
 renderScriptText();
 updateCoveredLeft();
 fitModeIfHidden(0);
+
+// Info button and popup; opens by itself on the first visit, after the
+// text and icons above are in place
+createInfo({ button: el('infoBtn'), dialog: el('infoDialog') });
