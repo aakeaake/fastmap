@@ -149,7 +149,8 @@ MML requests are retried up to 3 attempts (not read timeouts). See
 * **Grid** turns on grid lines (vertical, or full, each with optional
   coordinates) with a selectable spacing.
 * **Magnetic north lines** add north–south lines turned to magnetic north,
-  with their own spacing. With a grid on as well, the grid turns blue.
+  with their own spacing, in black. With a grid on as well, the grid turns
+  light blue.
 * **Footer:** title, scale and the total correction from grid north to
   magnetic north ("kok. +12°", World Magnetic Model 2025, for the sheet's
   centre and the print date).

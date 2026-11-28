@@ -90,9 +90,10 @@ _LABEL_FONT = "Courier"
 _LABEL_SIZE = 5.5
 _LABEL_COLOR = black  # coordinates print black, like the footer
 _GRID_COLOR = Color(0.35, 0.35, 0.35)
-# With magnetic north lines on, the coordinate grid and its labels turn blue
-# so the two line sets tell apart; the magnetic lines keep the grid grey
-_GRID_BLUE = Color(0x1F / 255, 0x5F / 255, 0xBF / 255)
+# With magnetic north lines on, the coordinate grid and its labels turn light
+# blue so the black magnetic lines stand out against the map
+_GRID_BLUE = Color(0x6F / 255, 0xA8 / 255, 0xE6 / 255)
+_MAGNETIC_COLOR = black
 # Labels go in the margin, outside the map, when it is at least this wide;
 # in a narrower margin they fall back to inside the map edges.
 LABEL_MIN_MARGIN_MM = 3.0
@@ -288,7 +289,7 @@ def _draw_magnetic_lines(
     clip = c.beginPath()
     clip.rect(x0, y0, w, h)
     c.clipPath(clip, stroke=0, fill=0)
-    c.setStrokeColor(_GRID_COLOR)
+    c.setStrokeColor(_MAGNETIC_COLOR)
     c.setLineWidth(0.3)
     for k in range(k0, k1 + 1):
         u = k * spacing_m

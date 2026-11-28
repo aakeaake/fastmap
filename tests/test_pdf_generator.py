@@ -866,7 +866,7 @@ def _blue_pixels(img):
         1
         for x in range(0, w, 2)
         for y in range(0, h, 2)
-        if px[x, y][2] > 150 and px[x, y][0] < 90 and px[x, y][1] < 140
+        if px[x, y][2] > 200 and px[x, y][0] < 150 and px[x, y][0] < px[x, y][1] < px[x, y][2]
     )
 
 
@@ -907,3 +907,36 @@ def test_magnetic_lines_lean_east_for_a_positive_angle():
         (bx, by), (tx, ty) = sorted([(x1, y1), (x2, y2)], key=lambda p: p[1])
         assert tx > bx  # leans east going north
         assert (tx - bx) / (ty - by) == pytest.approx(math.tan(math.radians(15)), rel=1e-9)
+
+
+def _stroke_colors(monkeypatch, **kwargs):
+    """The stroke colours (r, g, b) the grid and magnetic lines are drawn with."""
+    from reportlab.pdfgen import canvas as rl_canvas
+
+    seen = []
+    orig = rl_canvas.Canvas.setStrokeColor
+
+    def spy(self, color, *a, **k):
+        seen.append(tuple(round(v, 3) for v in (color.red, color.green, color.blue)))
+        return orig(self, color, *a, **k)
+
+    monkeypatch.setattr(rl_canvas.Canvas, "setStrokeColor", spy)
+    c = rl_canvas.Canvas("unused.pdf")
+    ext = Extent(0, 0, 1000, 1000)
+    if "grid" in kwargs:
+        pdf_generator._draw_grid_lines(
+            c, ext, 0, 0, 100, 100, mode="full", spacing_m=250, margin_mm=7, **kwargs["grid"]
+        )
+    else:
+        pdf_generator._draw_magnetic_lines(c, ext, 0, 0, 100, 100, angle_deg=12, spacing_m=250)
+    return seen
+
+
+def test_magnetic_lines_are_black(monkeypatch):
+    assert _stroke_colors(monkeypatch) == [(0.0, 0.0, 0.0)]
+
+
+def test_grid_beside_magnetic_lines_is_light_blue(monkeypatch):
+    blue = pdf_generator._GRID_BLUE
+    [(r, g, b)] = _stroke_colors(monkeypatch, grid={"color": blue})
+    assert (r, g, b) == (round(0x6F / 255, 3), round(0xA8 / 255, 3), round(0xE6 / 255, 3))
