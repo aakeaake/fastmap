@@ -6,7 +6,7 @@ import {
 
 test('the style has its own storage key and defaults', () => {
     assert.equal(ROUTE_STYLE_KEY, 'fastmap.routeStyle.v1');
-    assert.deepEqual(DEFAULT_STYLE, { show: true, color: '#ff00ff', widthMm: 1.1, opacity: 60 });
+    assert.deepEqual(DEFAULT_STYLE, { show: true, color: '#ff00ff', widthMm: 1.1, opacity: 60, look: 'line' });
     assert.deepEqual(WIDTH_MM, { min: 0.4, max: 7, step: 0.1, def: 1.1 });
 });
 
@@ -29,7 +29,7 @@ test('mmToPt: 1.1 mm is about 3 pt, the field range fits the API 1–20 pt', () 
 
 test('sanitizeRouteStyle keeps good fields, defaults bad ones', () => {
     assert.deepEqual(sanitizeRouteStyle({ show: false, color: '#00AA00', widthMm: 2, opacity: 80 }),
-                     { show: false, color: '#00aa00', widthMm: 2, opacity: 80 });
+                     { show: false, color: '#00aa00', widthMm: 2, opacity: 80, look: 'line' });
     assert.deepEqual(sanitizeRouteStyle(null), DEFAULT_STYLE);
     assert.deepEqual(sanitizeRouteStyle('junk'), DEFAULT_STYLE);
     assert.deepEqual(sanitizeRouteStyle({ color: 'red', widthMm: 'x', opacity: 3 }), { ...DEFAULT_STYLE, opacity: 10 });
@@ -48,4 +48,10 @@ test('screen width and rgba', () => {
     assert.equal(screenWidthPx(7), 14);
     assert.equal(rgba('#ff00ff', 60), 'rgba(255, 0, 255, 0.6)');
     assert.equal(rgba('#00AA10', 100), 'rgba(0, 170, 16, 1)');
+});
+
+test('the look is line by default; course is kept, anything else is line', () => {
+    assert.equal(sanitizeRouteStyle({}).look, 'line');
+    assert.equal(sanitizeRouteStyle({ look: 'course' }).look, 'course');
+    assert.equal(sanitizeRouteStyle({ look: 'x' }).look, 'line');
 });

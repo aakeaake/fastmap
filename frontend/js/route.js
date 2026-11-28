@@ -1,6 +1,7 @@
 // The route: length, GPX export and saved data. Pure (no OpenLayers), so it
 // runs in Node tests. A route is a list of lines; a line is a list of
 // [x, y] points in EPSG:3067 metres.
+import { COURSE_MAX_POINTS } from './course.js';
 import { formatNumber } from './format.js';
 
 export const ROUTE_KEY = 'fastmap.route.v1';
@@ -35,30 +36,57 @@ export function formatKm(m, locale) {
 const XML_ESCAPES = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&apos;' };
 const escapeXml = s => s.replace(/[&<>"']/g, c => XML_ESCAPES[c]);
 
-// One <trk> named `name`, one <trkseg> per line. `toLonLat` turns an
-// EPSG:3067 point into [lon, lat].
-export function toGpx(name, lines, toLonLat) {
-    const segs = lines.map(line => {
-        const pts = line.map(p => {
-            const [lon, lat] = toLonLat(p);
-            return `      <trkpt lat="${lat.toFixed(6)}" lon="${lon.toFixed(6)}"/>`;
+const lonLat = (toLonLat, p) => {
+    const [lon, lat] = toLonLat(p);
+    return `lat="${lat.toFixed(6)}" lon="${lon.toFixed(6)}"`;
+};
+
+// Waypoints as <wpt>s, then the lines: one <rte> per line when `asRoute`
+// (a course), else one <trk> named `name` with a <trkseg> per line.
+// `toLonLat` turns an EPSG:3067 point into [lon, lat].
+export function toGpx(name, lines, toLonLat, { asRoute = false, waypoints = [] } = {}) {
+    const wpts = waypoints.map(w => (w.name
+        ? `  <wpt ${lonLat(toLonLat, [w.x, w.y])}>\n    <name>${escapeXml(w.name)}</name>\n  </wpt>`
+        : `  <wpt ${lonLat(toLonLat, [w.x, w.y])}/>`));
+    let body;
+    if (asRoute) {
+        body = lines.map(line => [
+            '  <rte>',
+            `    <name>${escapeXml(name)}</name>`,
+            ...line.map(p => `    <rtept ${lonLat(toLonLat, p)}/>`),
+            '  </rte>',
+        ].join('\n'));
+    } else {
+        const segs = lines.map(line => {
+            const pts = line.map(p => `      <trkpt ${lonLat(toLonLat, p)}/>`);
+            return `    <trkseg>\n${pts.join('\n')}\n    </trkseg>`;
         });
-        return `    <trkseg>\n${pts.join('\n')}\n    </trkseg>`;
-    });
+        body = ['  <trk>', `    <name>${escapeXml(name)}</name>`, ...segs, '  </trk>'];
+    }
     return [
         '<?xml version="1.0" encoding="UTF-8"?>',
         '<gpx version="1.1" creator="FastMap" xmlns="http://www.topografix.com/GPX/1/1">',
-        '  <trk>',
-        `    <name>${escapeXml(name)}</name>`,
-        ...segs,
-        '  </trk>',
+        ...wpts,
+        ...body,
         '</gpx>',
         '',
     ].join('\n');
 }
 
-export function serializeRoute({ name, lines, showOnPrint }) {
-    return { v: 1, name, lines, showOnPrint };
+export function serializeRoute({ name, lines, showOnPrint, source, waypoints }) {
+    return { v: 1, name, lines, showOnPrint, source, waypoints };
+}
+
+const SOURCES = ['drawn', 'rte', 'wpt', 'trk'];
+const MAX_WAYPOINTS = 500;
+
+// Saved waypoints: each needs finite x, y; names up to 40 characters
+function sanitizeWaypoints(list) {
+    if (!Array.isArray(list)) return [];
+    return list
+        .filter(w => w && typeof w === 'object' && Number.isFinite(w.x) && Number.isFinite(w.y))
+        .slice(0, MAX_WAYPOINTS)
+        .map(w => ({ x: w.x, y: w.y, name: typeof w.name === 'string' ? w.name.slice(0, 40) : '' }));
 }
 
 const isPoint = p => Array.isArray(p) && p.length >= 2 && Number.isFinite(p[0]) && Number.isFinite(p[1]);
@@ -74,9 +102,13 @@ export function sanitizeSavedRoute(data) {
         if (line.length >= 2) lines.push(line.map(p => [p[0], p[1]]));
     }
     if (!lines.length) return null;
+    // Saved before routes knew their source: one short line was drawn
+    const guess = lines.length === 1 && lines[0].length <= COURSE_MAX_POINTS ? 'drawn' : 'trk';
     return {
         name: typeof data.name === 'string' ? data.name : '',
         lines,
         showOnPrint: data.showOnPrint !== false,
+        source: SOURCES.includes(data.source) ? data.source : guess,
+        waypoints: sanitizeWaypoints(data.waypoints),
     };
 }

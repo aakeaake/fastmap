@@ -7,7 +7,9 @@ export const ROUTE_STYLE_KEY = 'fastmap.routeStyle.v1';
 // The width field. 0.4–7 mm is 1.13–19.8 pt, inside the API's 1–20 pt.
 export const WIDTH_MM = { min: 0.4, max: 7, step: 0.1, def: 1.1 };   // 1.1 mm ≈ 3 pt
 
-export const DEFAULT_STYLE = { show: true, color: '#ff00ff', widthMm: WIDTH_MM.def, opacity: 60 };
+// look: 'line', or 'course' (start triangle, numbered controls, finish) when
+// the route can be one; see course.js
+export const DEFAULT_STYLE = { show: true, color: '#ff00ff', widthMm: WIDTH_MM.def, opacity: 60, look: 'line' };
 
 const OPACITY = { min: 10, max: 100 };
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
@@ -34,6 +36,7 @@ export function sanitizeRouteStyle(data, fallbackShow = true) {
         color: typeof d.color === 'string' && /^#[0-9a-f]{6}$/i.test(d.color) ? d.color.toLowerCase() : DEFAULT_STYLE.color,
         widthMm: parseWidthMm(typeof d.widthMm === 'number' ? d.widthMm : NaN),
         opacity: Number.isFinite(opacity) ? Math.round(clamp(opacity, OPACITY.min, OPACITY.max)) : DEFAULT_STYLE.opacity,
+        look: d.look === 'course' ? 'course' : 'line',
     };
 }
 
