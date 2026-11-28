@@ -35,7 +35,7 @@ dev = [
 where = ["src"]
 
 [tool.setuptools.package-data]
-fastmap = ["vector/styles/*.json", "vector/fonts/*"]
+fastmap = ["vector/styles/*.json", "vector/fonts/*", "services/*.COF"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
