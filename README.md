@@ -148,6 +148,11 @@ MML requests are retried up to 3 attempts (not read timeouts). See
   footer line), so what you see is exactly what prints.
 * **Grid** turns on grid lines (vertical, or full, each with optional
   coordinates) with a selectable spacing.
+* **Magnetic north lines** add north–south lines turned to magnetic north,
+  with their own spacing. With a grid on as well, the grid turns blue.
+* **Footer:** title, scale and the total correction from grid north to
+  magnetic north ("kok. +12°", World Magnetic Model 2025, for the sheet's
+  centre and the print date).
 * **Route mode.** Load or draw a **GPX route** (shown on the preview and,
   unless turned off under *Route on printouts*, printed on every map with
   your colour, width and opacity). Pick paper, orientation (per sheet, or the
@@ -233,6 +238,8 @@ given per map. Optional fields: `dpi` (default 300), `margin_mm` (default 7),
 `title`, `grid_mode` (`"off"` / `"vertical"` / `"vertical_coords"` / `"full"` /
 `"full_coords"`, default `"off"`),
 `grid_spacing_m` (500 / 1000 / 2000 / 5000, default 1000),
+`magnetic_north` (magnetic north lines, default `false`),
+`magnetic_spacing_m` (250 / 500 / 1000 / 2000, default 1000),
 `gpx_routes` (list of coordinate arrays in EPSG:3067),
 `gpx_color` (hex, default `"#ff00ff"`),
 `gpx_width` (1–20 pt, default 5),

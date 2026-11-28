@@ -70,6 +70,8 @@ export function serialize({ mode } = {}) {
             colorIdx: 0,   // kept for older saved data; there is one colour now
             gridMode: e.gridMode,
             gridSpacing: e.gridSpacing,
+            magneticNorth: e.magneticNorth,
+            magneticSpacing: e.magneticSpacing,
             coords: e.feature.getGeometry().getCoordinates()[0],
         })),
     };

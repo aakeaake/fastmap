@@ -111,6 +111,20 @@
                 </select>
             </div>
         </div>
+        <div class="row magnetic-row">
+            <div>
+                <label class="check"><input id="magnetic" type="checkbox"> <span data-i18n="field.magnetic">Magnetic north lines</span></label>
+            </div>
+            <div>
+                <label for="magneticSpacing" data-i18n="field.magneticSpacing">Line spacing</label>
+                <select id="magneticSpacing" disabled>
+                    <option value="250">250 m</option>
+                    <option value="500">500 m</option>
+                    <option value="1000" selected>1 000 m</option>
+                    <option value="2000">2 000 m</option>
+                </select>
+            </div>
+        </div>
 
         <label for="title" data-i18n="field.title">Title (optional)</label>
         <input id="title" type="text" maxlength="120" placeholder="e.g. Kilpisjärvi east" data-i18n-attr="placeholder:field.titlePlaceholder">
@@ -203,6 +217,20 @@
                     <option value="1000" selected>1 000 m</option>
                     <option value="2000">2 000 m</option>
                     <option value="5000">5 000 m</option>
+                    </select>
+                </div>
+            </div>
+            <div class="row magnetic-row">
+                <div>
+                    <label class="check"><input id="coverMagnetic" type="checkbox"> <span data-i18n="field.magnetic">Magnetic north lines</span></label>
+                </div>
+                <div>
+                    <label for="coverMagneticSpacing" data-i18n="field.magneticSpacing">Line spacing</label>
+                    <select id="coverMagneticSpacing" disabled>
+                        <option value="250">250 m</option>
+                        <option value="500">500 m</option>
+                        <option value="1000" selected>1 000 m</option>
+                        <option value="2000">2 000 m</option>
                     </select>
                 </div>
             </div>
@@ -306,6 +334,20 @@
                     <option value="1000" selected>1 000 m</option>
                     <option value="2000">2 000 m</option>
                     <option value="5000">5 000 m</option>
+                    </select>
+                </div>
+            </div>
+            <div class="row magnetic-row">
+                <div>
+                    <label class="check"><input id="atlasMagnetic" type="checkbox"> <span data-i18n="field.magnetic">Magnetic north lines</span></label>
+                </div>
+                <div>
+                    <label for="atlasMagneticSpacing" data-i18n="field.magneticSpacing">Line spacing</label>
+                    <select id="atlasMagneticSpacing" disabled>
+                        <option value="250">250 m</option>
+                        <option value="500">500 m</option>
+                        <option value="1000" selected>1 000 m</option>
+                        <option value="2000">2 000 m</option>
                     </select>
                 </div>
             </div>

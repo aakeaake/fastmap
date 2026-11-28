@@ -73,6 +73,8 @@ export const STRINGS = {
         'grid.full': 'Full',
         'grid.fullCoords': 'Full + coordinates',
         'field.gridSpacing': 'Grid spacing',
+        'field.magnetic': 'Magnetic north lines',
+        'field.magneticSpacing': 'Line spacing',
         'field.title': 'Title (optional)',
         'field.titlePlaceholder': 'e.g. Kilpisjärvi east',
 
@@ -261,6 +263,8 @@ export const STRINGS = {
         'grid.full': 'Täysi',
         'grid.fullCoords': 'Täysi + koordinaatit',
         'field.gridSpacing': 'Ruudukon väli',
+        'field.magnetic': 'Magneettisen pohjoisen viivat',
+        'field.magneticSpacing': 'Viivaväli',
         'field.title': 'Otsikko (valinnainen)',
         'field.titlePlaceholder': 'esim. Kilpisjärvi itä',
 

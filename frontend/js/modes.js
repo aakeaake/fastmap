@@ -6,14 +6,16 @@ import { DEFAULTS, GRID_MODES, GRID_SPACINGS, LAYERS, MODES, ORIENTATIONS, PAPER
 import { ATLAS_OVERLAP_OPTIONS } from './atlas.js';
 import { DEFAULT_OVERLAP, OVERLAP_OPTIONS } from './cover.js';
 import { effectiveLayer } from './layer.js';
-import { parseMargin, sanitizeMode, sanitizeSavedMap } from './saved.js';
+import { parseMargin, sanitizeMagnetic, sanitizeMode, sanitizeSavedMap } from './saved.js';
 
 export { MODES, sanitizeMode };
 
 // Route orientation: best per sheet, or the same for every sheet
 export const ROUTE_ORIENTATIONS = ['auto', 'same'];
 
-const SET_FIELDS = ['paperSize', 'orientation', 'scale', 'layer', 'gridMode', 'gridSpacing', 'overlapPct'];
+const SET_FIELDS = [
+    'paperSize', 'orientation', 'scale', 'layer', 'gridMode', 'gridSpacing', 'overlapPct', 'magneticNorth', 'magneticSpacing',
+];
 const orientationsOf = mode => (mode === 'route' ? ROUTE_ORIENTATIONS : ORIENTATIONS);
 const overlapsOf = mode => (mode === 'route' ? OVERLAP_OPTIONS : ATLAS_OVERLAP_OPTIONS);
 
@@ -27,6 +29,8 @@ export function defaultSetSettings(mode) {
         gridMode: DEFAULTS.gridMode,
         gridSpacing: DEFAULTS.gridSpacing,
         overlapPct: DEFAULT_OVERLAP,
+        magneticNorth: DEFAULTS.magneticNorth,
+        magneticSpacing: DEFAULTS.magneticSpacing,
     };
 }
 
@@ -43,6 +47,7 @@ export function sanitizeSetSettings(mode, data) {
         gridMode: GRID_MODES.includes(data.gridMode) ? data.gridMode : d.gridMode,
         gridSpacing: GRID_SPACINGS.includes(data.gridSpacing) ? data.gridSpacing : d.gridSpacing,
         overlapPct: overlapsOf(mode).includes(data.overlapPct) ? data.overlapPct : d.overlapPct,
+        ...sanitizeMagnetic(data),
         // a set's made-with record also keeps the margin its sheets were sized with
         ...(Number.isFinite(data.margin) ? { margin: parseMargin(data.margin) } : {}),
         // and a route set the route it covered (route.js routeKey)

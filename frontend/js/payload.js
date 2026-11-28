@@ -69,6 +69,8 @@ export function buildPayload(entry, extent, shared) {
         margin_mm: entry.margin,
         grid_mode: entry.gridMode,
         grid_spacing_m: entry.gridSpacing,
+        magnetic_north: entry.magneticNorth === true,
+        magnetic_spacing_m: entry.magneticSpacing ?? 1000,
     };
     if (shared.dpi) payload.dpi = parseInt(shared.dpi, 10);
     if (shared.zoomLevel) payload.zoom_level = parseInt(shared.zoomLevel, 10);

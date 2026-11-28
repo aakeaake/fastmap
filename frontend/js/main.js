@@ -1,6 +1,6 @@
 // FastMap UI: wires the map, the map list, the panes and PDF downloads.
 import {
-    DEFAULTS, GRID_MODES, HINT_KEY, PAPER_MM, STORAGE_KEY, VECTOR_LAYER, VECTOR_SCALES,
+    DEFAULTS, GRID_MODES, HINT_KEY, MAGNETIC_SPACINGS, PAPER_MM, STORAGE_KEY, VECTOR_LAYER, VECTOR_SCALES,
 } from './constants.js';
 import { centerToShow, containsExtent, contentMeters, visibleCenter as visibleCenterOf, visibleExtent } from './geometry.js';
 import { applyTranslations, getLang, locale, onLangChange, setLang, t } from './i18n.js';
@@ -103,6 +103,8 @@ function newMap() {
         layer: cur.layer,
         gridMode: cur.gridMode,
         gridSpacing: cur.gridSpacing,
+        magneticNorth: cur.magneticNorth,
+        magneticSpacing: cur.magneticSpacing,
     } : {};
     const full = { ...DEFAULTS, ...settings, margin: state.margin, mode: 'maps' };
     // not exactly on top of another map (it would hide under it)
@@ -271,6 +273,9 @@ function syncPanel() {
     el('gridMode').value = e.gridMode;
     el('gridSpacing').value = e.gridSpacing;
     el('gridSpacing').disabled = e.gridMode === 'off';
+    el('magnetic').checked = e.magneticNorth;
+    el('magneticSpacing').value = e.magneticSpacing;
+    el('magneticSpacing').disabled = !e.magneticNorth;
 }
 
 // The vector option exists only at the scales the vector map supports
@@ -296,6 +301,10 @@ function panelChanged() {
     e.gridMode = GRID_MODES.includes(el('gridMode').value) ? el('gridMode').value : 'off';
     e.gridSpacing = parseInt(el('gridSpacing').value, 10) || 1000;
     el('gridSpacing').disabled = e.gridMode === 'off';
+    e.magneticNorth = el('magnetic').checked;
+    e.magneticSpacing = MAGNETIC_SPACINGS.includes(Number(el('magneticSpacing').value))
+        ? Number(el('magneticSpacing').value) : DEFAULTS.magneticSpacing;
+    el('magneticSpacing').disabled = !e.magneticNorth;
     placeEntry(e);
     renderList();
     persist();
@@ -714,7 +723,7 @@ loadBlocks();
 if (!loadSnapshot(savedSnapshot()) && state.mode === 'maps') newMap();
 el('margin').value = state.margin;
 
-for (const id of ['paperSize', 'orientation', 'scale', 'mapType', 'gridMode', 'gridSpacing']) {
+for (const id of ['paperSize', 'orientation', 'scale', 'mapType', 'gridMode', 'gridSpacing', 'magnetic', 'magneticSpacing']) {
     el(id).addEventListener('change', panelChanged);
     el(id).addEventListener('input', panelChanged);
 }
@@ -1149,7 +1158,7 @@ el('areaRemoveBtn').addEventListener('click', () => { areaTools.cancel(); setAre
 // Each set has its own print settings, saved under SETS_KEY. They set up the
 // next Create; the sheets keep the settings they were made with
 // (state.madeWith), and the block says so when the two differ.
-const BLOCK_FIELDS = ['Paper', 'Orientation', 'Scale', 'MapType', 'Grid', 'GridSpacing', 'Overlap'];
+const BLOCK_FIELDS = ['Paper', 'Orientation', 'Scale', 'MapType', 'Grid', 'GridSpacing', 'Magnetic', 'MagneticSpacing', 'Overlap'];
 
 function readBlock(mode) {
     const p = BLOCK_PREFIX[mode];
@@ -1161,6 +1170,8 @@ function readBlock(mode) {
         gridMode: el(`${p}Grid`).value,
         gridSpacing: parseInt(el(`${p}GridSpacing`).value, 10),
         overlapPct: Number(el(`${p}Overlap`).value),
+        magneticNorth: el(`${p}Magnetic`).checked,
+        magneticSpacing: Number(el(`${p}MagneticSpacing`).value),
     });
 }
 
@@ -1172,6 +1183,7 @@ function updateBlockControls(mode) {
     el(`${p}MapTypeHint`).hidden = ok;
     if (!ok) el(`${p}MapType`).value = 'raster';
     el(`${p}GridSpacing`).disabled = el(`${p}Grid`).value === 'off';
+    el(`${p}MagneticSpacing`).disabled = !el(`${p}Magnetic`).checked;
 }
 
 function writeBlock(mode, settings) {
@@ -1183,6 +1195,8 @@ function writeBlock(mode, settings) {
     el(`${p}Grid`).value = settings.gridMode;
     el(`${p}GridSpacing`).value = settings.gridSpacing;
     el(`${p}Overlap`).value = settings.overlapPct;
+    el(`${p}Magnetic`).checked = settings.magneticNorth;
+    el(`${p}MagneticSpacing`).value = settings.magneticSpacing;
     updateBlockControls(mode);
 }
 
@@ -1237,6 +1251,7 @@ function replaceSet(mode, items, settings, undoLabel) {
         paperSize: settings.paperSize, scale: settings.scale, margin: state.margin,
         layer: effectiveLayer(settings.layer, settings.scale),   // vector only where it exists
         gridMode: settings.gridMode, gridSpacing: settings.gridSpacing, mode,
+        magneticNorth: settings.magneticNorth, magneticSpacing: settings.magneticSpacing,
     };
     removeMode(mode);
     const created = items.map(({ center, orientation, title }) => createEntry(center, { ...base, orientation, title }));
@@ -1509,7 +1524,9 @@ function formatOptions() {
     for (const o of [...el('scale').options, ...el('coverScale').options, ...el('atlasScale').options]) {
         o.textContent = `1:${formatNumber(Number(o.value), locale())}`;
     }
-    for (const o of [...el('gridSpacing').options, ...el('coverGridSpacing').options, ...el('atlasGridSpacing').options]) o.textContent = `${formatNumber(Number(o.value), locale())} m`;
+    const spacingSelects = ['gridSpacing', 'coverGridSpacing', 'atlasGridSpacing',
+        'magneticSpacing', 'coverMagneticSpacing', 'atlasMagneticSpacing'];
+    for (const o of spacingSelects.flatMap(id => [...el(id).options])) o.textContent = `${formatNumber(Number(o.value), locale())} m`;
 }
 
 // Globe button + menu; the current language is checked

@@ -1,6 +1,6 @@
 // Validation of saved / undo snapshot data and of form input. Pure.
 import {
-    DEFAULTS, GRID_MODES, GRID_SPACINGS, LAYERS, MARGIN_MAX_MM, MODES, ORIENTATIONS, PAPER_MM,
+    DEFAULTS, GRID_MODES, GRID_SPACINGS, LAYERS, MAGNETIC_SPACINGS, MARGIN_MAX_MM, MODES, ORIENTATIONS, PAPER_MM,
 } from './constants.js';
 import { effectiveLayer } from './layer.js';
 
@@ -22,6 +22,15 @@ function isRing(c) {
 
 // One saved map -> { settings, coords }, or null when it cannot be trusted.
 // Optional fields fall back to defaults; required ones reject the map.
+// Magnetic north lines: off at 1 km unless saved otherwise (older saves have
+// neither field)
+export function sanitizeMagnetic(d) {
+    return {
+        magneticNorth: d?.magneticNorth === true,
+        magneticSpacing: MAGNETIC_SPACINGS.includes(d?.magneticSpacing) ? d.magneticSpacing : DEFAULTS.magneticSpacing,
+    };
+}
+
 export function sanitizeSavedMap(m) {
     if (!m || typeof m !== 'object') return null;
     if (!isRing(m.coords)) return null;
@@ -40,6 +49,7 @@ export function sanitizeSavedMap(m) {
             gridMode: GRID_MODES.includes(m.gridMode) ? m.gridMode : 'off',
             gridSpacing: GRID_SPACINGS.includes(m.gridSpacing) ? m.gridSpacing : 1000,
             mode: sanitizeMode(m.mode),
+            ...sanitizeMagnetic(m),
         },
         coords: m.coords,
     };
