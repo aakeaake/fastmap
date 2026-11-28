@@ -44,6 +44,7 @@ from fastmap.services.print_layout import (
     format_scale_label,
     oriented_page_mm,
 )
+from fastmap.services.route_draw import draw_route
 from fastmap.vector import VECTOR_SCALES, render_vector_map
 
 # See the module docstring. With the rl_accel C extension (a dependency)
@@ -314,6 +315,8 @@ def _draw_page(
     gpx_color: str = "#ff00ff",
     gpx_width: float = 5,
     gpx_opacity: float = 0.6,
+    gpx_look: str = "line",
+    gpx_waypoints: list[dict] | None = None,
 ) -> int:
     """Draw one full page: map, footer line below it. Returns true scale."""
     cont_w_mm, cont_h_mm = content_area_mm(paper_size, orientation, margin_mm)
@@ -333,29 +336,21 @@ def _draw_page(
         c, extent, x0, y0, w, h, mode=grid_mode, spacing_m=grid_spacing_m, margin_mm=margin_mm
     )
 
-    # optional GPX routes
-    if gpx_routes:
-        ext_w = extent.maxx - extent.minx
-        ext_h = extent.maxy - extent.miny
-        if ext_w > 0 and ext_h > 0:
-            c.saveState()
-            clip = c.beginPath()
-            clip.rect(x0, y0, w, h)
-            c.clipPath(clip, stroke=0, fill=0)
-            r, g, b = _parse_hex_color(gpx_color)
-            c.setStrokeColor(Color(r, g, b, alpha=gpx_opacity))
-            c.setLineWidth(gpx_width)
-            for route in gpx_routes:
-                p = c.beginPath()
-                for i, (gx, gy) in enumerate(route):
-                    px = (gx - extent.minx) / ext_w * w + x0
-                    py = (gy - extent.miny) / ext_h * h + y0
-                    if i == 0:
-                        p.moveTo(px, py)
-                    else:
-                        p.lineTo(px, py)
-                c.drawPath(p, stroke=1, fill=0)
-            c.restoreState()
+    # optional GPX route (line or course) and waypoints
+    draw_route(
+        c,
+        extent,
+        x0,
+        y0,
+        w,
+        h,
+        routes=gpx_routes or [],
+        look=gpx_look,
+        waypoints=gpx_waypoints or [],
+        rgb=_parse_hex_color(gpx_color),
+        width=gpx_width,
+        opacity=gpx_opacity,
+    )
 
     _draw_footer(c, x0, margin, w, title, format_scale_label(scale_value), attribution_text)
 
@@ -379,6 +374,8 @@ def generate_pdf(
     gpx_color: str = "#ff00ff",
     gpx_width: float = 5,
     gpx_opacity: float = 0.6,
+    gpx_look: str = "line",
+    gpx_waypoints: list[dict] | None = None,
 ) -> PrintResult:
     """Render ``extent`` and write a scaled PDF page.
 
@@ -416,6 +413,8 @@ def generate_pdf(
         gpx_color=gpx_color,
         gpx_width=gpx_width,
         gpx_opacity=gpx_opacity,
+        gpx_look=gpx_look,
+        gpx_waypoints=gpx_waypoints,
     )
     c.showPage()
     c.save()
@@ -498,6 +497,8 @@ def generate_multi_pdf(
             gpx_color=gpx_color,
             gpx_width=gpx_width,
             gpx_opacity=gpx_opacity,
+            gpx_look=kwargs.get("gpx_look", "line"),
+            gpx_waypoints=kwargs.get("gpx_waypoints", []),
         )
         results.append(
             PrintResult(
