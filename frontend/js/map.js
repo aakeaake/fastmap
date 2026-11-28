@@ -26,6 +26,7 @@ import { defaults as defaultControls } from 'ol/control/defaults.js';
 import GPX from 'ol/format/GPX.js';
 import proj4 from 'proj4';
 import { register } from 'ol/proj/proj4.js';
+import { drawKeysIgnored } from './draw-keys.js';
 import { previewTileLayer } from './layer.js';
 import { DEFAULT_STYLE, rgba, screenWidthPx } from './route-style.js';
 import {
@@ -153,7 +154,6 @@ export function addTranslate(map, layer, { onMove, onEnd }) {
 //   onDone(mode, shape)   Finish (or double-click when drawing)
 //   onModeChange(mode)    'draw' | 'edit' | null
 const KEYS = { Enter: 'finish', Backspace: 'removeLast', Escape: 'cancel' };
-const typing = t => t instanceof HTMLElement && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName));
 
 const VERTEX_STYLE = new Style({
     image: new CircleStyle({
@@ -209,7 +209,7 @@ export function createShapeTools(map, layer, { type, onChange, onDone, onModeCha
 
     function onKey(ev) {
         const action = KEYS[ev.key];
-        if (!action || !mode || typing(ev.target)) return;
+        if (!action || !mode || drawKeysIgnored(ev.target)) return;
         ev.preventDefault();
         ev.stopPropagation();
         api[action]();
